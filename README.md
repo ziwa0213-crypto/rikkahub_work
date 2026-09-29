@@ -32,8 +32,10 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 - ❗ Selectable command-execution experience (Always ask / Partially allow / Never ask)
 ## ✨ Contributing
 
-This project is developed using [Android Studio](https://developer.android.com/studio). Before
-submitting a pull request, please read the [contribution guidelines](CONTRIBUTING.md).
+> [!IMPORTANT]
+> This project does not accept pull requests (PRs).
+
+This project is developed using [Android Studio](https://developer.android.com/studio).
 
 Technology stack documentation:
 

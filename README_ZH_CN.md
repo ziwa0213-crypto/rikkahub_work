@@ -34,7 +34,10 @@
 - ❗ 可供多种选择的命令执行体验（始终询问，部分允许，无需确认）
 ## ✨ 贡献
 
-本项目使用[Android Studio](https://developer.android.com/studio)开发，欢迎提交PR
+> [!IMPORTANT]
+> 本项目不接受 Pull Request（PR）。
+
+本项目使用[Android Studio](https://developer.android.com/studio)开发。
 
 技术栈文档:
 
