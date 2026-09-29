@@ -179,6 +179,7 @@ class SettingsStore(
 
         // 备份提醒
         val BACKUP_REMINDER_CONFIG = stringPreferencesKey("backup_reminder_config")
+        val LOADING_ANIMATION_HINT_DISMISSED = booleanPreferencesKey("loading_animation_hint_dismissed")
 
         // 统计
         val LAUNCH_COUNT = intPreferencesKey("launch_count")
@@ -247,6 +248,7 @@ class SettingsStore(
                 preferences[WEB_SERVER_ACCESS_PASSWORD] = settings.webServerAccessPassword
                 preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
                 preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
+                preferences[LOADING_ANIMATION_HINT_DISMISSED] = settings.loadingAnimationHintDismissed
                 preferences[LAUNCH_COUNT] = settings.launchCount
             }
         }
@@ -351,6 +353,7 @@ class SettingsStore(
                 backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: BackupReminderConfig(),
+                loadingAnimationHintDismissed = preferences[LOADING_ANIMATION_HINT_DISMISSED] == true,
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
             )
         }
@@ -617,6 +620,7 @@ data class Settings(
     val webServerAccessPassword: String = "",
     val webServerLocalhostOnly: Boolean = false,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
+    val loadingAnimationHintDismissed: Boolean = false,
     val launchCount: Int = 0,
 ) {
     companion object {

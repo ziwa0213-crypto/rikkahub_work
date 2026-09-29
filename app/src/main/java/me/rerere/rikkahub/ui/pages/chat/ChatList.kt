@@ -91,13 +91,15 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.datastore.findModelById
+import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.message.ChatMessage
 import me.rerere.rikkahub.ui.components.ui.ErrorCardsDisplay
 import me.rerere.rikkahub.ui.components.ui.ListSelectableItem
-import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
+import me.rerere.rikkahub.ui.components.ui.LoadingAnimationIndicator
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
 import me.rerere.rikkahub.ui.theme.ChatFontProvider
@@ -269,6 +271,18 @@ private fun ChatListNormal(
             .associateBy { it.id }
     }
     val lastMessageIndex = conversation.messageNodes.lastIndex
+    val currentProvider = remember(
+        conversation.messageNodes,
+        assistant,
+        settings.chatModelId,
+        settings.providers,
+    ) {
+        val lastModelId = conversation.messageNodes.asReversed().firstNotNullOfOrNull { node ->
+            node.messages.getOrNull(node.selectIndex)?.modelId
+        } ?: assistant?.chatModelId ?: settings.chatModelId
+        settings.findModelById(lastModelId)
+            ?.findProvider(settings.providers, checkOverwrite = false)
+    }
 
     Box(
         modifier = Modifier
@@ -385,8 +399,9 @@ private fun ChatListNormal(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        RabbitLoadingIndicator(
-                            modifier = Modifier.size(28.dp)
+                        LoadingAnimationIndicator(
+                            modifier = Modifier.size(28.dp),
+                            provider = currentProvider,
                         )
                         AnimatedVisibility(
                             visible = processingStatus != null,

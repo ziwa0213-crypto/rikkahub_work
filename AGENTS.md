@@ -207,26 +207,26 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 ## 五、当前状态
 
-> 最后更新：**2026-09-28**
+> 最后更新：**2026-09-29**
 
 - **上游基线**：**2.5.5**（2026-09-27 21:44 北京发布）；上一版 2.5.4 我们**未单独出包**，改为两版一次合并
 - **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复
-- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → **`.4`(191，已发布，源码 tag `dd8e25e67` 已同步）**
-- **🔴 下一步（按序执行）**：
-  1. **合并上游 2.5.4 + 2.5.5（一次做完）** → 🔴 **权威指引**：`发布准备/上游合并指引·2.5.4+2.5.5.md`
+- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → **`.4`(191，已发布，源码 tag `dd8e25e67` 已同步）**；当前工作树目标为 `2.5.5-work.1`(192)
+- **当前推进**（2026-09-29）：
+  1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项和阿拉伯语资源。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
      - F007 补丁**已实测可干净套到 2.5.5**（`f007_on_2.5.4.patch`，无需重做）
      - ⚠️ **最大风险**：`haze 2.0.0-rc02 → 2.0.0`，影响 F006 的「模糊 / 兼容」两档 → **必须实机看效果**
      - ⚠️ 11 个 F005 已删文件（赞助/QQ/Discord/ja/ko-rKR/ru）上游仍保留 → **合并后必须重新删除**
-  2. **实施 F008 加载动画个性化**（在 **2.5.5 基线**上做；坐标未漂移）—— 🔴 **必须同时提供三份文件**：
+  2. ✅ **已在 2.5.5 基线上实施 F008**：按供应商配置、品牌优先匹配、可折叠入口、旧兔子与全局开关 UI 下线。依据：
      `任务书/任务书·F008 加载动画个性化.md`
      + `任务书/任务书·F008 补充·旧加载动画下线与入口迁移.md`（删全局开关 UI + 删兔子）
      + `任务书/任务书·F008 补充二·入口落点与匹配链.md`（🔴 **入口落点修正为 `ProviderConfigure.kt`；匹配改为品牌优先；入口为可折叠行**）
      优先级：**主任务书 < 补充 < 补充二**。只读主任务书会做出「保留兔子 + 落点错误」的实现。
-  3. **发 `2.5.5-work.1` / versionCode `192`** —— 发布时**不勾 Pre-release**
+  3. ✅ 已完成单元测试、Kotlin 编译和本地 Release APK 构建；已核验包名、版本和签名，尚未上传 GitHub。
 - **已知待办**：
-  - `CONTRIBUTING.md` 曾被改名为畸形文件名（全角括号、丢扩展名），需按上游删除
-  - 三个语言目录（ja / ko-rKR / ru）已删除，上游升级会重新带出，需重删
+  - 贡献说明临时文件按维护者决定不纳入仓库
+  - 三个语言目录（ja / ko-rKR / ru）已删除；后续上游升级若重新带出，需重删
   - 🆕 上游新增的 `values-ar`（阿拉伯语）**不要删** —— F005 只删日/韩/俄
   - 尚无自有 CI，APK 靠手工出包
 
@@ -276,7 +276,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | Chat Completions 请求装配（F007 / R5） | `ai/.../ai/provider/providers/openai/ChatCompletionsAPI.kt` |
 | 更新检查（F003 / R4） | `app/.../utils/UpdateChecker.kt` |
 | 聊天输入栏（F004 审批入口 / F006 玻璃） | `app/.../ui/components/ai/ChatInput.kt` |
-| 加载动画（F008） | `app/.../ui/components/ui/RabbitLoading.kt`（🔴 F008 将删除它，改为新建 `LoadingAnimation.kt`） |
+| 加载动画（F008） | `app/.../ui/components/ui/LoadingAnimation.kt` |
 | 供应商配置组件（F008 入口落点） | `app/.../ui/pages/setting/components/ProviderConfigure.kt`（**3 个界面共用**） |
 | 供应商内置清单 / `builtIn` | `app/.../data/datastore/DefaultProviders.kt` |
 | 助手数据模型 | `app/.../data/model/Assistant.kt` |

@@ -27,14 +27,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.OutlinedNumberInput
-import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
+import me.rerere.rikkahub.ui.components.ui.LoadingAnimationIndicator
 
 @Composable
 fun CompressContextDialog(
     onDismiss: () -> Unit,
-    onConfirm: (additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int) -> Job
+    onConfirm: (additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int) -> Job,
+    provider: ProviderSetting? = null,
 ) {
     var additionalPrompt by remember { mutableStateOf("") }
     var selectedTokens by remember { mutableIntStateOf(2000) }
@@ -72,8 +74,9 @@ fun CompressContextDialog(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RabbitLoadingIndicator(
-                            modifier = Modifier.size(32.dp)
+                        LoadingAnimationIndicator(
+                            modifier = Modifier.size(32.dp),
+                            provider = provider,
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(stringResource(R.string.chat_page_compressing))

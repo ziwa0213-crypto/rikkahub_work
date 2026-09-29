@@ -70,6 +70,7 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
+import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
@@ -305,7 +306,8 @@ internal fun FilesPicker(
             onDismiss()
         }, onConfirm = { additionalPrompt, targetTokens, keepRecentMessages ->
             onCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
-        })
+        }, provider = settings.findModelById(settings.compressModelId)
+            ?.findProvider(settings.providers, checkOverwrite = false))
     }
 }
 

@@ -103,3 +103,38 @@
 - **APK**：本轮只生成本地 Release APK，不上传 GitHub；设备验证结果由用户确认
 - **上游升级需重做清单**：重新核对 `ChatInput.kt`、`PreferencesStore.kt`、`SettingPreferencesGeneralPage.kt`、三份保留语言资源及 `libs.versions.toml` 的冲突；重新执行编译、单元测试和 API 33+ 实机验证
 - **日期**：2026-09-23
+
+## [上游 2.5.4 + 2.5.5] 合并跟进
+- **状态**：✅ 已合并到当前分支，待本地全量测试与 APK 构建
+- **基线**：上游 2.5.5；本 fork 版本 `2.5.5-work.1` / `versionCode=192`
+- **来源**：上游 2.5.4、2.5.5 官方发布说明；未额外引入发布说明之外的上游功能范围
+- **commit**：`616fbb66`（merge: sync upstream 2.5.4 and 2.5.5）
+- **回滚方式**：`git revert -m 1 616fbb66`（仅在明确需要撤回整次上游合并时使用）
+- **主要跟进**：思考模式与工具调用修复、技能创建与搜索、数据恢复、阿拉伯语 RTL、设置/大文件/MCP 稳定性修复，以及列表、供应商页和输入框 UI 调整
+
+## [F008] 加载动画个性化
+- **需求**：按供应商保存加载动画，自动匹配渠道品牌，并支持自定义 GIF/图片或 URL
+- **状态**：✅ 已实现并完成编译、测试与本地 Release APK；未上传 GitHub，未进行设备/虚拟机验证
+- **量级**：B 类（数据模型 + Compose UI + Coil 渲染）
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/ProviderSetting.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/datastore/PreferencesStore.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ui/LoadingAnimation.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/SettingProviderLoadingAnimation.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigure.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatList.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ai/CompressContextDialog.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ai/FilesPicker.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPreferencesGeneralPage.kt`
+  - `app/src/main/res/values/strings.xml`
+  - `app/src/main/res/values-zh/strings.xml`
+  - `app/src/main/res/values-zh-rTW/strings.xml`
+  - `app/src/test/java/me/rerere/rikkahub/ui/components/ui/LoadingAnimationTest.kt`
+  - 删除 `app/src/main/java/me/rerere/rikkahub/ui/components/ui/RabbitLoading.kt`
+  - 删除 `app/src/main/res/drawable/rabbit.xml`
+- **行为**：AUTO 按品牌优先，识别不到时按具体供应商类型；PRESET 提供转圈、四类专属品牌和通用呼吸；CUSTOM 支持本地图片/GIF 与 URL，并用全局一次性提示记录“不再提示”
+- **兼容**：新增 `ProviderSetting.loadingAnimation` 与 `Settings.loadingAnimationHintDismissed` 均有默认值；旧 `useAppIconStyleLoadingIndicator` 字段原样保留但不再参与渲染；`provider=null` 回退到 Material 转圈
+- **测试**：新增自动匹配、渠道回退、显式配置容错、序列化与旧数据默认值测试；`./gradlew :app:testDebugUnitTest :ai:test` 已通过
+- **commit**：尚未提交；改动仍在工作树
+- **回滚方式**：提交前按本条文件清单回退；提交后使用 `git revert <F008 commit>`
+- **日期**：2026-09-29

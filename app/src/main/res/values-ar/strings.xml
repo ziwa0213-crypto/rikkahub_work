@@ -5,9 +5,8 @@
   <string name="about_page_system">النظام</string>
   <string name="about_page_title">حول</string>
   <string name="about_page_version">الإصدار</string>
-  <string name="about_page_website">الموقع الإلكتروني</string>
   <string name="add">إضافة</string>
-  <string name="app_name">RikkaHub</string>
+  <string name="app_name">RikkaHub Work</string>
   <string name="asr_button_content_description">التعرف على الكلام</string>
   <string name="asr_button_stop">إيقاف</string>
   <string name="assistant_detail_basic_desc">ضبط الاسم والصورة الرمزية والنموذج والمعلمات</string>
@@ -403,11 +402,6 @@
   <string name="deep_thinking">التفكير العميق</string>
   <string name="deep_thinking_seconds">فكّر لمدة %1$.1f ثانية</string>
   <string name="delete">حذف</string>
-  <string name="donate_page_afdian_desc">للمستخدمين في الصين 🇨🇳</string>
-  <string name="donate_page_donation_methods">طرق التبرع</string>
-  <string name="donate_page_kofi_desc">للمستخدمين حول العالم</string>
-  <string name="donate_page_sponsor_list">قائمة الرعاة</string>
-  <string name="donate_page_title">تبرع</string>
   <string name="edit">تعديل</string>
   <string name="editing">جارٍ التعديل</string>
   <string name="emoji_picker_search_placeholder">ابحث عن الرموز التعبيرية...</string>
@@ -955,8 +949,6 @@
   <string name="setting_page_display_setting_desc">إدارة إعدادات العرض</string>
   <string name="setting_page_documentation">التوثيق</string>
   <string name="setting_page_documentation_desc">عرض إرشادات استخدام التطبيق ووثائق المساعدة</string>
-  <string name="setting_page_donate">تبرع</string>
-  <string name="setting_page_donate_desc">إذا أعجبك، ادعم عمل المؤلف</string>
   <string name="setting_page_dynamic_color">الألوان الديناميكية</string>
   <string name="setting_page_dynamic_color_desc">توليد ألوان سمة التطبيق ديناميكيًا من خلفية الشاشة</string>
   <string name="setting_page_extensions">الإضافات</string>
@@ -1004,11 +996,7 @@
   <string name="setting_page_search_title">خدمة البحث</string>
   <string name="setting_page_share">مشاركة</string>
   <string name="setting_page_share_desc">شارك هذا التطبيق مع أصدقائك</string>
-  <string name="setting_page_share_text">RikkaHub - مساعد ذكاء اصطناعي مفتوح المصدر لأندرويد\n\nالموقع الإلكتروني: https://rikka-ai.com/</string>
-  <string name="setting_page_sponsor_alert_confirm">تبرّع</string>
-  <string name="setting_page_sponsor_alert_desc">لقد قمت بتشغيل التطبيق أكثر من 100 مرة! إذا كنت تستمتع باستخدامه، فيرجى التفكير في دعم المطوّر.</string>
-  <string name="setting_page_sponsor_alert_dismiss">ليس الآن</string>
-  <string name="setting_page_sponsor_alert_title">دعم المطوّر</string>
+  <string name="setting_page_share_text">RikkaHub Work - مساعد ذكاء اصطناعي مفتوح المصدر لأندرويد\n\nالتنزيل: https://github.com/ziwa0213-crypto/rikkahub_work/releases</string>
   <string name="setting_page_theme_setting">السمة</string>
   <string name="setting_page_theme_setting_desc">تخصيص نظام ألوان التطبيق</string>
   <string name="setting_page_tts_service">خدمات الكلام</string>
@@ -1017,7 +1005,7 @@
   <string name="setting_page_web_server">خادم الويب</string>
   <string name="setting_page_web_server_address_note">ملاحظات العنوان</string>
   <string name="setting_page_web_server_address_note_desc">عنوان LAN: يستخدم عنوان IP الخاص بشبكة WiFi للجهاز، ويمكن الوصول إليه من الأجهزة الأخرى على نفس الشبكة. غير متاح على بيانات الجوال.\nالعنوان المحلي: يستخدم localhost، ويمكن الوصول إليه على هذا الجهاز فقط.\nعنوان mDNS: يستخدم اسم مضيف .local، ويمكن الوصول إليه بالاسم من الأجهزة الأخرى على نفس الشبكة دون معرفة عنوان IP.</string>
-  <string name="setting_page_web_server_desc">يتيح لك الوصول إلى RikkaHub عبر الويب</string>
+  <string name="setting_page_web_server_desc">يتيح لك الوصول إلى RikkaHub Work عبر الويب</string>
   <string name="setting_page_web_server_error">خطأ</string>
   <string name="setting_page_web_server_jwt_enable">تفعيل المصادقة</string>
   <string name="setting_page_web_server_jwt_enable_desc">يتطلب التحقق بكلمة المرور عند الوصول إلى واجهة الويب</string>
