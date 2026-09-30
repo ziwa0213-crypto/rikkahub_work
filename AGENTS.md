@@ -211,7 +211,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 - **上游基线**：**2.5.5**（2026-09-27 21:44 北京发布）；上一版 2.5.4 我们**未单独出包**，改为两版一次合并
 - **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复
-- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → **`2.5.5-work.1`(192，已发布）**；当前工作树目标为 `2.5.5-work.2`(193)
+- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → **`2.5.5-work.2`(193，已发布)**
 - **当前推进**（2026-09-30）：
   1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项和阿拉伯语资源。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
@@ -233,18 +233,10 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
          Codex 是忠实照做的 → **补充三只覆盖主任务书 §5.4①，其余三份不变**。
        · 🔴 **rebase/升级上游时必须保持这个口径**，不要被历史写法带回去。
   3. ✅ **已发布 `2.5.5-work.1`（versionCode 192，2026-09-29 16:49 北京）**，且已远程核验 APK 包内版本、包名与 F001~F008 全部功能标记。
-  4. ✅ **已实施 F008 补充三并完成 `2.5.5-work.2`（versionCode 193）的本地单元测试和 Release 构建**；APK 包名为 `me.rerere.rikkahub.plus`，签名证书与已发布 Work 版本一致。
+  4. ✅ **F008 补充三已随 `2.5.5-work.2`（versionCode 193）发布**；全模块单元测试、Release 构建通过，维护者反馈设备验证无问题。三个 APK 均为 `me.rerere.rikkahub.plus`，签名证书与已发布 Work 版本一致。
+  5. ✅ **发布页收尾完成**：`2.5.5-work.1` tag 指向 `1707fe2a06fdb78c77b0ab8d130fdc98675ee288`（版本 192），三个旧资产已重命名为 `RikkaHub.Work-*`；`2.5.5-work.2` tag 指向版本 193 的源码，三个 APK 的远程 SHA-256 与本地一致。
 - **已知待办**：
-  - 🔴 **发版收尾与重新发布**（2026-09-30，代码与本地 APK 已准备）—— 详见任务包中的《发版收尾与重新发布清单·20260930》。
-    **甲**：`2.5.5-work.2` / 193 已在本地构建；设备验收与 GitHub Release 待完成。
-    **乙**：修正旧发布页与仓库文件：
-    · 🔴 `tag 2.5.5-work.1` **指错 commit** —— 实测指向 `191 / "2.5.3-work.4"`，
-      而 master HEAD = **`1707fe2a06fdb78c77b0ab8d130fdc98675ee288`** = `192 / "2.5.5-work.1"`。
-      修法：`git tag -f 2.5.5-work.1 1707fe2a0... && git push -f origin 2.5.5-work.1`（**APK 不用重传**）
-    · `2.5.5-work.1` 资产名 = `app-{arm64-v8a,universal,x86_64}-release.apk` → GitHub UI **Rename** 成 `RikkaHub.Work-*`
-    · `README.md` 第 3 行标题拼写与 `CHANGES.md` 的资产名描述已修正
-    ·（可选）3 个旧 Release 标题 `Rikkahub Work 2.5.3-work.{1,2,3}` → `RikkaHub`；`work.4`/`work.1` 标题本来就对
-    ⚠️ **别因为要出 work.2 就跳过「乙」** —— work.1 发布页会一直留着，tag 指错 = 源码追溯永久断裂
+  - 可选：3 个旧 Release 标题 `Rikkahub Work 2.5.3-work.{1,2,3}` 的品牌大小写仍可修正；不影响安装或更新。
   - 📦 本次任务包：`/home/li/下载/Codex任务包-20260930.zip`。
   - 贡献说明临时文件（`CONTRIBUTING（不适用）md`）按维护者决定**不纳入仓库** → 该待办已关闭
   - 三个语言目录（ja / ko-rKR / ru）已删除；后续上游升级若重新带出，需重删
