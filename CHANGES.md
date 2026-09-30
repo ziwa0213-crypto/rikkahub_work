@@ -91,7 +91,7 @@
 - Debug 包名：`me.rerere.rikkahub.debug`。
 - Release 包名：`me.rerere.rikkahub.plus`，使用独立签名。
 - Debug APK 仅用于本地开发，不上传 GitHub。
-- Release APK 使用独立签名，GitHub Release 资产名为 `Rikkahub Work-release.apk`。
+- Release APK 使用独立签名，GitHub Release 资产名为 `RikkaHub.Work-{arm64-v8a,universal,x86_64}-release.apk`。
 - 正式版本：`versionName=2.5.3-work.1`，`versionCode=188`。
 
 ## [F005] 关于页精简与品牌本地化 — 2026-09-22
@@ -178,7 +178,7 @@
 
 - 在“回传历史思考过程”设置下补充说明：部分服务商（如 DeepSeek）使用工具时会自动强制回传。
 
-## [v2.5.5-work.1] — 2026-09-29（本地构建完成，未上传）
+## [v2.5.5-work.1] — 2026-09-29（已发布）
 
 > 基于上游 `2.5.5`，本次同时合并上游 `2.5.4` 的发布说明范围内修复；版本号 `versionName=2.5.5-work.1`、`versionCode=192`。
 
@@ -205,7 +205,21 @@
 - 已完成源码静态核对并补充加载动画解析、显式配置容错和序列化兼容测试。
 - `./gradlew :app:testDebugUnitTest :ai:test` 通过。
 - `./gradlew :app:assembleRelease` 通过，Release APK 已用本地独立签名生成；包名为 `me.rerere.rikkahub.plus`，版本为 `2.5.5-work.1`（versionCode 192）。
-- 当前尚未上传 GitHub，未进行设备/虚拟机验证。
+- 已发布至 GitHub Releases；未进行设备/虚拟机验证。
+
+## [v2.5.5-work.2] — 2026-09-30
+
+> 基于 `2.5.5-work.1`，versionName=`2.5.5-work.2`，versionCode=`193`。
+
+### 修复
+
+- 修复切换聊天模型后加载动画滞后一轮才刷新的问题：现在按即将使用的模型解析供应商动画，不再读取上一轮已完成回答的模型。
+- 移除流式生成期间对历史消息变化的无关动画重解析，避免加载动画因新消息到达而重新开始。
+
+### 发布说明
+
+- Release APK 使用包名 `me.rerere.rikkahub.plus` 和本 fork 的独立签名，可覆盖安装同包名的既有 Work 版本；升级前请备份应用数据。
+- Release APK 资产名使用 `RikkaHub.Work-{arm64-v8a,universal,x86_64}-release.apk`。
 
 ## 协议声明
 

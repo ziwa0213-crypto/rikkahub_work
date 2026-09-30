@@ -187,7 +187,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 - **Release tag** = versionName 且**不带 `v`**（如 `2.5.5-work.1`）。
   🔴 **绝不能拿 versionCode 数字当 tag** —— 比较器把 `192` 解析成 core `[192]`，而 `2.5.5-work.1` 是 `[2,5,5]`，`192 > 2` → **永远误报有更新**。
 - 🔴 **tag 的核心号必须大于已装 versionName 的核心号**（例：已装 2.5.5 时，发 `2.5.4-work.5` 永不提示更新）。
-- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **191**，故本次为 **192**；上游源码里写的 `190` 直接拿来用会导致降级拒装）。
+- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **192**，故本次为 **193**；上游源码里写的 `190` 直接拿来用会导致降级拒装）。
 
 ---
 
@@ -207,12 +207,12 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 ## 五、当前状态
 
-> 最后更新：**2026-09-29**
+> 最后更新：**2026-09-30**
 
 - **上游基线**：**2.5.5**（2026-09-27 21:44 北京发布）；上一版 2.5.4 我们**未单独出包**，改为两版一次合并
 - **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复
-- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → **`.4`(191，已发布，源码 tag `dd8e25e67` 已同步）**；当前工作树目标为 `2.5.5-work.1`(192)
-- **当前推进**（2026-09-29）：
+- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → **`2.5.5-work.1`(192，已发布）**；当前工作树目标为 `2.5.5-work.2`(193)
+- **当前推进**（2026-09-30）：
   1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项和阿拉伯语资源。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
      - F007 补丁**已实测可干净套到 2.5.5**（`f007_on_2.5.4.patch`，无需重做）
@@ -223,9 +223,30 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
      + `任务书/任务书·F008 补充·旧加载动画下线与入口迁移.md`（删全局开关 UI + 删兔子）
      + `任务书/任务书·F008 补充二·入口落点与匹配链.md`（🔴 **入口落点修正为 `ProviderConfigure.kt`；匹配改为品牌优先；入口为可折叠行**）
      优先级：**主任务书 < 补充 < 补充二**。只读主任务书会做出「保留兔子 + 落点错误」的实现。
-  3. ✅ 已完成单元测试、Kotlin 编译和本地 Release APK 构建；已核验包名、版本和签名，尚未上传 GitHub。
+     - 🔴 **2026-09-30 发现并修正一处缺陷**：**切换模型后加载动画滞后一轮才刷新**。依据
+       **`任务书/任务书·F008 补充三·加载动画刷新时机修正.md`**（🔴🔴 **最新，优先级高于上述三份中冲突处**）。
+       · **根因**：`ChatList.kt` 的 `currentProvider` **优先取历史消息的 `modelId`** → 那是「**上一轮已经回答过的**模型」。
+         该动画渲染在 `if (loading)` 分支内，此时本轮回答尚未落库、没有 modelId → 只能从历史取 → 必然滞后一轮。
+       · **正确口径（务必逐字照做）**：`assistant.chatModelId ?: settings.chatModelId`，
+         **必须与真正发起生成处 `ChatService.kt:596-598` 一致**。
+       · ⚠️ **这是 F008 主任务书 §5.4① 自己写错的口径**（原文写 `lastOrNull()?.currentMessage?.modelId ?: assistant?.chatModelId`），
+         Codex 是忠实照做的 → **补充三只覆盖主任务书 §5.4①，其余三份不变**。
+       · 🔴 **rebase/升级上游时必须保持这个口径**，不要被历史写法带回去。
+  3. ✅ **已发布 `2.5.5-work.1`（versionCode 192，2026-09-29 16:49 北京）**，且已远程核验 APK 包内版本、包名与 F001~F008 全部功能标记。
+  4. ✅ **已实施 F008 补充三并完成 `2.5.5-work.2`（versionCode 193）的本地单元测试和 Release 构建**；APK 包名为 `me.rerere.rikkahub.plus`，签名证书与已发布 Work 版本一致。
 - **已知待办**：
-  - 贡献说明临时文件按维护者决定不纳入仓库
+  - 🔴 **发版收尾与重新发布**（2026-09-30，代码与本地 APK 已准备）—— 详见任务包中的《发版收尾与重新发布清单·20260930》。
+    **甲**：`2.5.5-work.2` / 193 已在本地构建；设备验收与 GitHub Release 待完成。
+    **乙**：修正旧发布页与仓库文件：
+    · 🔴 `tag 2.5.5-work.1` **指错 commit** —— 实测指向 `191 / "2.5.3-work.4"`，
+      而 master HEAD = **`1707fe2a06fdb78c77b0ab8d130fdc98675ee288`** = `192 / "2.5.5-work.1"`。
+      修法：`git tag -f 2.5.5-work.1 1707fe2a0... && git push -f origin 2.5.5-work.1`（**APK 不用重传**）
+    · `2.5.5-work.1` 资产名 = `app-{arm64-v8a,universal,x86_64}-release.apk` → GitHub UI **Rename** 成 `RikkaHub.Work-*`
+    · `README.md` 第 3 行标题拼写与 `CHANGES.md` 的资产名描述已修正
+    ·（可选）3 个旧 Release 标题 `Rikkahub Work 2.5.3-work.{1,2,3}` → `RikkaHub`；`work.4`/`work.1` 标题本来就对
+    ⚠️ **别因为要出 work.2 就跳过「乙」** —— work.1 发布页会一直留着，tag 指错 = 源码追溯永久断裂
+  - 📦 本次任务包：`/home/li/下载/Codex任务包-20260930.zip`。
+  - 贡献说明临时文件（`CONTRIBUTING（不适用）md`）按维护者决定**不纳入仓库** → 该待办已关闭
   - 三个语言目录（ja / ko-rKR / ru）已删除；后续上游升级若重新带出，需重删
   - 🆕 上游新增的 `values-ar`（阿拉伯语）**不要删** —— F005 只删日/韩/俄
   - 尚无自有 CI，APK 靠手工出包
@@ -242,6 +263,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 |---|---|
 | 《RikkaHub 二次开发章程》 | **主文档，动手前必读** |
 | 《任务书·F00x …》 | 各功能任务书（独立成篇、自包含、可直接交给 AI 执行） |
+| 《任务书·F00x 补充…》 | **同号补充任务书，优先级高于主任务书**（主任务书可能被后续补充推翻）。⚠️ F008 有**三份**补充：`补充`（删兔子+删全局开关）、`补充二`（入口落点+匹配链）、**`补充三`（2026-09-30，加载动画刷新时机修正，最新）** |
 | 《CHANGES》 | 用户可见变更记录（AGPL 合规）—— **权威副本在仓库根目录 `CHANGES.md`**，每次发版必须更新 |
 | 《FEATURES》 | 功能台账（改动文件 / commit / 回滚）—— **仓库根目录有简版；完整版（含汇总表与「上游升级需重做清单」）由维护者另行提供** |
 | 《00-摸底-代码地图与编译环境》 | 代码在哪、怎么编译、有哪些坑 |
@@ -276,7 +298,8 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | Chat Completions 请求装配（F007 / R5） | `ai/.../ai/provider/providers/openai/ChatCompletionsAPI.kt` |
 | 更新检查（F003 / R4） | `app/.../utils/UpdateChecker.kt` |
 | 聊天输入栏（F004 审批入口 / F006 玻璃） | `app/.../ui/components/ai/ChatInput.kt` |
-| 加载动画（F008） | `app/.../ui/components/ui/LoadingAnimation.kt` |
+| 加载动画（F008） | `app/.../ui/components/ui/LoadingAnimation.kt`（解析链 + 动画实现） |
+| 加载动画的 provider 口径（F008 补充三） | 🔴 `app/.../ui/pages/chat/ChatList.kt` 的 `currentProvider` —— **必须 = `assistant.chatModelId ?: settings.chatModelId`**，与真正发起生成处 `app/.../service/ChatService.kt:596-598` 一致；❌ 不得用历史消息的 `modelId`（会导致「切模型后动画滞后一轮」） |
 | 供应商配置组件（F008 入口落点） | `app/.../ui/pages/setting/components/ProviderConfigure.kt`（**3 个界面共用**） |
 | 供应商内置清单 / `builtIn` | `app/.../data/datastore/DefaultProviders.kt` |
 | 助手数据模型 | `app/.../data/model/Assistant.kt` |

@@ -114,7 +114,7 @@
 
 ## [F008] 加载动画个性化
 - **需求**：按供应商保存加载动画，自动匹配渠道品牌，并支持自定义 GIF/图片或 URL
-- **状态**：✅ 已实现并完成编译、测试与本地 Release APK；未上传 GitHub，未进行设备/虚拟机验证
+- **状态**：✅ 已实现并随 `2.5.5-work.1` 发布；未进行设备/虚拟机验证
 - **量级**：B 类（数据模型 + Compose UI + Coil 渲染）
 - **改动文件**：
   - `ai/src/main/java/me/rerere/ai/provider/ProviderSetting.kt`
@@ -135,6 +135,28 @@
 - **行为**：AUTO 按品牌优先，识别不到时按具体供应商类型；PRESET 提供转圈、四类专属品牌和通用呼吸；CUSTOM 支持本地图片/GIF 与 URL，并用全局一次性提示记录“不再提示”
 - **兼容**：新增 `ProviderSetting.loadingAnimation` 与 `Settings.loadingAnimationHintDismissed` 均有默认值；旧 `useAppIconStyleLoadingIndicator` 字段原样保留但不再参与渲染；`provider=null` 回退到 Material 转圈
 - **测试**：新增自动匹配、渠道回退、显式配置容错、序列化与旧数据默认值测试；`./gradlew :app:testDebugUnitTest :ai:test` 已通过
-- **commit**：尚未提交；改动仍在工作树
-- **回滚方式**：提交前按本条文件清单回退；提交后使用 `git revert <F008 commit>`
+- **commit**：`4f521c6e`（F008 与上游 2.5.5 同步）
+- **回滚方式**：`git revert 4f521c6e`（该提交还包含上游同步文档，撤销前先核对影响）
 - **日期**：2026-09-29
+
+## [F008 补充三] 加载动画跟随当前聊天模型
+- **需求**：切换助手模型后，加载动画立即切换到接下来将使用的供应商，不再滞后一轮
+- **状态**：✅ 已修复；`:app:testDebugUnitTest` 与 `:app:assembleRelease` 通过；A/C 实机验收待维护者验证
+- **版本**：`2.5.5-work.2` / `versionCode=193`
+- **改动文件**：
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatList.kt`
+  - `app/build.gradle.kts`
+  - `CHANGES.md`
+  - `AGENTS.md`
+- **行为**：`currentProvider` 依据 `assistant.chatModelId ?: settings.chatModelId` 解析；移除历史消息列表作为 `remember` key，流式回复到达时不再重复解析动画
+- **验证**：单元测试与 Release 构建通过；三个 APK 的包名均为 `me.rerere.rikkahub.plus`、版本均为 `2.5.5-work.2 (193)`，V2 签名证书 SHA-256 为 `671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`
+- **commit**：待提交
+- **回滚方式**：`git revert <F008 补充三 commit>`
+- **日期**：2026-09-30
+
+## [发布收尾] 2.5.5-work.1 元数据与品牌拼写
+- **需求**：修正 work.1 源码 tag、Release 资产名、README 英文标题和历史资产名说明
+- **状态**：本地源码已修正；GitHub tag 与资产重命名待远程操作
+- **改动文件**：`README.md`、`CHANGES.md`、`AGENTS.md`
+- **commit**：与 F008 补充三的源码提交一并记录
+- **日期**：2026-09-30

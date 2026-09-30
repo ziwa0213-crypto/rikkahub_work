@@ -271,16 +271,13 @@ private fun ChatListNormal(
             .associateBy { it.id }
     }
     val lastMessageIndex = conversation.messageNodes.lastIndex
+    // The loading animation follows the provider for the model that will be used next.
     val currentProvider = remember(
-        conversation.messageNodes,
         assistant,
         settings.chatModelId,
         settings.providers,
     ) {
-        val lastModelId = conversation.messageNodes.asReversed().firstNotNullOfOrNull { node ->
-            node.messages.getOrNull(node.selectIndex)?.modelId
-        } ?: assistant?.chatModelId ?: settings.chatModelId
-        settings.findModelById(lastModelId)
+        settings.findModelById(assistant?.chatModelId ?: settings.chatModelId)
             ?.findProvider(settings.providers, checkOverwrite = false)
     }
 
