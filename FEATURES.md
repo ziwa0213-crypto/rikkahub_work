@@ -150,13 +150,13 @@
   - `AGENTS.md`
 - **行为**：`currentProvider` 依据 `assistant.chatModelId ?: settings.chatModelId` 解析；移除历史消息列表作为 `remember` key，流式回复到达时不再重复解析动画
 - **验证**：单元测试与 Release 构建通过；三个 APK 的包名均为 `me.rerere.rikkahub.plus`、版本均为 `2.5.5-work.2 (193)`，V2 签名证书 SHA-256 为 `671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`
-- **commit**：待提交
-- **回滚方式**：`git revert <F008 补充三 commit>`
+- **commit**：`a3a004ea`
+- **回滚方式**：`git revert a3a004ea`
 - **日期**：2026-09-30
 
 ## [发布收尾] 2.5.5-work.1 元数据与品牌拼写
 - **需求**：修正 work.1 源码 tag、Release 资产名、README 英文标题和历史资产名说明
 - **状态**：本地源码已修正；GitHub tag 与资产重命名待远程操作
 - **改动文件**：`README.md`、`CHANGES.md`、`AGENTS.md`
-- **commit**：与 F008 补充三的源码提交一并记录
+- **commit**：`a3a004ea`
 - **日期**：2026-09-30
