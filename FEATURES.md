@@ -141,7 +141,7 @@
 
 ## [F008 补充三] 加载动画跟随当前聊天模型
 - **需求**：切换助手模型后，加载动画立即切换到接下来将使用的供应商，不再滞后一轮
-- **状态**：✅ 已修复；`:app:testDebugUnitTest` 与 `:app:assembleRelease` 通过；A/C 实机验收待维护者验证
+- **状态**：✅ 已修复并随 `2.5.5-work.2` 发布；`:app:testDebugUnitTest`、全模块 `test` 与 `:app:assembleRelease` 通过；维护者反馈设备验证无问题
 - **版本**：`2.5.5-work.2` / `versionCode=193`
 - **改动文件**：
   - `app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatList.kt`
@@ -156,7 +156,7 @@
 
 ## [发布收尾] 2.5.5-work.1 元数据与品牌拼写
 - **需求**：修正 work.1 源码 tag、Release 资产名、README 英文标题和历史资产名说明
-- **状态**：本地源码已修正；GitHub tag 与资产重命名待远程操作
+- **状态**：✅ GitHub `2.5.5-work.1` tag 已指向版本 192 的提交，三个 Release 资产已更名；README 和变更说明已同步
 - **改动文件**：`README.md`、`CHANGES.md`、`AGENTS.md`
 - **commit**：`a3a004ea`
 - **日期**：2026-09-30

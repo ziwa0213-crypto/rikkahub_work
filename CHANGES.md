@@ -207,7 +207,7 @@
 - `./gradlew :app:assembleRelease` 通过，Release APK 已用本地独立签名生成；包名为 `me.rerere.rikkahub.plus`，版本为 `2.5.5-work.1`（versionCode 192）。
 - 已发布至 GitHub Releases；未进行设备/虚拟机验证。
 
-## [v2.5.5-work.2] — 2026-09-30
+## [v2.5.5-work.2] — 2026-09-30（已发布）
 
 > 基于 `2.5.5-work.1`，versionName=`2.5.5-work.2`，versionCode=`193`。
 
@@ -220,6 +220,7 @@
 
 - Release APK 使用包名 `me.rerere.rikkahub.plus` 和本 fork 的独立签名，可覆盖安装同包名的既有 Work 版本；升级前请备份应用数据。
 - Release APK 资产名使用 `RikkaHub.Work-{arm64-v8a,universal,x86_64}-release.apk`。
+- `./gradlew test` 与 `./gradlew :app:assembleRelease` 通过；维护者在设备上测试后反馈本次修复没有问题。
 
 ## 协议声明
 
