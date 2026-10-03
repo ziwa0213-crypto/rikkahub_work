@@ -69,6 +69,7 @@ fun resolveLoadingAnimation(provider: ProviderSetting?): ResolvedLoadingAnimatio
             is ProviderSetting.OpenAI -> "openai.svg"
             is ProviderSetting.Google -> "gemini-color.svg"
             is ProviderSetting.Claude -> "claude-color.svg"
+            is ProviderSetting.DeepSeekWeb -> "deepseek-color.svg"
         }
     )
 }
@@ -132,6 +133,7 @@ private fun PresetLoadingAnimation(
                     is ProviderSetting.OpenAI -> "openai.svg"
                     is ProviderSetting.Google -> "gemini-color.svg"
                     is ProviderSetting.Claude -> "claude-color.svg"
+                    is ProviderSetting.DeepSeekWeb -> "deepseek-color.svg"
                     null -> null
                 }
             if (iconFile == null) {

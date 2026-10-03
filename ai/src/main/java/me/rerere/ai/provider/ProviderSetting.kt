@@ -268,6 +268,64 @@ sealed class ProviderSetting {
         }
     }
 
+    @Serializable
+    @SerialName("deepseek_web")
+    data class DeepSeekWeb(
+        override var id: Uuid = Uuid.random(),
+        override var enabled: Boolean = true,
+        override var name: String = "DeepSeek 网页版（免费）",
+        override var models: List<Model> = emptyList(),
+        override val balanceOption: BalanceOption = BalanceOption(),
+        override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        @Transient override val builtIn: Boolean = false,
+        @Transient override val description: @Composable (() -> Unit) = {},
+        @Transient override val shortDescription: @Composable (() -> Unit) = {},
+        var token: String = "",
+        var cookie: String = "",
+        var fingerprintHeaders: Map<String, String> = emptyMap(),
+        var accountHint: String = "",
+        var capturedAt: Long = 0L,
+        var throttleMinMs: Int = 2000,
+        var throttleMaxMs: Int = 4000,
+    ) : ProviderSetting() {
+        override fun addModel(model: Model): ProviderSetting = copy(models = models + model)
+
+        override fun editModel(model: Model): ProviderSetting =
+            copy(models = models.map { if (it.id == model.id) model.copy() else it })
+
+        override fun delModel(model: Model): ProviderSetting =
+            copy(models = models.filter { it.id != model.id })
+
+        override fun moveMove(from: Int, to: Int): ProviderSetting = copy(
+            models = models.toMutableList().apply {
+                val model = removeAt(from)
+                add(to, model)
+            }
+        )
+
+        override fun copyProvider(
+            id: Uuid,
+            enabled: Boolean,
+            name: String,
+            models: List<Model>,
+            balanceOption: BalanceOption,
+            loadingAnimation: LoadingAnimationConfig,
+            builtIn: Boolean,
+            description: @Composable (() -> Unit),
+            shortDescription: @Composable (() -> Unit),
+        ): ProviderSetting = copy(
+            id = id,
+            enabled = enabled,
+            name = name,
+            models = models,
+            balanceOption = balanceOption,
+            loadingAnimation = loadingAnimation,
+            builtIn = builtIn,
+            description = description,
+            shortDescription = shortDescription,
+        )
+    }
+
     companion object {
         val Types by lazy {
             listOf(

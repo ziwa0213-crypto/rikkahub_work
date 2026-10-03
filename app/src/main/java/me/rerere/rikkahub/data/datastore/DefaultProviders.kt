@@ -9,6 +9,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import me.rerere.ai.provider.BalanceOption
+import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
@@ -284,6 +286,18 @@ val DEFAULT_PROVIDERS = listOf(
         apiKey = "",
         enabled = false,
         builtIn = true,
+    ),
+    ProviderSetting.DeepSeekWeb(
+        id = Uuid.parse("8b2cf7f2-66f5-4f9f-9c26-4d0e2b4f7b31"),
+        name = "DeepSeek 网页版（免费）",
+        enabled = false,
+        builtIn = true,
+        models = listOf(
+            Model("deepseek-web", "快速模式", abilities = listOf(ModelAbility.TOOL)),
+            Model("deepseek-web-thinking", "思考模式", abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING)),
+        ),
+        description = { Text(stringResource(R.string.deepseek_web_warning)) },
+        shortDescription = { Text(stringResource(R.string.deepseek_web_short_description)) },
     ),
     ProviderSetting.OpenAI(
         id = Uuid.parse("a2bafe83-eaf8-47bf-a8c7-3dd82d89f637"),

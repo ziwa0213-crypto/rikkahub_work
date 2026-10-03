@@ -293,9 +293,11 @@ private fun SettingProviderConfigPage(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProviderConnectionTester(
-                internalProvider = internalProvider,
-            )
+            if (internalProvider !is ProviderSetting.DeepSeekWeb) {
+                ProviderConnectionTester(
+                    internalProvider = internalProvider,
+                )
+            }
 
             Spacer(Modifier.weight(1f))
 
