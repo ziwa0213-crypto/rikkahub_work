@@ -294,6 +294,7 @@
   <string name="chat_page_export_format">Export Format</string>
   <string name="chat_page_export_image">Export as Image</string>
   <string name="chat_page_export_image_desc">Export conversation as PNG image</string>
+  <string name="chat_page_export_include_reasoning">Export Reasoning</string>
   <string name="chat_page_export_image_expand_reasoning">Expand Reasoning</string>
   <string name="chat_page_export_markdown">Markdown</string>
   <string name="chat_page_export_markdown_desc">Export conversation as a markdown file</string>
@@ -1444,7 +1445,7 @@
   <string name="deepseek_web_logout">Log out and clear cookies</string>
   <string name="deepseek_web_manual_title">Manual credentials</string>
   <string name="deepseek_web_token">Token</string>
-  <string name="deepseek_web_token_hint">Paste the value of JSON.parse(localStorage.getItem('userToken')).value</string>
+  <string name="deepseek_web_token_hint">Paste the token captured from DeepSeek Web</string>
   <string name="deepseek_web_cookie">Cookie (optional)</string>
   <string name="deepseek_web_throttle_title">Request pacing</string>
   <string name="deepseek_web_throttle_min">Minimum ms</string>
@@ -1455,4 +1456,15 @@
   <string name="deepseek_web_test_button">Send test</string>
   <string name="deepseek_web_limits">Available: calendar, time, search, memory, clipboard, and other query tools. Not provided: local file read/write, shell commands, code execution, skills, or MCP. One tool call per round; ask_user approval remains enabled.</string>
   <string name="deepseek_web_login_title_short">Browser login</string>
+  <string name="assistant_page_local_tools_chart_display_title">Chart Display</string>
+  <string name="assistant_page_local_tools_chart_display_desc">Let the AI display line, bar, and scatter charts</string>
+  <string name="chat_message_tool_chart_display">Display chart</string>
+  <string name="chat_message_tool_chart_display_with_title">Display chart: %1$s</string>
+  <string name="chart_mode_chart">Chart</string>
+  <string name="chart_mode_table">Table</string>
+  <string name="chart_series">Series</string>
+  <string name="chart_series_name">Series %1$d</string>
+  <string name="error_fast_model_not_found">Fast model not found. Please select one in settings.</string>
+  <string name="error_fast_model_provider_not_found">Provider of the fast model not found</string>
+  <string name="assistant_page_clone_with_memories">Also copy memories</string>
 </resources>

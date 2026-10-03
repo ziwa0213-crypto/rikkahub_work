@@ -49,6 +49,7 @@ sealed class ProviderSetting {
     abstract val models: List<Model>
     abstract val balanceOption: BalanceOption
     abstract val loadingAnimation: LoadingAnimationConfig
+    abstract val customHeaders: List<CustomHeader>
 
     abstract val builtIn: Boolean
     abstract val description: @Composable() () -> Unit
@@ -65,6 +66,7 @@ sealed class ProviderSetting {
         models: List<Model> = this.models,
         balanceOption: BalanceOption = this.balanceOption,
         loadingAnimation: LoadingAnimationConfig = this.loadingAnimation,
+        customHeaders: List<CustomHeader> = this.customHeaders,
         builtIn: Boolean = this.builtIn,
         description: @Composable (() -> Unit) = this.description,
         shortDescription: @Composable (() -> Unit) = this.shortDescription,
@@ -79,6 +81,7 @@ sealed class ProviderSetting {
         override var models: List<Model> = emptyList(),
         override val balanceOption: BalanceOption = BalanceOption(),
         override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        override val customHeaders: List<CustomHeader> = emptyList(),
         @Transient override val builtIn: Boolean = false,
         @Transient override val description: @Composable (() -> Unit) = {},
         @Transient override val shortDescription: @Composable (() -> Unit) = {},
@@ -118,6 +121,7 @@ sealed class ProviderSetting {
             models: List<Model>,
             balanceOption: BalanceOption,
             loadingAnimation: LoadingAnimationConfig,
+            customHeaders: List<CustomHeader>,
             builtIn: Boolean,
             description: @Composable (() -> Unit),
             shortDescription: @Composable (() -> Unit),
@@ -127,6 +131,7 @@ sealed class ProviderSetting {
                 enabled = enabled,
                 name = name,
                 models = models,
+                customHeaders = customHeaders,
                 builtIn = builtIn,
                 description = description,
                 balanceOption = balanceOption,
@@ -145,6 +150,7 @@ sealed class ProviderSetting {
         override var models: List<Model> = emptyList(),
         override val balanceOption: BalanceOption = BalanceOption(),
         override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        override val customHeaders: List<CustomHeader> = emptyList(),
         @Transient override val builtIn: Boolean = false,
         @Transient override val description: @Composable (() -> Unit) = {},
         @Transient override val shortDescription: @Composable (() -> Unit) = {},
@@ -156,6 +162,7 @@ sealed class ProviderSetting {
         var serviceAccountEmail: String = "", // only for vertex AI service account
         var location: String = "us-central1", // only for vertex AI service account
         var projectId: String = "", // only for vertex AI service account
+        var useInteractionsApi: Boolean = false, // ignored when vertex AI is enabled
     ) : ProviderSetting() {
         override fun addModel(model: Model): ProviderSetting {
             return copy(models = models + model)
@@ -186,6 +193,7 @@ sealed class ProviderSetting {
             models: List<Model>,
             balanceOption: BalanceOption,
             loadingAnimation: LoadingAnimationConfig,
+            customHeaders: List<CustomHeader>,
             builtIn: Boolean,
             description: @Composable (() -> Unit),
             shortDescription: @Composable (() -> Unit),
@@ -195,6 +203,7 @@ sealed class ProviderSetting {
                 enabled = enabled,
                 name = name,
                 models = models,
+                customHeaders = customHeaders,
                 builtIn = builtIn,
                 description = description,
                 shortDescription = shortDescription,
@@ -213,6 +222,7 @@ sealed class ProviderSetting {
         override var models: List<Model> = emptyList(),
         override val balanceOption: BalanceOption = BalanceOption(),
         override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        override val customHeaders: List<CustomHeader> = emptyList(),
         @Transient override val builtIn: Boolean = false,
         @Transient override val description: @Composable (() -> Unit) = {},
         @Transient override val shortDescription: @Composable (() -> Unit) = {},
@@ -250,6 +260,7 @@ sealed class ProviderSetting {
             models: List<Model>,
             balanceOption: BalanceOption,
             loadingAnimation: LoadingAnimationConfig,
+            customHeaders: List<CustomHeader>,
             builtIn: Boolean,
             description: @Composable (() -> Unit),
             shortDescription: @Composable (() -> Unit),
@@ -261,6 +272,7 @@ sealed class ProviderSetting {
                 models = models,
                 balanceOption = balanceOption,
                 loadingAnimation = loadingAnimation,
+                customHeaders = customHeaders,
                 builtIn = builtIn,
                 description = description,
                 shortDescription = shortDescription,
@@ -277,6 +289,7 @@ sealed class ProviderSetting {
         override var models: List<Model> = emptyList(),
         override val balanceOption: BalanceOption = BalanceOption(),
         override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        override val customHeaders: List<CustomHeader> = emptyList(),
         @Transient override val builtIn: Boolean = false,
         @Transient override val description: @Composable (() -> Unit) = {},
         @Transient override val shortDescription: @Composable (() -> Unit) = {},
@@ -310,6 +323,7 @@ sealed class ProviderSetting {
             models: List<Model>,
             balanceOption: BalanceOption,
             loadingAnimation: LoadingAnimationConfig,
+            customHeaders: List<CustomHeader>,
             builtIn: Boolean,
             description: @Composable (() -> Unit),
             shortDescription: @Composable (() -> Unit),
@@ -320,6 +334,7 @@ sealed class ProviderSetting {
             models = models,
             balanceOption = balanceOption,
             loadingAnimation = loadingAnimation,
+            customHeaders = customHeaders,
             builtIn = builtIn,
             description = description,
             shortDescription = shortDescription,

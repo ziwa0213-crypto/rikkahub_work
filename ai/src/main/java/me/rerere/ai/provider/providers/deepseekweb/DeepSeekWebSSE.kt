@@ -55,7 +55,7 @@ internal class DeepSeekWebSSE(
             if (path.contains("THINK", true)) appendThinking(value?.jsonPrimitive?.contentOrNull.orEmpty(), chunks)
             else appendText(value?.jsonPrimitive?.contentOrNull.orEmpty(), chunks)
         }
-        val response = element["v"]?.jsonObject?.get("response")?.jsonObject ?: return
+        val response = (element["v"] as? JsonObject)?.get("response")?.jsonObject ?: return
         response["content"]?.jsonPrimitive?.contentOrNull?.let { replaceText(it, chunks) }
         response["thinking_content"]?.jsonPrimitive?.contentOrNull?.let { replaceThinking(it, chunks) }
         response["fragments"]?.jsonArray?.forEach { fragment ->

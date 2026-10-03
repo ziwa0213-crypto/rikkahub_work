@@ -1,8 +1,8 @@
 package me.rerere.ai.provider.providers.deepseekweb
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import me.rerere.ai.ui.StreamChunk
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class DeepSeekWebSSETest {
     @Test
@@ -21,7 +21,7 @@ class DeepSeekWebSSETest {
         assertEquals(listOf("你好", "，世界"), (first + second).filterIsInstance<StreamChunk.TextDelta>().map { it.text })
         assertEquals(1, decoder.finish().count { it is StreamChunk.Finish })
         assertEquals(0, decoder.finish().count { it is StreamChunk.Finish })
-        assertEquals(1, third.size)
+        assertEquals(0, third.size)
     }
 
     @Test

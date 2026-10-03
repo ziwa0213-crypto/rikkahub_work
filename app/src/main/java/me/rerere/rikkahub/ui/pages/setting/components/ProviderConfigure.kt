@@ -112,19 +112,22 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
     return when (type) {
         ProviderSetting.OpenAI::class -> ProviderSetting.OpenAI(
             id = this.id, enabled = this.enabled, name = this.name, models = this.models,
-            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation, builtIn = this.builtIn,
+            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation,
+            customHeaders = this.customHeaders, builtIn = this.builtIn,
             description = this.description, shortDescription = this.shortDescription,
             apiKey = apiKey, baseUrl = convertedBaseUrl
         )
         ProviderSetting.Google::class -> ProviderSetting.Google(
             id = this.id, enabled = this.enabled, name = this.name, models = this.models,
-            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation, builtIn = this.builtIn,
+            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation,
+            customHeaders = this.customHeaders, builtIn = this.builtIn,
             description = this.description, shortDescription = this.shortDescription,
             apiKey = apiKey, baseUrl = convertedBaseUrl
         )
         ProviderSetting.Claude::class -> ProviderSetting.Claude(
             id = this.id, enabled = this.enabled, name = this.name, models = this.models,
-            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation, builtIn = this.builtIn,
+            balanceOption = this.balanceOption, loadingAnimation = this.loadingAnimation,
+            customHeaders = this.customHeaders, builtIn = this.builtIn,
             description = this.description, shortDescription = this.shortDescription,
             apiKey = apiKey, baseUrl = convertedBaseUrl
         )
@@ -496,6 +499,20 @@ private fun ProviderConfigureGoogle(
             checked = provider.vertexAI,
             onCheckedChange = { onEdit(provider.copy(vertexAI = it)) }
         )
+    }
+
+    if (!provider.vertexAI) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Interactions API (Beta)")
+            Switch(
+                checked = provider.useInteractionsApi,
+                onCheckedChange = { onEdit(provider.copy(useInteractionsApi = it)) }
+            )
+        }
     }
 
     if (provider.vertexAI) {

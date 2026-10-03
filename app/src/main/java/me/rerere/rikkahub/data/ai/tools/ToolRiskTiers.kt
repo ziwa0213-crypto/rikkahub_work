@@ -22,6 +22,7 @@ private val HITL_TOOLS = setOf("ask_user")
 
 private val TIERS: Map<String, (JsonElement) -> ToolTier> = mapOf(
     "calendar_query" to { _ -> ToolTier.L0_READ },
+    "chart_display" to { _ -> ToolTier.L0_READ },
     "get_time_info" to { _ -> ToolTier.L0_READ },
     "get_screen_time" to { _ -> ToolTier.L0_READ },
     "recent_chats" to { _ -> ToolTier.L0_READ },

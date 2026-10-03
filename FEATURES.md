@@ -160,3 +160,30 @@
 - **改动文件**：`README.md`、`CHANGES.md`、`AGENTS.md`
 - **commit**：`a3a004ea`
 - **日期**：2026-09-30
+
+## [F009] DeepSeek Web 内置供应商
+- **需求**：提供受约束的 DeepSeek Web 浏览器会话供应商，支持思考流、PoW 和有限工具调用
+- **状态**：✅ 已实现并完成本地测试；Release APK 待本地构建确认，尚未上传 GitHub
+- **版本**：`2.5.6-work.1` / `versionCode=194`
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/`
+  - `ai/src/main/assets/deepseek_sha3.wasm`
+  - `ai/src/test/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebSSETest.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/ProviderSetting.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/datastore/DefaultProviders.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/DeepSeekWebLogin.kt`
+- **行为**：WebView 登录捕获或手动 Token/Cookie；PoW；SSE 文本/思考流；请求串行和节流；工具白名单、每轮单工具和 F004 审批兼容
+- **限制**：不提供本地文件、Shell、代码执行、技能和 MCP；账号限流或封禁风险由用户自行承担
+- **修复**：SSE `response/status` 与工具内容的字符串 `v` 不再触发 JSON 对象强制转换崩溃
+- **测试**：DeepSeek SSE 测试通过；`:ai:test`、`:app:testDebugUnitTest`、AI/App Debug 编译通过
+- **日期**：2026-10-03
+
+## [上游 2.5.6 合并] 2026-10-03
+- **状态**：✅ 已合并到 `merge/upstream-2.5.6-f009`，Release APK 待构建，未上传 GitHub
+- **保留**：F002-F008、F007 reasoning 修复、F008 加载动画、F006 液态玻璃、F005 去赞助/去水印/品牌本地化
+- **跟进**：`chart_display`、`customHeaders`、Google Interactions API、MCP `0.15.0-rikka.2`、对话导出增强和图片生成入口
+- **特例**：保留复制记忆底层 DAO/Repository/VM 能力，不显示上游复制记忆 UI，等待 F010
+- **语言**：全工程资源仅保留英文、简体中文、繁体中文
+- **验证**：`:ai:test`、`:app:testDebugUnitTest`、`:ai:compileDebugKotlin`、`:app:compileDebugKotlin` 通过
+- **日期**：2026-10-03

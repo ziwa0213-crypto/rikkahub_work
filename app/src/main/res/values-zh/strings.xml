@@ -294,6 +294,7 @@
   <string name="chat_page_export_format">导出格式</string>
   <string name="chat_page_export_image">导出为图片</string>
   <string name="chat_page_export_image_desc">将对话导出为PNG图片</string>
+  <string name="chat_page_export_include_reasoning">导出思维过程</string>
   <string name="chat_page_export_image_expand_reasoning">展开思维过程</string>
   <string name="chat_page_export_markdown">Markdown</string>
   <string name="chat_page_export_markdown_desc">将对话导出为markdown文件</string>
@@ -1445,7 +1446,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="deepseek_web_logout">退出并清除 Cookie</string>
   <string name="deepseek_web_manual_title">手动填写凭证</string>
   <string name="deepseek_web_token">Token</string>
-  <string name="deepseek_web_token_hint">粘贴 JSON.parse(localStorage.getItem('userToken')).value 的结果</string>
+  <string name="deepseek_web_token_hint">粘贴从 DeepSeek 网页版捕获的 Token</string>
   <string name="deepseek_web_cookie">Cookie（可选）</string>
   <string name="deepseek_web_throttle_title">请求节流</string>
   <string name="deepseek_web_throttle_min">最小毫秒数</string>
@@ -1456,4 +1457,15 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="deepseek_web_test_button">发送测试</string>
   <string name="deepseek_web_limits">可用：日历、时间、搜索、记忆、剪贴板及其他查询工具。不提供：本地文件读写、命令执行、代码执行、技能和 MCP。每轮最多一个工具调用；ask_user 始终需要审批。</string>
   <string name="deepseek_web_login_title_short">网页登录</string>
+  <string name="assistant_page_local_tools_chart_display_title">图表显示</string>
+  <string name="assistant_page_local_tools_chart_display_desc">让 AI 显示折线图、柱状图和散点图</string>
+  <string name="chat_message_tool_chart_display">显示图表</string>
+  <string name="chat_message_tool_chart_display_with_title">显示图表：%1$s</string>
+  <string name="chart_mode_chart">图表</string>
+  <string name="chart_mode_table">表格</string>
+  <string name="chart_series">系列</string>
+  <string name="chart_series_name">系列 %1$d</string>
+  <string name="error_fast_model_not_found">未找到快速模型。请在设置中选择一个。</string>
+  <string name="error_fast_model_provider_not_found">未找到快速模型的提供商</string>
+  <string name="assistant_page_clone_with_memories">同时复制记忆</string>
 </resources>

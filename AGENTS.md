@@ -187,7 +187,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 - **Release tag** = versionName 且**不带 `v`**（如 `2.5.5-work.1`）。
   🔴 **绝不能拿 versionCode 数字当 tag** —— 比较器把 `192` 解析成 core `[192]`，而 `2.5.5-work.1` 是 `[2,5,5]`，`192 > 2` → **永远误报有更新**。
 - 🔴 **tag 的核心号必须大于已装 versionName 的核心号**（例：已装 2.5.5 时，发 `2.5.4-work.5` 永不提示更新）。
-- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **192**，故本次为 **193**；上游源码里写的 `190` 直接拿来用会导致降级拒装）。
+- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **191**，故本次为 **192**；上游源码里写的 `190` 直接拿来用会导致降级拒装）。
 
 ---
 
@@ -207,11 +207,12 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 ## 五、当前状态
 
-> 最后更新：**2026-09-30**
+> 最后更新：**2026-10-01**
 
-- **上游基线**：**2.5.5**（2026-09-27 21:44 北京发布）；上一版 2.5.4 我们**未单独出包**，改为两版一次合并
-- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复
-- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → **`2.5.5-work.2`(193，已发布)**
+- **上游基线**：**2.5.6**（2026-10-01 17:55 北京发布）；2.5.4 / 2.5.5 我们**未单独出包**，改为两版一次合并（见 `发布准备/上游合并指引·2.5.4+2.5.5.md`）
+- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复 / **F008 加载动画个性化（已修复并发布）**
+- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → **`2.5.5-work.2`(193，2026-09-30，🔴 当前最新)**
+  · 🔴 版本号已推进到 **193** —— 下次发版**必须 > 193**（本次目标 **194**）
 - **当前推进**（2026-09-30）：
   1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项和阿拉伯语资源。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
@@ -223,8 +224,9 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
      + `任务书/任务书·F008 补充·旧加载动画下线与入口迁移.md`（删全局开关 UI + 删兔子）
      + `任务书/任务书·F008 补充二·入口落点与匹配链.md`（🔴 **入口落点修正为 `ProviderConfigure.kt`；匹配改为品牌优先；入口为可折叠行**）
      优先级：**主任务书 < 补充 < 补充二**。只读主任务书会做出「保留兔子 + 落点错误」的实现。
-     - 🔴 **2026-09-30 发现并修正一处缺陷**：**切换模型后加载动画滞后一轮才刷新**。依据
-       **`任务书/任务书·F008 补充三·加载动画刷新时机修正.md`**（🔴🔴 **最新，优先级高于上述三份中冲突处**）。
+     - ✅ **2026-09-30 已修正并发布**：缺陷（切换模型后动画滞后一轮）随 **`2.5.5-work.2`** 修好
+       （commit `a3a004ea2`「fix: refresh loading animation provider on model switch」）。
+       依据 **`任务书/任务书·F008 补充三·加载动画刷新时机修正.md`**（🔴🔴 优先级最高）。
        · **根因**：`ChatList.kt` 的 `currentProvider` **优先取历史消息的 `modelId`** → 那是「**上一轮已经回答过的**模型」。
          该动画渲染在 `if (loading)` 分支内，此时本轮回答尚未落库、没有 modelId → 只能从历史取 → 必然滞后一轮。
        · **正确口径（务必逐字照做）**：`assistant.chatModelId ?: settings.chatModelId`，
@@ -233,11 +235,44 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
          Codex 是忠实照做的 → **补充三只覆盖主任务书 §5.4①，其余三份不变**。
        · 🔴 **rebase/升级上游时必须保持这个口径**，不要被历史写法带回去。
   3. ✅ **已发布 `2.5.5-work.1`（versionCode 192，2026-09-29 16:49 北京）**，且已远程核验 APK 包内版本、包名与 F001~F008 全部功能标记。
-  4. ✅ **F008 补充三已随 `2.5.5-work.2`（versionCode 193）发布**；全模块单元测试、Release 构建通过，维护者反馈设备验证无问题。三个 APK 均为 `me.rerere.rikkahub.plus`，签名证书与已发布 Work 版本一致。
-  5. ✅ **发布页收尾完成**：`2.5.5-work.1` tag 指向 `1707fe2a06fdb78c77b0ab8d130fdc98675ee288`（版本 192），三个旧资产已重命名为 `RikkaHub.Work-*`；`2.5.5-work.2` tag 指向版本 193 的源码，三个 APK 的远程 SHA-256 与本地一致。
 - **已知待办**：
-  - 可选：3 个旧 Release 标题 `Rikkahub Work 2.5.3-work.{1,2,3}` 的品牌大小写仍可修正；不影响安装或更新。
-  - 📦 本次任务包：`/home/li/下载/Codex任务包-20260930.zip`。
+  - ✅ **发版收尾与重新发布 —— 已全部完成（2026-09-30 实测核验通过）**
+    · 发布 **`2.5.5-work.2` / versionCode 193**；tag == master HEAD（`08fd0bdbe…`）—— **那个犯了两次的坑没再犯**
+    · 旧的错 tag 也一起修了：`tag 2.5.5-work.1` → `1707fe2a0…`（= 192 / `2.5.5-work.1`）
+    · 资产名正确（`RikkaHub.Work-*`）；`/releases/latest` → work.2（未勾 Pre-release）
+    · `README.md` L3 = `RikkaHub Work`；`CHANGES.md` 资产名描述已更新，且有 `[v2.5.5-work.2]` 段
+    · APK 核验：`package=me.rerere.rikkahub.plus` / `193` / `2.5.5-work.2`；`RabbitLoading`=0；R1 字段保留
+    · ⏳ 唯一遗留（可选门面）：3 个旧 Release 标题 `Rikkahub Work 2.5.3-work.{1,2,3}` 仍小写 `h`
+  - ✅ **F008 补充三（加载动画刷新时机修正）—— 已随 `2.5.5-work.2` 发布**（commit `a3a004ea2`）
+  - 🔴 **当前任务（2026-10-01）：合并上游 2.5.6 + F009 收尾，一并出包**
+    · **主文档**：`发布准备/上游合并指引·2.5.6.md`（三方比对实测：真冲突 **17** 个）
+    · **配套**：`发布准备/给Codex的说明·2.5.6合并与F009.md`
+    · **版本号**：**`2.5.6-work.1` / versionCode `194`**（🔴 只需 > 193；跟进 2.5.6 → N 归 1，
+      ⚠️ 原计划的 `2.5.5-work.3` 已作废）
+    · 🔴 **开工前先提交 F009 的本地改动**（`git checkout -b codex/f009-deepseek-web` 或 `git stash`）——
+      F009 代码已写入本地但**未推送**，GitHub master 仍是 `08fd0bdbe…`（不含 F009）
+    · 🔴 **F009 受 2.5.6 影响**：`ProviderSetting` 新增了 `customHeaders` 抽象成员 →
+      新子类 `DeepSeekWeb` 必须同时实现 `customHeaders` 与 `loadingAnimation`
+    · 🔴 **`Export.kt` 被上游改名**为 `ConversationExport.kt`（我们 F005 去水印要重新施加，搜 `rikka-ai.com`）
+    · 🔴 **一个特例：`AssistantPage.kt` 故意不取上游** —— 上游 2.5.6 给它加了「复制记忆」UI（43 行），
+      我们**保留 2.5.5 原版**（= 不显示该 UI）。理由：该功能将被 F010 取代，先不露头。
+      ⚠️ **该文件从此与上游分叉**（已记入「上游升级需重做清单」）→ 详见合并指引 §4.4
+    · 其余所有文件遵循「**能取上游就取上游**」
+    · 参考：`发布准备/上游合并指引·2.5.4+2.5.5.md`（上一轮，存量参考）
+  - 📋 **F009 DeepSeekWeb 内置供应商**（2026-09-30 立项，**已在动工**）
+    · **任务书**：`任务书/任务书·F009 DeepSeekWeb内置供应商.md`（40K，自包含）
+    · **设计文档**：`docs/11-设计-DeepSeekWeb内置供应商.md`（51K，13 项决策 D1~D13）
+    · **视觉稿**：`预览/DeepSeekWeb-供应商界面预览.html`（37K，v2）
+    · 🔴 **第 0 期验证**：`第0期验证-DeepSeekWeb可行性.md`（13K，**不随包分发**）
+      → 三项：PoW 算对 / SSE 解析 / **全程 OkHttp 能否通**；**不通过就停**
+    · **交付包**：`/workspace/Codex任务包-F009-20260930.zip`（3 文件 / 32.8K）
+    · **抓仓库（3 个，含原插件）**：本 fork / `rikkahub/rikkahub` / **`cv-superding/dsh-deepseek-web-login`**
+    · 量级 **C**（约 1500~2500 行，8 新建 + 约 20 修改）
+  - 📋 **F010 记忆迁移多选 —— 任务书已写好（2026-10-01），待排期**
+    · **任务书**：`任务书/任务书·F010 记忆迁移多选.md`（37.4K，自包含）
+    · 两入口共用勾选式选择器：① 复制助手选记忆（新助手一律**私有**）② 切换记忆归属选记忆（**复制/移动**）
+    · 🔴 **前置：必须在「合并上游 2.5.6」之后做**（要替换上游的 `copyMemories` + 「同时复制记忆」Checkbox；
+      涉及的 4 个文件——`AssistantPage.kt` / `AssistantVM.kt` / `MemoryRepository.kt` / `MemoryDAO.kt`——全是 2.5.6 冲突文件）
   - 贡献说明临时文件（`CONTRIBUTING（不适用）md`）按维护者决定**不纳入仓库** → 该待办已关闭
   - 三个语言目录（ja / ko-rKR / ru）已删除；后续上游升级若重新带出，需重删
   - 🆕 上游新增的 `values-ar`（阿拉伯语）**不要删** —— F005 只删日/韩/俄
@@ -260,8 +295,8 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | 《FEATURES》 | 功能台账（改动文件 / commit / 回滚）—— **仓库根目录有简版；完整版（含汇总表与「上游升级需重做清单」）由维护者另行提供** |
 | 《00-摸底-代码地图与编译环境》 | 代码在哪、怎么编译、有哪些坑 |
 | 《02-架构解析-代码结构与工程约定》 | **★★ 改代码前必读** |
-| 《上游版本跟踪·\<版本\>》 | 上游发版后看这份：更新了什么、要跟进什么。**当前 = `docs/上游版本跟踪·2.5.5.md`**（覆盖 2.5.4 + 2.5.5） |
-| 《上游合并指引·\<版本\>》 | **🔴 合并上游的可执行指引**（含命令与验收）。**当前 = `发布准备/上游合并指引·2.5.4+2.5.5.md`**；旧的 `…·2.5.4.md` 已标「已取代」，但保留着 F007 补丁的设计依据 |
+| 《上游版本跟踪·\<版本\>》 | 上游发版后看这份：更新了什么、要跟进什么。**当前 = `docs/上游版本跟踪·2.5.5.md`**（覆盖 2.5.4 + 2.5.5）；**2.5.6 的跟踪 = 见 `发布准备/上游合并指引·2.5.6.md` §2** |
+| 《上游合并指引·\<版本\>》 | **🔴 合并上游的可执行指引**（含命令与验收）。**当前 = `发布准备/上游合并指引·2.5.6.md`**；上一轮 `…·2.5.4+2.5.5.md` 与更早的 `…·2.5.4.md` 保留作历史参考 |
 | 《版本号规则》 | 版本号权威规则 |
 | 《F008-品牌加载动画预览.html》 | F008 的**视觉基准**（用浏览器打开；**不打包进 APK**） |
 
@@ -296,5 +331,10 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | 供应商内置清单 / `builtIn` | `app/.../data/datastore/DefaultProviders.kt` |
 | 助手数据模型 | `app/.../data/model/Assistant.kt` |
 | 品牌图标识别 / 本地图标 | `app/.../utils/AIIconMatcher.kt`、`app/src/main/assets/icons/` |
+| 对话导出（F005 去水印） | 🔴 `app/.../ui/pages/chat/ConversationExport.kt`（**上游 2.5.6 从 `Export.kt` 改名而来**）—— 搜 `rikka-ai.com` 确认水印已删 |
+| MCP 工具 schema（上游 2.5.6 重构） | `app/.../data/ai/mcp/McpToolSchema.kt`；`McpOAuthCoordinator.kt`（`localhost` 回调） |
+| 图表工具（上游 2.5.6 新增） | `app/.../data/ai/tools/local/ChartDisplayTool.kt` + `app/.../ui/components/charts/` |
+| 记忆读取范围（F002） | `app/.../data/repository/MemoryRepository.kt` 的 `scopeOf(assistant)`（写入侧在 `ChatToolFactory.kt`，读取侧在 `ChatService.kt`） |
 
 <!-- ==== END rikkahub_work fork section ==== -->
+

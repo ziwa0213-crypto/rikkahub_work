@@ -292,6 +292,7 @@
   <string name="chat_page_export_format">匯出格式</string>
   <string name="chat_page_export_image">匯出為圖片</string>
   <string name="chat_page_export_image_desc">將對話匯出為PNG圖片</string>
+  <string name="chat_page_export_include_reasoning">匯出思維過程</string>
   <string name="chat_page_export_image_expand_reasoning">展開思維過程</string>
   <string name="chat_page_export_markdown">Markdown</string>
   <string name="chat_page_export_markdown_desc">將對話匯出為markdown檔案</string>
@@ -1433,7 +1434,7 @@
   <string name="deepseek_web_logout">登出並清除 Cookie</string>
   <string name="deepseek_web_manual_title">手動填寫憑證</string>
   <string name="deepseek_web_token">Token</string>
-  <string name="deepseek_web_token_hint">貼上 JSON.parse(localStorage.getItem('userToken')).value 的結果</string>
+  <string name="deepseek_web_token_hint">貼上從 DeepSeek 網頁版擷取的 Token</string>
   <string name="deepseek_web_cookie">Cookie（選填）</string>
   <string name="deepseek_web_throttle_title">請求節流</string>
   <string name="deepseek_web_throttle_min">最小毫秒數</string>
@@ -1444,4 +1445,15 @@
   <string name="deepseek_web_test_button">傳送測試</string>
   <string name="deepseek_web_limits">可用：日曆、時間、搜尋、記憶、剪貼簿及其他查詢工具。不提供：本機檔案讀寫、命令執行、程式碼執行、技能與 MCP。每輪最多一個工具呼叫；ask_user 始終需要核准。</string>
   <string name="deepseek_web_login_title_short">網頁登入</string>
+  <string name="assistant_page_local_tools_chart_display_title">圖表顯示</string>
+  <string name="assistant_page_local_tools_chart_display_desc">讓 AI 顯示折線圖、長條圖和散佈圖</string>
+  <string name="chat_message_tool_chart_display">顯示圖表</string>
+  <string name="chat_message_tool_chart_display_with_title">顯示圖表：%1$s</string>
+  <string name="chart_mode_chart">圖表</string>
+  <string name="chart_mode_table">表格</string>
+  <string name="chart_series">數列</string>
+  <string name="chart_series_name">數列 %1$d</string>
+  <string name="error_fast_model_not_found">找不到快速模型。請在設定中選擇一個。</string>
+  <string name="error_fast_model_provider_not_found">找不到快速模型的供應商</string>
+  <string name="assistant_page_clone_with_memories">同時複製記憶</string>
 </resources>

@@ -222,6 +222,37 @@
 - Release APK 资产名使用 `RikkaHub.Work-{arm64-v8a,universal,x86_64}-release.apk`。
 - `./gradlew test` 与 `./gradlew :app:assembleRelease` 通过；维护者在设备上测试后反馈本次修复没有问题。
 
+## [v2.5.6-work.1] — 2026-10-03（本地构建，待发布）
+
+> 基于上游 `2.5.6`，保留本 fork 的 F002-F008 改动，并完成 F009；版本号为 `versionName=2.5.6-work.1`、`versionCode=194`。
+
+### 上游 2.5.6 跟进
+
+- 新增 `chart_display` 图表工具，支持折线图、柱状图、散点图及图表/表格展示；在工具风险分级中登记为只读 L0，不增加额外审批。
+- 供应商设置新增自定义请求头 `customHeaders`，并保留 F008 的按供应商 `loadingAnimation` 配置；Google 供应商同步支持 Interactions API。
+- 更新 MCP Kotlin SDK 至 `0.15.0-rikka.2`，合并 MCP schema 与 OAuth 回调稳定性修复。
+- 对话导出文件迁移为 `ConversationExport.kt`，保留导出思维过程、图表内容等上游增强，并继续移除 F005 已删除的 `rikka-ai.com` 水印。
+- 合并上游图片生成入口及相关导出、工作区和设置修复；上游“复制记忆”底层能力保留，但本版本不显示其 UI 入口，留给 F010 重做。
+
+### 新增 F009：DeepSeek Web 内置供应商
+
+- 新增 DeepSeek Web 内置供应商，可通过 WebView 登录捕获凭证，也可手动配置 Token/Cookie；凭证状态、退出清理和请求节流均在供应商设置中管理。
+- 使用内置 `ai/src/main/assets/deepseek_sha3.wasm` 完成官方 PoW，SHA-256 为 `b3fca8cc072c1defbd60c02266a8e48bd307a1804aaff4314900aea720e72f7d`。
+- 支持 SSE 流式文本、思考过程回传、请求串行闸门和可配置的 2000–4000 ms 默认节流区间。
+- 工具调用仅允许查询、日历、时间、搜索、记忆和剪贴板等白名单能力；禁止本地文件、Shell、代码执行、技能和 MCP。每轮最多一个工具调用，`ask_user` 仍始终需要审批。
+- 修复 SSE 状态事件和标量工具内容被误当作 JSON 对象而崩溃的问题，并新增快照、增量、拒绝工具和多行 JSON 测试。
+
+### 其他修改与兼容
+
+- 应用语言资源仅保留英文、简体中文和繁体中文；删除 App、OAuth、搜索模块中的阿拉伯语、日语、韩语和俄语资源。
+- 保留 F007 DeepSeek 思考模式历史 reasoning 回传修复、F008 当前模型加载动画刷新修复、F004 工具审批链和 F006 液态玻璃模块。
+- Release 包名仍为 `me.rerere.rikkahub.plus`，与 Debug 包区分；本次 APK 只在本地生成，尚未上传 GitHub。
+
+### 验证
+
+- `:ai:test`、`:app:testDebugUnitTest`、`:ai:compileDebugKotlin`、`:app:compileDebugKotlin` 已通过。
+- 仅通过源码、单元测试和本地编译验证，尚未进行 Android 设备/模拟器验证。
+
 ## 协议声明
 
 本 fork 以 **AGPL-3.0** 授权，原始版权归 RikkaHub 作者所有。

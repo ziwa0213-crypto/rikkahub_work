@@ -29,6 +29,7 @@ class LocalTools(
     val calendarCreateTool by lazy { buildCalendarCreateTool(context) }
 
     val calendarDeleteTool by lazy { buildCalendarDeleteTool(context) }
+    val chartDisplayTool by lazy { buildChartDisplayTool() }
 
     fun getTools(options: List<LocalToolOption>): List<Tool> {
         val tools = mutableListOf<Tool>()
@@ -54,6 +55,9 @@ class LocalTools(
             tools.add(calendarQueryTool)
             tools.add(calendarCreateTool)
             tools.add(calendarDeleteTool)
+        }
+        if (options.contains(LocalToolOption.ChartDisplay)) {
+            tools.add(chartDisplayTool)
         }
         return tools
     }
