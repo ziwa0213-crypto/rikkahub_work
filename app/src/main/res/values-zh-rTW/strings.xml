@@ -597,6 +597,13 @@
   <string name="search_detail_system_prompt">系統提示</string>
   <string name="search_detail_unknown_error">未知錯誤</string>
   <string name="search_detail_username">使用者名稱</string>
+  <string name="search_suixiang_type_name">隨想</string>
+  <string name="search_suixiang_web_type_name">隨想搜尋</string>
+  <string name="search_suixiang_api_key">API Key</string>
+  <string name="search_suixiang_max_results">結果數</string>
+  <string name="search_suixiang_max_results_hint">請輸入 1～20，結果數越多越慢。</string>
+  <string name="search_suixiang_base_url">服務位址</string>
+  <string name="search_suixiang_base_url_hint">通常無需修改</string>
   <string name="search_page_hint">輸入關鍵字並按下搜尋以尋找訊息</string>
   <string name="search_page_no_results">沒有結果</string>
   <string name="search_page_placeholder">搜尋訊息內容…</string>
@@ -1455,6 +1462,7 @@
   <string name="deepseek_web_test_title">連線測試</string>
   <string name="deepseek_web_test_hint">選擇模式。測試會消耗少量網頁端額度。</string>
   <string name="deepseek_web_test_button">傳送測試</string>
+  <string name="deepseek_web_test_success">連線成功</string>
   <string name="provider_dsweb_limits_title">使用範圍限制（唯讀）</string>
   <string name="provider_dsweb_limits_blocked">🚫 不提供：檔案寫入 / 日曆新增與刪除 / 記憶修改 / 剪貼簿寫入 / 命令執行 / 程式碼執行 / 技能 / MCP</string>
   <string name="provider_dsweb_limits_allowed">✅ 可用：讀取工作區檔案 / 日曆查詢 / 時間 / 螢幕使用時間 / 記憶讀取 / 剪貼簿讀取 / 搜尋 / 網頁擷取 / 詢問使用者 / 語音</string>
@@ -1474,4 +1482,18 @@
   <string name="error_fast_model_not_found">找不到快速模型。請在設定中選擇一個。</string>
   <string name="error_fast_model_provider_not_found">找不到快速模型的供應商</string>
   <string name="assistant_page_clone_with_memories">同時複製記憶</string>
+  <string name="memory_picker_copy_title">複製助手</string>
+  <string name="memory_picker_copy_subtitle">選擇要帶入新助手的記憶。新助手使用獨立（私人）記憶。</string>
+  <string name="memory_picker_migrate_title">遷移記憶</string>
+  <string name="memory_picker_migrate_subtitle">將記憶帶入「%1$s」</string>
+  <string name="memory_picker_select_all">全選</string>
+  <string name="memory_picker_invert">反選</string>
+  <string name="memory_picker_selected_count">已選 %1$d / %2$d</string>
+  <string name="memory_picker_mode_label">處理方式</string>
+  <string name="memory_picker_mode_copy">複製</string>
+  <string name="memory_picker_mode_copy_desc">保留原記憶</string>
+  <string name="memory_picker_mode_move">移動</string>
+  <string name="memory_picker_mode_move_desc">從原位置移除</string>
+  <string name="memory_picker_empty">沒有可遷移的記憶</string>
+  <string name="memory_picker_warn_move_shared">所選記憶目前由另外 %1$d 個助理共用。選擇「移動」會將這些記憶從共用記憶中移除，影響其他助理，且無法復原。</string>
 </resources>

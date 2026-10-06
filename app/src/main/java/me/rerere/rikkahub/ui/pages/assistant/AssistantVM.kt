@@ -13,6 +13,7 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.repository.ConversationRepository
+import me.rerere.rikkahub.data.repository.MemoryMigrationMode
 import me.rerere.rikkahub.data.repository.MemoryRepository
 
 class AssistantVM(
@@ -67,23 +68,27 @@ class AssistantVM(
         }
     }
 
-    fun copyAssistant(assistant: Assistant, copyMemories: Boolean = false) {
+    fun copyAssistant(assistant: Assistant, memoryIds: Set<Int> = emptySet()) {
         viewModelScope.launch {
             val settings = settings.value
             val copiedAssistant = assistant.copy(
                 id = kotlin.uuid.Uuid.random(),
                 name = "${assistant.name} (Clone)",
                 avatar = if(assistant.avatar is Avatar.Image) Avatar.Dummy else assistant.avatar,
+                useGlobalMemory = false,
+                memoryGroupId = null,
             )
             settingsStore.update(
                 settings.copy(
                     assistants = settings.assistants.plus(copiedAssistant)
                 )
             )
-            if (copyMemories) {
-                memoryRepository.copyMemories(
-                    fromAssistantId = assistant.id.toString(),
-                    toAssistantId = copiedAssistant.id.toString(),
+            if (memoryIds.isNotEmpty()) {
+                memoryRepository.migrateMemories(
+                    fromScope = MemoryRepository.scopeOf(assistant),
+                    toScope = copiedAssistant.id.toString(),
+                    memoryIds = memoryIds,
+                    mode = MemoryMigrationMode.COPY,
                 )
             }
         }

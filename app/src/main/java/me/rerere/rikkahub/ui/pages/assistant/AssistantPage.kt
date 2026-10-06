@@ -59,6 +59,7 @@ import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
+import me.rerere.rikkahub.ui.components.ui.MemoryPickerDialog
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
@@ -92,6 +93,9 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     var selectedTagIds by remember { mutableStateOf(emptySet<Uuid>()) }
     // 待删除的助手
     var deleteTarget by remember { mutableStateOf<Assistant?>(null) }
+    var cloneTarget by remember { mutableStateOf<Assistant?>(null) }
+    var cloneMemories by remember { mutableStateOf(emptyList<AssistantMemory>()) }
+    var cloneSelectedMemoryIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     // 根据搜索关键词和选中的标签过滤助手
     val filteredAssistants = remember(settings.assistants, selectedTagIds, searchQuery) {
@@ -203,7 +207,13 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
                                 navController.navigate(Screen.AssistantDetail(id = assistant.id.toString()))
                             },
                             onCopy = {
-                                vm.copyAssistant(assistant)
+                                if (memories.isNotEmpty()) {
+                                    cloneTarget = assistant
+                                    cloneMemories = memories
+                                    cloneSelectedMemoryIds = emptySet()
+                                } else {
+                                    vm.copyAssistant(assistant)
+                                }
                             },
                             onDelete = {
                                 deleteTarget = assistant
@@ -234,6 +244,27 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     ) {
         Text(stringResource(R.string.assistant_page_delete_dialog_text))
     }
+
+    MemoryPickerDialog(
+        show = cloneTarget != null,
+        title = stringResource(R.string.memory_picker_copy_title),
+        subtitle = stringResource(R.string.memory_picker_copy_subtitle),
+        memories = cloneMemories,
+        selectedIds = cloneSelectedMemoryIds,
+        onSelectedIdsChange = { cloneSelectedMemoryIds = it },
+        confirmText = stringResource(R.string.confirm),
+        onConfirm = {
+            cloneTarget?.let { vm.copyAssistant(it, memoryIds = cloneSelectedMemoryIds) }
+            cloneTarget = null
+            cloneMemories = emptyList()
+            cloneSelectedMemoryIds = emptySet()
+        },
+        onDismiss = {
+            cloneTarget = null
+            cloneMemories = emptyList()
+            cloneSelectedMemoryIds = emptySet()
+        },
+    )
 }
 
 @Composable
@@ -458,4 +489,3 @@ private fun AssistantItem(
         }
     }
 }
-

@@ -25,6 +25,7 @@ import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.MemoryGroup
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.MemoryMigrationMode
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import kotlin.uuid.Uuid
 
@@ -34,6 +35,16 @@ data class MemoryGroupDeleteImpact(
     val group: MemoryGroup,
     val memoryCount: Int,
     val memberCount: Int,
+)
+
+data class PendingMemoryMigration(
+    val fromScope: String,
+    val toScope: String,
+    val targetLabel: String,
+    val candidates: List<AssistantMemory>,
+    val selectorUsedByOthers: Int,
+    val useGlobalMemory: Boolean,
+    val memoryGroupId: Uuid?,
 )
 
 class AssistantDetailVM(
@@ -51,6 +62,9 @@ class AssistantDetailVM(
 
     private val _memoryGroupDeleteImpact = MutableStateFlow<MemoryGroupDeleteImpact?>(null)
     val memoryGroupDeleteImpact = _memoryGroupDeleteImpact.asStateFlow()
+
+    private val _pendingMemoryMigration = MutableStateFlow<PendingMemoryMigration?>(null)
+    val pendingMemoryMigration = _pendingMemoryMigration.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -191,22 +205,69 @@ class AssistantDetailVM(
         if (group.name.isEmpty()) return
 
         viewModelScope.launch {
-            settingsStore.update { settings ->
-                settings.copy(
-                    memoryGroups = settings.memoryGroups + group,
-                    assistants = settings.assistants.map { currentAssistant ->
-                        if (currentAssistant.id == assistantId) {
-                            currentAssistant.copy(
-                                useGlobalMemory = false,
-                                memoryGroupId = group.id,
-                            )
-                        } else {
-                            currentAssistant
-                        }
-                    },
-                )
-            }
+            settingsStore.update { settings -> settings.copy(memoryGroups = settings.memoryGroups + group) }
+            requestMemoryScopeChange(
+                useGlobalMemory = false,
+                memoryGroupId = group.id,
+                targetLabel = group.name,
+            )
         }
+    }
+
+    fun requestMemoryScopeChange(
+        useGlobalMemory: Boolean,
+        memoryGroupId: Uuid?,
+        targetLabel: String,
+    ) {
+        viewModelScope.launch {
+            val current = assistant.value
+            val fromScope = MemoryRepository.scopeOf(current)
+            val toScope = when {
+                useGlobalMemory -> MemoryRepository.GLOBAL_MEMORY_ID
+                memoryGroupId != null -> MemoryRepository.scopeOf(memoryGroupId)
+                else -> current.id.toString()
+            }
+            val candidates = memoryRepository.getMemoriesOfAssistant(fromScope)
+
+            if (fromScope == toScope || candidates.isEmpty()) {
+                applyScopeChange(useGlobalMemory, memoryGroupId)
+                return@launch
+            }
+
+            _pendingMemoryMigration.value = PendingMemoryMigration(
+                fromScope = fromScope,
+                toScope = toScope,
+                targetLabel = targetLabel,
+                candidates = candidates,
+                selectorUsedByOthers = settings.value.assistants.count {
+                    MemoryRepository.scopeOf(it) == fromScope
+                },
+                useGlobalMemory = useGlobalMemory,
+                memoryGroupId = memoryGroupId,
+            )
+        }
+    }
+
+    fun confirmMemoryScopeChange(memoryIds: Set<Int>, mode: MemoryMigrationMode) {
+        val pending = _pendingMemoryMigration.value ?: return
+        _pendingMemoryMigration.value = null
+        viewModelScope.launch {
+            memoryRepository.migrateMemories(
+                fromScope = pending.fromScope,
+                toScope = pending.toScope,
+                memoryIds = memoryIds,
+                mode = mode,
+            )
+            applyScopeChange(pending.useGlobalMemory, pending.memoryGroupId)
+        }
+    }
+
+    fun dismissMemoryScopeChange() {
+        _pendingMemoryMigration.value = null
+    }
+
+    private fun applyScopeChange(useGlobalMemory: Boolean, memoryGroupId: Uuid?) {
+        update(assistant.value.copy(useGlobalMemory = useGlobalMemory, memoryGroupId = memoryGroupId))
     }
 
     fun renameMemoryGroup(group: MemoryGroup, name: String) {

@@ -61,6 +61,7 @@ interface SearchService<T : SearchServiceOptions> {
                 is SearchServiceOptions.BochaOptions -> BochaSearchService
                 is SearchServiceOptions.RikkaHubOptions -> RikkaHubSearchService
                 is SearchServiceOptions.GrokOptions -> GrokSearchService
+                is SearchServiceOptions.SuiXiangOptions -> SuiXiangSearchService
                 is SearchServiceOptions.TinyfishOptions -> TinyfishSearchService
                 is SearchServiceOptions.SerperOptions -> SerperSearchService
                 is SearchServiceOptions.CustomJsOptions -> CustomJsSearchService
@@ -169,6 +170,7 @@ sealed class SearchServiceOptions {
             TinyfishOptions::class to "Tinyfish",
             SerperOptions::class to "Serper",
             CustomJsOptions::class to "Custom JS",
+            SuiXiangOptions::class to "随想搜索",
         )
     }
 
@@ -298,6 +300,19 @@ sealed class SearchServiceOptions {
         val customUrl: String = "https://api.x.ai/v1/responses",
         val systemPrompt: String = "You are a helpful search assistant. Search the web to find accurate and up-to-date information for the user's query. Provide a comprehensive answer with citations.",
     ) : SearchServiceOptions()
+
+    @Serializable
+    @SerialName("suixiang")
+    data class SuiXiangOptions(
+        override val id: Uuid = Uuid.random(),
+        val apiKey: String = "",
+        val baseUrl: String = DEFAULT_BASE_URL,
+        val maxResults: Int = 5,
+    ) : SearchServiceOptions() {
+        companion object {
+            const val DEFAULT_BASE_URL = "https://www.sui-xiang.net"
+        }
+    }
 
     @Serializable
     @SerialName("tinyfish")

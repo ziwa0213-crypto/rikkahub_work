@@ -51,9 +51,12 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.MemoryGroup
+import me.rerere.rikkahub.data.repository.MemoryMigrationMode
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.MemoryGroupSelector
+import me.rerere.rikkahub.ui.components.ui.MemoryPickerDialog
+import me.rerere.rikkahub.ui.components.ui.MemoryPickerModeSwitch
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
@@ -62,6 +65,7 @@ import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import kotlin.uuid.Uuid
 
 @Composable
 fun AssistantMemoryPage(id: String) {
@@ -74,6 +78,7 @@ fun AssistantMemoryPage(id: String) {
     val memories by vm.memories.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val memoryGroupDeleteImpact by vm.memoryGroupDeleteImpact.collectAsStateWithLifecycle()
+    val pendingMemoryMigration by vm.pendingMemoryMigration.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -98,7 +103,11 @@ fun AssistantMemoryPage(id: String) {
             memories = memories,
             memoryGroups = settings.memoryGroups,
             memoryGroupDeleteImpact = memoryGroupDeleteImpact,
+            pendingMemoryMigration = pendingMemoryMigration,
             onUpdateAssistant = { vm.update(it) },
+            onRequestScopeChange = vm::requestMemoryScopeChange,
+            onConfirmMemoryScopeChange = vm::confirmMemoryScopeChange,
+            onDismissMemoryScopeChange = vm::dismissMemoryScopeChange,
             onCreateMemoryGroup = vm::createMemoryGroup,
             onRenameMemoryGroup = vm::renameMemoryGroup,
             onRequestDeleteMemoryGroup = vm::requestMemoryGroupDeletion,
@@ -118,7 +127,11 @@ private fun AssistantMemoryContent(
     memories: List<AssistantMemory>,
     memoryGroups: List<MemoryGroup>,
     memoryGroupDeleteImpact: MemoryGroupDeleteImpact?,
+    pendingMemoryMigration: PendingMemoryMigration?,
     onUpdateAssistant: (Assistant) -> Unit,
+    onRequestScopeChange: (Boolean, Uuid?, String) -> Unit,
+    onConfirmMemoryScopeChange: (Set<Int>, MemoryMigrationMode) -> Unit,
+    onDismissMemoryScopeChange: () -> Unit,
     onCreateMemoryGroup: (String) -> Unit,
     onRenameMemoryGroup: (MemoryGroup, String) -> Unit,
     onRequestDeleteMemoryGroup: (MemoryGroup) -> Unit,
@@ -137,6 +150,10 @@ private fun AssistantMemoryContent(
     }
     var pendingDeleteMemory by remember { mutableStateOf<AssistantMemory?>(null) }
     var showMemoryGroupSelector by remember { mutableStateOf(false) }
+    var pickerSelectedIds by remember(pendingMemoryMigration) { mutableStateOf(emptySet<Int>()) }
+    var pickerMode by remember(pendingMemoryMigration) { mutableStateOf(MemoryMigrationMode.COPY) }
+    val privateMemoryLabel = stringResource(R.string.memory_group_private)
+    val globalMemoryLabel = stringResource(R.string.memory_group_global)
 
     val currentMemoryScopeName = when {
         assistant.useGlobalMemory -> stringResource(R.string.memory_group_global)
@@ -153,29 +170,26 @@ private fun AssistantMemoryContent(
         memoryGroups = memoryGroups,
         onDismiss = { showMemoryGroupSelector = false },
         onSelectPrivate = {
-            onUpdateAssistant(
-                assistant.copy(
-                    useGlobalMemory = false,
-                    memoryGroupId = null,
-                )
+            onRequestScopeChange(
+                false,
+                null,
+                privateMemoryLabel,
             )
             showMemoryGroupSelector = false
         },
         onSelectGlobal = {
-            onUpdateAssistant(
-                assistant.copy(
-                    useGlobalMemory = true,
-                    memoryGroupId = null,
-                )
+            onRequestScopeChange(
+                true,
+                null,
+                globalMemoryLabel,
             )
             showMemoryGroupSelector = false
         },
         onSelectGroup = { group ->
-            onUpdateAssistant(
-                assistant.copy(
-                    useGlobalMemory = false,
-                    memoryGroupId = group.id,
-                )
+            onRequestScopeChange(
+                false,
+                group.id,
+                group.name,
             )
             showMemoryGroupSelector = false
         },
@@ -185,6 +199,33 @@ private fun AssistantMemoryContent(
             showMemoryGroupSelector = false
             onRequestDeleteMemoryGroup(group)
         },
+    )
+
+    MemoryPickerDialog(
+        show = pendingMemoryMigration != null,
+        title = stringResource(R.string.memory_picker_migrate_title),
+        subtitle = pendingMemoryMigration?.let {
+            stringResource(R.string.memory_picker_migrate_subtitle, it.targetLabel)
+        },
+        memories = pendingMemoryMigration?.candidates.orEmpty(),
+        selectedIds = pickerSelectedIds,
+        onSelectedIdsChange = { pickerSelectedIds = it },
+        modeSwitch = MemoryPickerModeSwitch(
+            value = pickerMode,
+            onValueChange = { pickerMode = it },
+        ),
+        warning = pendingMemoryMigration?.takeIf {
+            pickerMode == MemoryMigrationMode.MOVE &&
+                it.fromScope != assistant.id.toString() &&
+                it.selectorUsedByOthers > 1
+        }?.let {
+            stringResource(R.string.memory_picker_warn_move_shared, it.selectorUsedByOthers - 1)
+        },
+        confirmText = stringResource(R.string.confirm),
+        onConfirm = {
+            onConfirmMemoryScopeChange(pickerSelectedIds, pickerMode)
+        },
+        onDismiss = onDismissMemoryScopeChange,
     )
 
     var showTimeReminderIntervalDialog by remember(assistant.id) { mutableStateOf(false) }

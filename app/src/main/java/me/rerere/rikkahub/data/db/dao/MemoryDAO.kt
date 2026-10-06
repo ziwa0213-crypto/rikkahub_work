@@ -36,6 +36,9 @@ interface MemoryDAO {
     @Query("DELETE FROM memoryentity WHERE id = :id")
     suspend fun deleteMemory(id: Int)
 
+    @Query("DELETE FROM memoryentity WHERE id IN (:ids)")
+    suspend fun deleteMemoriesByIds(ids: List<Int>)
+
     @Query("DELETE FROM memoryentity WHERE assistant_id = :assistantId")
     suspend fun deleteMemoriesOfAssistant(assistantId: String)
 }

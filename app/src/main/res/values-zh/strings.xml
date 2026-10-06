@@ -608,6 +608,13 @@
   <string name="search_detail_system_prompt">系统提示</string>
   <string name="search_detail_unknown_error">未知错误</string>
   <string name="search_detail_username">用户名</string>
+  <string name="search_suixiang_type_name">随想</string>
+  <string name="search_suixiang_web_type_name">随想搜索</string>
+  <string name="search_suixiang_api_key">API Key</string>
+  <string name="search_suixiang_max_results">结果数</string>
+  <string name="search_suixiang_max_results_hint">请输入 1～20，结果数越大越慢。</string>
+  <string name="search_suixiang_base_url">服务地址</string>
+  <string name="search_suixiang_base_url_hint">通常无需修改</string>
   <string name="search_page_hint">输入关键词并点击搜索以查找消息</string>
   <string name="search_page_no_results">无结果</string>
   <string name="search_page_placeholder">搜索消息内容…</string>
@@ -1467,6 +1474,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="deepseek_web_test_title">连通性测试</string>
   <string name="deepseek_web_test_hint">选择模式。测试会消耗少量网页端额度。</string>
   <string name="deepseek_web_test_button">发送测试</string>
+  <string name="deepseek_web_test_success">连接成功</string>
   <string name="provider_dsweb_limits_title">使用范围限制（只读）</string>
   <string name="provider_dsweb_limits_blocked">🚫 不提供：文件写入 / 日历新建与删除 / 记忆修改 / 剪贴板写入 / 命令执行 / 代码执行 / 技能 / MCP</string>
   <string name="provider_dsweb_limits_allowed">✅ 可用：读取工作区文件 / 日历查询 / 时间 / 屏幕使用 / 记忆读取 / 剪贴板读取 / 搜索 / 网页抓取 / 询问用户 / 语音</string>
@@ -1486,4 +1494,18 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="error_fast_model_not_found">未找到快速模型。请在设置中选择一个。</string>
   <string name="error_fast_model_provider_not_found">未找到快速模型的提供商</string>
   <string name="assistant_page_clone_with_memories">同时复制记忆</string>
+  <string name="memory_picker_copy_title">复制助手</string>
+  <string name="memory_picker_copy_subtitle">选择要带入新助手的记忆。新助手使用独立（私有）记忆。</string>
+  <string name="memory_picker_migrate_title">迁移记忆</string>
+  <string name="memory_picker_migrate_subtitle">将记忆带入「%1$s」</string>
+  <string name="memory_picker_select_all">全选</string>
+  <string name="memory_picker_invert">反选</string>
+  <string name="memory_picker_selected_count">已选 %1$d / %2$d</string>
+  <string name="memory_picker_mode_label">处理方式</string>
+  <string name="memory_picker_mode_copy">复制</string>
+  <string name="memory_picker_mode_copy_desc">保留原记忆</string>
+  <string name="memory_picker_mode_move">移动</string>
+  <string name="memory_picker_mode_move_desc">从原位置移除</string>
+  <string name="memory_picker_empty">没有可迁移的记忆</string>
+  <string name="memory_picker_warn_move_shared">所选记忆当前由另外 %1$d 个助手共享。选择「移动」会把这些记忆从共享记忆中移除，影响其他助手，且无法撤销。</string>
 </resources>

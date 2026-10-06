@@ -257,6 +257,50 @@
 - **上游同步**：重新套用 provider 专用预检、共享只读策略与 DSML 检测；不改 `GenerationLoop.kt`、`OcrTransformer` 或持久化模型
 - **日期**：2026-10-06
 
+## [F010] 记忆迁移多选
+- **需求**：复制助手和切换记忆归属时支持按条目选择记忆，并支持复制或移动
+- **状态**：源码已实施，`./gradlew test` 与签名 Release 构建已通过；未上传 GitHub，待用户确认
+- **版本**：`2.5.6-work.2` / `versionCode=195`
+- **改动文件**：
+  - `app/src/main/java/me/rerere/rikkahub/data/db/dao/MemoryDAO.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/repository/MemoryRepository.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ui/MemoryPickerDialog.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantPage.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantVM.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/detail/AssistantDetailVM.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/detail/AssistantMemoryPage.kt`
+  - `app/src/main/res/values/strings.xml`
+  - `app/src/main/res/values-zh/strings.xml`
+  - `app/src/main/res/values-zh-rTW/strings.xml`
+  - `app/src/test/java/me/rerere/rikkahub/data/repository/MemoryRepositoryTest.kt`
+- **副作用**：移动共享记忆会影响使用同一记忆桶的其他助手，界面会提前警告且该操作不可撤销
+- **测试**：覆盖复制、移动、空选择、同桶短路和跨桶 ID 过滤，使用假数据，不记录真实记忆内容
+- **commit**：未提交
+- **回滚方式**：独立提交后使用 `git revert <F010 commit>`；在提交前仅反向应用本次 F010 增量 diff，不恢复整文件覆盖既有 F009 改动
+- **日期**：2026-10-06
+
+## [F010 补充] DeepSeek Web 登录界面适配
+- **需求**：修复 DeepSeek 网页版登录区域在移动屏幕上的布局挤压和数字输入光标位置问题
+- **状态**：已随 `2.5.6-work.2` 源码实施，签名 Release 构建已通过；未上传 GitHub，待用户确认
+- **改动文件**：`app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`、`app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/DeepSeekWebLogin.kt`
+- **行为**：登录和退出按钮纵向全宽排列；登录对话框适配移动屏幕；数字输入保持光标在内容末尾；连通性测试按单行显示发送按钮和右侧测试结果
+- **补充修正**：连通性测试成功时只显示右侧完整的“连接成功”，失败时显示错误信息，移除延迟显示，避免小屏幕省略结果
+- **commit**：未提交
+- **回滚方式**：独立提交后使用 `git revert <DeepSeek Web UI commit>`；保留 F009 登录凭证捕获逻辑
+- **日期**：2026-10-06
+
+## [F011] 随想搜索服务商
+- **需求**：新增内置随想搜索服务商，仅保留全网 Web 搜索
+- **状态**：源码已实施，保持 `2.5.6-work.2` / `versionCode=195`；待本轮测试和签名 Release 构建完成后再确认，未上传 GitHub
+- **改动文件**：`search/src/main/java/me/rerere/search/SearchService.kt`、`search/src/main/java/me/rerere/search/SuiXiangSearchService.kt`、`search/src/test/java/me/rerere/search/SuiXiangSearchServiceTest.kt`、`app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingSearchDetailPage.kt`、三份 App 与搜索模块语言文件、`CHANGES.md`、`FEATURES.md`
+- **范围**：只保留 `@SerialName("suixiang")` 的“随想搜索”，固定调用 `/v1/web_search`；不实现 X 搜索，因为实测只返回无意义标题和空摘要，且目标用户可能无法访问 X
+- **协议**：请求体使用官方 `query` 字段；结果数默认 5，服务层和 UI 均限制 1～20；`snippet` 为空仍保留结果，缺 URL 的结果过滤，`scrapingParameters` 返回 null，错误文本不含 API Key
+- **兼容与 UI**：旧 `suixiang` JSON 中的 `mode` 字段由 `ignoreUnknownKeys` 忽略；设置页只显示 API Key、结果数和服务地址，不显示搜索模式、X 高级参数或取消入口；资源只保留英文、简体中文和繁体中文
+- **测试**：覆盖官方 `query` 请求字段、Web 端点、结果数 20 上限、空 snippet、缺 URL、缺少 API Key、API Key 脱敏、旧 `mode` 字段兼容和默认结果数；本轮未使用真实 API Key 联网验证，未操作设备，未验证覆盖安装路径
+- **commit**：未提交，未执行 tag/push
+- **回滚方式**：删除 F011 新增服务/配置/文案/测试，并反向应用本次连通性 UI 修正；不得恢复整文件覆盖 F010 或 F009 改动
+- **日期**：2026-10-06
+
 ## [F009 补充四] 工具调用协议对齐
 - **需求**：对齐提示词输出格式、模型文本调用与真正的工具执行/拒绝链；只支持 JSON，不新增 DSML 执行兼容
 - **状态**：全模块 `test` 与签名 Release 构建通过；DeepSeek Web 相关 75 项测试零失败；三种 APK 的版本、包名、签名、三语与 WASM 已核验；实机测试由维护者完成

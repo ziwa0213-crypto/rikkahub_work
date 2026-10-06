@@ -5,5 +5,5 @@
   <string name="searxng_desc_1">settings.yml内需要开启json format支持:</string>
   <string name="searxng_desc_2">search:\n  formats:\n    - html\n    - json</string>
   <string name="custom_js_desc">由 QuickJS 驱动的自定义搜索提供程序。实现 search(query, resultSize) 函数，并可选择实现 scrape(urls) 函数。使用 fetch(url, options?) 进行 HTTP 请求。</string>
+  <string name="search_suixiang_web_description">随想搜索网关。配置 API Key 后可搜索全网。每次搜索固定收费 0.06 元（不乘分组倍率），搜索失败不扣费，使用所在分组的 KEY。首次搜索可能需要 15～60 秒，结果数越大越慢。</string>
 </resources>
-

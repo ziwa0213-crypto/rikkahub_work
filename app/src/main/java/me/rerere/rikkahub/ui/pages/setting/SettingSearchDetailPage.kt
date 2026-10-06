@@ -217,6 +217,9 @@ private fun SearchServiceOptionsEditor(
         is SearchServiceOptions.GrokOptions -> {
             GrokOptions(options) { onUpdateOptions(it) }
         }
+        is SearchServiceOptions.SuiXiangOptions -> {
+            SuiXiangOptions(options) { onUpdateOptions(it) }
+        }
         is SearchServiceOptions.TinyfishOptions -> {
             TinyfishOptions(options) { onUpdateOptions(it) }
         }
@@ -944,6 +947,67 @@ internal fun GrokOptions(
             },
             minLines = 3,
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+internal fun SuiXiangOptions(
+    options: SearchServiceOptions.SuiXiangOptions,
+    onUpdateOptions: (SearchServiceOptions.SuiXiangOptions) -> Unit,
+) {
+    SuiXiangOptionsFields(
+        apiKey = options.apiKey,
+        maxResults = options.maxResults,
+        baseUrl = options.baseUrl,
+        onApiKeyChange = { onUpdateOptions(options.copy(apiKey = it)) },
+        onMaxResultsChange = { onUpdateOptions(options.copy(maxResults = it)) },
+        onBaseUrlChange = { onUpdateOptions(options.copy(baseUrl = it)) },
+    )
+}
+
+@Composable
+private fun SuiXiangOptionsFields(
+    apiKey: String,
+    maxResults: Int,
+    baseUrl: String,
+    onApiKeyChange: (String) -> Unit,
+    onMaxResultsChange: (Int) -> Unit,
+    onBaseUrlChange: (String) -> Unit,
+) {
+    FormItem(label = { Text(stringResource(R.string.search_suixiang_api_key)) }) {
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = onApiKeyChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.search_suixiang_max_results)) },
+        description = { Text(stringResource(R.string.search_suixiang_max_results_hint)) },
+    ) {
+        OutlinedTextField(
+            value = maxResults.coerceIn(1, 20).toString(),
+            onValueChange = { value ->
+                value.toIntOrNull()?.let { onMaxResultsChange(it.coerceIn(1, 20)) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.search_suixiang_base_url)) },
+        description = { Text(stringResource(R.string.search_suixiang_base_url_hint)) },
+    ) {
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = onBaseUrlChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
         )
     }
 }

@@ -615,6 +615,13 @@
   <string name="search_detail_system_prompt">System Prompt</string>
   <string name="search_detail_unknown_error">Unknown error</string>
   <string name="search_detail_username">Username</string>
+  <string name="search_suixiang_type_name">SuiXiang</string>
+  <string name="search_suixiang_web_type_name">SuiXiang</string>
+  <string name="search_suixiang_api_key">API Key</string>
+  <string name="search_suixiang_max_results">Max Results</string>
+  <string name="search_suixiang_max_results_hint">Enter a value from 1 to 20. More results take longer.</string>
+  <string name="search_suixiang_base_url">Service URL</string>
+  <string name="search_suixiang_base_url_hint">Usually no need to change</string>
   <string name="search_page_hint">Enter keywords and press Search to find messages</string>
   <string name="search_page_no_results">No results</string>
   <string name="search_page_placeholder">Search message content...</string>
@@ -1466,6 +1473,7 @@
   <string name="deepseek_web_test_title">Connectivity test</string>
   <string name="deepseek_web_test_hint">Select a mode. The test consumes a small amount of web-session quota.</string>
   <string name="deepseek_web_test_button">Send test</string>
+  <string name="deepseek_web_test_success">Connection successful</string>
   <string name="provider_dsweb_limits_title">Usage limits (read-only)</string>
   <string name="provider_dsweb_limits_blocked">Not provided: file writing, calendar creation/deletion, memory changes, clipboard writing, command execution, code execution, skills, or MCP</string>
   <string name="provider_dsweb_limits_allowed">Available: workspace file reading, calendar queries, time, screen time, memory reading, clipboard reading, web search, web scraping, ask user, and voice</string>
@@ -1485,4 +1493,18 @@
   <string name="error_fast_model_not_found">Fast model not found. Please select one in settings.</string>
   <string name="error_fast_model_provider_not_found">Provider of the fast model not found</string>
   <string name="assistant_page_clone_with_memories">Also copy memories</string>
+  <string name="memory_picker_copy_title">Clone Assistant</string>
+  <string name="memory_picker_copy_subtitle">Choose memories to copy into the new assistant. The clone uses its own private memory.</string>
+  <string name="memory_picker_migrate_title">Migrate Memories</string>
+  <string name="memory_picker_migrate_subtitle">Bring memories into &quot;%1$s&quot;</string>
+  <string name="memory_picker_select_all">Select all</string>
+  <string name="memory_picker_invert">Invert</string>
+  <string name="memory_picker_selected_count">%1$d / %2$d selected</string>
+  <string name="memory_picker_mode_label">Action</string>
+  <string name="memory_picker_mode_copy">Copy</string>
+  <string name="memory_picker_mode_copy_desc">Keep the original memories</string>
+  <string name="memory_picker_mode_move">Move</string>
+  <string name="memory_picker_mode_move_desc">Remove from the original location</string>
+  <string name="memory_picker_empty">No memories to migrate</string>
+  <string name="memory_picker_warn_move_shared">These memories are currently shared with %1$d other assistant(s). Moving them will remove them from the shared memory. This cannot be undone.</string>
 </resources>

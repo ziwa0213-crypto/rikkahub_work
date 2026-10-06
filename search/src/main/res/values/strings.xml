@@ -5,5 +5,5 @@
   <string name="searxng_desc_1">settings.yml needs to enable json format support:</string>
   <string name="searxng_desc_2">search:\n  formats:\n    - html\n    - json</string>
   <string name="custom_js_desc">Custom search provider powered by QuickJS. Implement search(query, resultSize) and optionally scrape(urls) functions. Use fetch(url, options?) for HTTP requests.</string>
+  <string name="search_suixiang_web_description">SuiXiang search gateway. Configure an API key to search the web. Each search costs a fixed CNY 0.06 (not multiplied by the group rate); failed searches are not charged. The API key from the current group is used. The first search may take 15–60 seconds, and more results take longer.</string>
 </resources>
-

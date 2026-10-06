@@ -8,6 +8,11 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import kotlin.uuid.Uuid
 
+enum class MemoryMigrationMode {
+    COPY,
+    MOVE,
+}
+
 class MemoryRepository(private val memoryDAO: MemoryDAO) {
     companion object {
         const val GLOBAL_MEMORY_ID = "__global__"
@@ -82,6 +87,26 @@ class MemoryRepository(private val memoryDAO: MemoryDAO) {
         memoryDAO.insertMemories(
             memories.map { MemoryEntity(assistantId = toAssistantId, content = it.content) }
         )
+    }
+
+    suspend fun migrateMemories(
+        fromScope: String,
+        toScope: String,
+        memoryIds: Set<Int>,
+        mode: MemoryMigrationMode,
+    ) {
+        if (memoryIds.isEmpty() || fromScope == toScope) return
+
+        val picked = memoryDAO.getMemoriesOfAssistant(fromScope)
+            .filter { it.id in memoryIds }
+        if (picked.isEmpty()) return
+
+        memoryDAO.insertMemories(
+            picked.map { MemoryEntity(assistantId = toScope, content = it.content) }
+        )
+        if (mode == MemoryMigrationMode.MOVE) {
+            memoryDAO.deleteMemoriesByIds(picked.map { it.id })
+        }
     }
 
     suspend fun deleteMemory(id: Int) {

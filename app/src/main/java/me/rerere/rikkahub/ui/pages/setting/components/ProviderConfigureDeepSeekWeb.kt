@@ -4,7 +4,9 @@ import android.webkit.CookieManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -20,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -44,6 +48,7 @@ internal fun ProviderConfigureDeepSeekWeb(
     var selectedModel by remember { mutableStateOf(deepSeekModels.first()) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
+    val testSuccessText = stringResource(R.string.deepseek_web_test_success)
 
     provider.description()
 
@@ -54,16 +59,29 @@ internal fun ProviderConfigureDeepSeekWeb(
         )
         item(
             headlineContent = { Text(stringResource(R.string.deepseek_web_login_title)) },
-            supportingContent = { Text(stringResource(R.string.deepseek_web_login_hint)) },
-            trailingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { showLogin = true }) { Text(stringResource(R.string.deepseek_web_login_browser)) }
+            supportingContent = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(stringResource(R.string.deepseek_web_login_hint))
+                    TextButton(
+                        onClick = { showLogin = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.deepseek_web_login_browser))
+                    }
                     if (provider.token.isNotBlank()) {
-                        TextButton(onClick = {
-                            CookieManager.getInstance().removeAllCookies(null)
-                            CookieManager.getInstance().flush()
-                            onEdit(provider.copy(token = "", cookie = "", fingerprintHeaders = emptyMap(), accountHint = "", capturedAt = 0L))
-                        }) { Text(stringResource(R.string.deepseek_web_logout)) }
+                        TextButton(
+                            onClick = {
+                                CookieManager.getInstance().removeAllCookies(null)
+                                CookieManager.getInstance().flush()
+                                onEdit(provider.copy(token = "", cookie = "", fingerprintHeaders = emptyMap(), accountHint = "", capturedAt = 0L))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.deepseek_web_logout))
+                        }
                     }
                 }
             },
@@ -141,7 +159,10 @@ internal fun ProviderConfigureDeepSeekWeb(
         )
         item(
             headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Button(
                         enabled = !testing && provider.token.isNotBlank(),
                         onClick = {
@@ -153,13 +174,25 @@ internal fun ProviderConfigureDeepSeekWeb(
                                         provider,
                                         listOf(UIMessage.user("请只回复：连接成功")),
                                         TextGenerationParams(model = selectedModel),
-                                    ).message.toText()
+                                    )
+                                    testSuccessText
                                 }.getOrElse { it.message ?: "测试失败" }
                                 testing = false
                             }
                         },
-                    ) { Text(stringResource(R.string.deepseek_web_test_button)) }
-                    testResult?.let { Text(it, modifier = Modifier.weight(1f).then(Modifier), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    ) { Text(stringResource(R.string.deepseek_web_test_button), maxLines = 1) }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    testResult?.let {
+                        Text(
+                            text = it,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.End,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
         )
