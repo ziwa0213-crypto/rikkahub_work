@@ -29,6 +29,9 @@ android {
         versionCode = 194
         versionName = "2.5.6-work.1"
 
+        // Filter dependency translations as well as the app's own resources.
+        resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {

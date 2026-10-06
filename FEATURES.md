@@ -163,7 +163,7 @@
 
 ## [F009] DeepSeek Web 内置供应商
 - **需求**：提供受约束的 DeepSeek Web 浏览器会话供应商，支持思考流、PoW 和有限工具调用
-- **状态**：✅ 已实现并完成本地测试；Release APK 待本地构建确认，尚未上传 GitHub
+- **状态**：✅ 已实现并完成本地测试与 Release 构建；APK 尚未上传 GitHub，未进行设备验证
 - **版本**：`2.5.6-work.1` / `versionCode=194`
 - **改动文件**：
   - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/`
@@ -174,16 +174,132 @@
   - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
   - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/DeepSeekWebLogin.kt`
 - **行为**：WebView 登录捕获或手动 Token/Cookie；PoW；SSE 文本/思考流；请求串行和节流；工具白名单、每轮单工具和 F004 审批兼容
-- **限制**：不提供本地文件、Shell、代码执行、技能和 MCP；账号限流或封禁风险由用户自行承担
+- **限制**：仅提供工作区文件读取；不提供文件写入、日历新建/删除、记忆修改、剪贴板写入、Shell、代码执行、技能和 MCP；账号限流或封禁风险由用户自行承担
 - **修复**：SSE `response/status` 与工具内容的字符串 `v` 不再触发 JSON 对象强制转换崩溃
-- **测试**：DeepSeek SSE 测试通过；`:ai:test`、`:app:testDebugUnitTest`、AI/App Debug 编译通过
+- **测试**：DeepSeek SSE、PoW、能力预检、只读工具边界和伪工具输出清理测试通过；`:ai:test`、`:app:testDebugUnitTest`、Debug 编译和 `:app:assembleRelease` 通过
 - **日期**：2026-10-03
 
 ## [上游 2.5.6 合并] 2026-10-03
-- **状态**：✅ 已合并到 `merge/upstream-2.5.6-f009`，Release APK 待构建，未上传 GitHub
+- **状态**：✅ 已合并到 `merge/upstream-2.5.6-f009`，Release APK 已构建，未上传 GitHub
 - **保留**：F002-F008、F007 reasoning 修复、F008 加载动画、F006 液态玻璃、F005 去赞助/去水印/品牌本地化
 - **跟进**：`chart_display`、`customHeaders`、Google Interactions API、MCP `0.15.0-rikka.2`、对话导出增强和图片生成入口
 - **特例**：保留复制记忆底层 DAO/Repository/VM 能力，不显示上游复制记忆 UI，等待 F010
 - **语言**：全工程资源仅保留英文、简体中文、繁体中文
-- **验证**：`:ai:test`、`:app:testDebugUnitTest`、`:ai:compileDebugKotlin`、`:app:compileDebugKotlin` 通过
+- **验证**：`:ai:test`、`:app:testDebugUnitTest`、`:ai:compileDebugKotlin`、`:app:compileDebugKotlin` 和 `:app:assembleRelease` 通过
 - **日期**：2026-10-03
+
+## [F009 补充一] 能力拒绝显式化
+- **需求**：让 DeepSeek Web 对禁止的本机项目能力明确报错，不把拒绝混入普通 AI 文本
+- **状态**：✅ 已实现并完成本地测试与 Release 构建，当前版本 `2.5.6-work.1` / `versionCode=194`，未上传 GitHub、未进行设备验证
+- **行为**：明确要求文件落盘、项目修改、命令/代码执行、创建 App 等操作时显示不可自动消失的红色错误卡片；纯代码问答、脚本示例和架构讨论放行
+- **工具边界**：受限工具继续不下发到 DeepSeek Web prompt；模型幻觉输出未知工具时记录日志、阻止执行并显示被拦截工具名称
+- **出口**：错误卡片不提供供应商跳转链接，仅保留错误说明、复制和关闭；上游已有的快速模型设置检查入口保持不变
+- **设置页**：DeepSeek Web 配置页新增“使用范围限制（只读）”区块，列出禁用与可用能力
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebGuard.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebTools.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebSSE.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebProvider.kt`
+  - `app/src/main/java/me/rerere/rikkahub/service/ChatService.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ui/ErrorCard.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
+  - `app/src/main/res/values*/strings.xml`
+- **测试**：补充预检正/反例、只读白名单、剪贴板 action 收窄、被禁工具调用和伪工具输出清理测试；`:ai:test`、`:app:testDebugUnitTest`、`:app:compileDebugKotlin`、`:app:assembleRelease` 通过
+- **日期**：2026-10-03
+
+## [F009 补充二] DeepSeek Web 只读供应商
+- **需求**：将 DeepSeek Web 固定为只读供应商，防止不可信模型修改本地文件、日历、记忆或剪贴板
+- **状态**：✅ 已实现并完成本地测试与 Release 构建，当前版本 `2.5.6-work.1` / `versionCode=194`，未上传 GitHub、未进行设备验证
+- **允许**：工作区文件读取、日历查询、时间、屏幕使用、历史对话查询、联网搜索、网页抓取、询问用户、语音和剪贴板读取
+- **禁止**：日历新建/删除、记忆修改、文件写入/编辑、剪贴板写入、Shell、代码执行、技能和 MCP
+- **应用层保证**：被禁工具不进入 DeepSeek Web prompt；clipboard 仅暴露 `action=read`；模型伪造的被禁工具 JSON 会被移除并转为不可自动消失的错误卡片
+- **错误卡片**：不新增 `ChatErrorSolution.SwitchToApiProvider`，不提供任何供应商跳转链接；既有 `CheckFastModelSettings` 保持不变
+- **配置页**：新增只读说明及“读取到的文件内容会发送到网页端”的风险提示
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebTools.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/ai/DeepSeekWebOutputGuard.kt`
+  - `app/src/main/java/me/rerere/rikkahub/service/ChatService.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/components/ui/ErrorCard.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
+  - `app/src/main/res/values/strings.xml`
+  - `app/src/main/res/values-zh/strings.xml`
+  - `app/src/main/res/values-zh-rTW/strings.xml`
+- **日期**：2026-10-03
+
+## [F009 补充三] 预检漏报与 DSML 格式检测
+- **需求**：修复能力拒绝不弹卡片的触发缺口，检测模型输出的 DSML 调用格式，并说明图片接入现状
+- **状态**：全模块 `test` 与包含混合 DSML 修复、语言过滤的最终 Release 构建已通过；三种 APK 的版本、包名、签名、语言与 WASM 已核验；未上传 GitHub、未操作设备
+- **版本**：`2.5.6-work.1` / `versionCode=194`，不递增
+- **源码核实**：卡片构造、挂载、`autoDismiss` 与既有快速模型 solution 未被删除；缺口是预检未覆盖部分请求、DSML 未被检测
+- **行为**：聊天服务在工具装配与生成前做 DeepSeek Web 专用预检，覆盖 Skill、文件写入、日历/记忆/剪贴板修改及 MCP 等明确请求；能力拒绝与格式异常使用持久、无链接的错误卡片，普通错误仍按原逻辑处理
+- **DSML**：被禁/未知调用剥离并报错；白名单调用保留并报格式未识别，本次不执行；混合块仅剥离被禁 invoke；SSE 缓冲跨片段标记及正文，避免重复输出；现有下发协议仍为 JSON
+- **只读边界**：解析与输出检测共用 11 项白名单，剪贴板仅 `read`；输出检测只看最新助手消息，支持相邻 Text 拼接，不扫描历史消息
+- **图片阶段记录**：首次构建仅加 OCR 配置提示；后续网页图片上传代码已接入（见下面独立条目），共享 `OcrTransformer` 未改，线上仍待实测
+- **语言打包**：`resourceConfigurations` 保留英文、简体中文、繁体中文及其必要默认回退资源，过滤第三方依赖携带的其他语言；不改第三方源码
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebGuard.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebToolPolicy.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebTools.kt`
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebSSE.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/ai/DeepSeekWebOutputGuard.kt`
+  - `app/src/main/java/me/rerere/rikkahub/service/ChatService.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
+  - `app/build.gradle.kts`（依赖语言资源打包过滤，不改变版本号）
+  - `app/src/main/res/values/strings.xml`、`app/src/main/res/values-zh/strings.xml`、`app/src/main/res/values-zh-rTW/strings.xml`
+  - AI 模块 `DeepSeekWebGuardTest.kt`、`DeepSeekWebToolsTest.kt`、`DeepSeekWebSSETest.kt`
+  - App 模块 `DeepSeekWebOutputGuardTest.kt`、`service/DeepSeekWebChatErrorTest.kt`
+  - `CHANGES.md`、`FEATURES.md`、`AGENTS.md`
+- **测试**：定向编译与单元测试、全模块 `test`、`:app:assembleRelease` 均通过；DeepSeek 相关 33 项单元测试零失败，覆盖五次 Skill 请求的独立卡片、无链接/持久属性、普通供应商和错误回归、JSON/DSML 混合块与剪贴板边界
+- **产物核验**：arm64-v8a / universal / x86_64 的包名均为 `me.rerere.rikkahub.plus`，版本 `2.5.6-work.1` / `194`；均使用现有 Release 签名并包含 `assets/deepseek_sha3.wasm`；语言仅为默认、英文、中文及 CN/TW 区域资源
+- **待验证**：实机卡片与复制/关闭交互；网页原生图片上传；JSON 与 DSML 协议成功率对比
+- **commit**：未提交，本次未执行 commit/tag/push
+- **回滚策略**：仅反向应用本补充三的增量 diff，保留补充一/二的拦截、错误发送、挂载及自动消失判断；独立提交后可用 `git revert <补充三提交>`，不可整文件恢复而覆盖之前改动
+- **上游同步**：重新套用 provider 专用预检、共享只读策略与 DSML 检测；不改 `GenerationLoop.kt`、`OcrTransformer` 或持久化模型
+- **日期**：2026-10-06
+
+## [F009 补充四] 工具调用协议对齐
+- **需求**：对齐提示词输出格式、模型文本调用与真正的工具执行/拒绝链；只支持 JSON，不新增 DSML 执行兼容
+- **状态**：全模块 `test` 与签名 Release 构建通过；DeepSeek Web 相关 75 项测试零失败；三种 APK 的版本、包名、签名、三语与 WASM 已核验；实机测试由维护者完成
+- **版本**：`2.5.6-work.1` / `versionCode=194`，不变
+- **提示词**：只读定位与白名单不变；在工具清单前追加输出结构和无参数/有参数示例，不加围栏、不加解释；仅下发已启用的只读工具
+- **解析**：结构化 JSON 校验，支持嵌套/转义、围栏和前后文字；只处理首个调用，其余剥离并记日志；调用前完成协议解析，再检查只读与当前启用工具
+- **执行与拒绝**：正常调用转换成原有 `ToolCallStart/Delta/End`，保留审批/HITL；被禁或未启用调用不输出工具事件，保留周围正文，再通过 provider 关闭流抛出能力拒绝，走现有持久无链接错误卡片
+- **兜底**：畸形/未知 JSON 不执行且保留原文，日志与应用层格式卡片不静默；已解析的调用不重复扫描；DSML 保留补充三的检测行为
+- **结果回传**：只读工具的文本/图片结果传回网页上下文；图片复用现有上传与引用；被禁历史调用/输出不恢复
+- **改动文件**：`DeepSeekWebTools.kt`、新增 `DeepSeekWebToolProtocol.kt`、`DeepSeekWebToolPolicy.kt`（仅追加被禁名称判据，不改白名单）、`DeepSeekWebSSE.kt`、`DeepSeekWebProvider.kt`、`DeepSeekWebImages.kt`、`DeepSeekWebOutputGuard.kt`；协议/SSE/提示词/图片/错误分类相关测试；`CHANGES.md`、`FEATURES.md`
+- **边界**：源码现有读取工具不能列目录，A1 改为指定文件读取的离线闭环验证，不改工具契约、不新增 shell 能力；`GenerationLoop`、共享 OCR、持久化与普通供应商不改；继续只保留三语
+- **副作用**：遇到大括号/代码围栏时，其后文本缓冲到本轮结束以免调用 JSON 提前泄漏；纯聊天无此额外缓冲；未知工具示例会保留并提示格式未生效，不执行
+- **待验证**：A1 指定文件读取结果、A2 日历新建拒绝、A3 Skill 拒绝、A4 时间、A5 日历查询的真实模型/设备表现；错误卡片复制/关闭；截图；未使用账号联网测试，未操作模拟器
+- **验证记录**：`docs/references/f009-supplement4-verification.md`（包含请求提示词前后对比、关键改动与 A1-A13 离线/实机边界）
+- **产物**：`app/build/outputs/apk/f009-protocol-20261006/RikkaHub.Work-2.5.6-work.1-{arm64-v8a,universal,x86_64}-release.apk`；保留上一轮图片接入 APK，仅本地 Release，不上传 GitHub
+- **commit**：未提交，未执行 commit/tag/push
+- **回滚策略**：只反向应用本补充的增量 diff，保留图片接入和补充一/二/三安全与错误链；独立提交后 `git revert <协议对齐提交>`，不得整文件恢复覆盖先前修改
+- **上游同步**：重新套用 DeepSeek Web 专用输出协议、JSON/SSE 转换与只读结果回传；不修改共享生成路径
+- **日期**：2026-10-06
+
+## [F009 图片上传] 网页文件上传与图片引用
+- **需求**：先接入并构建本地安装包，由维护者验证快速/思考模式识图；不使用账号联网验证
+- **状态**：定向编译与单元测试、全模块 `test`、签名 `:app:assembleRelease` 已通过；三种 APK 的版本、包名、签名、WASM 和三语资源已核验；线上识图待维护者测试
+- **版本**：`2.5.6-work.1` / `versionCode=194`，保持不变
+- **行为**：读取本地/内联图片，复用现有编码器；上传目标单独申请 PoW，使用 multipart 获得文件 ID；聊天通过 `ref_file_ids` 引用，提示词使用对应编号；两种模式都支持
+- **边界**：单次最多 24 份去重 URI 后的图片附件（含历史上下文），每张编码后不超过 10 MB；同 URI/相同内容去重；不抓取远程 URL、不跨请求缓存文件 ID；失败直接终止本次生成并发持久无链接卡片，不静默假装识图
+- **旧配置**：仅在 DeepSeek Web 分支补齐两个已知模型的 IMAGE 输入，保留其 UUID、名称、自定义设置以及供应商凭证；无数据模型字段增删/改名/默认值变化，无供应商删除重建要求
+- **改动文件**：
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebImages.kt`（新增）
+  - `ai/src/main/java/me/rerere/ai/provider/providers/deepseekweb/DeepSeekWebModels.kt`（新增）
+  - 同目录 `DeepSeekWebPoW.kt`、`DeepSeekWebProvider.kt`、`DeepSeekWebTools.kt`
+  - `app/src/main/java/me/rerere/rikkahub/data/datastore/DefaultProviders.kt`、`PreferencesStore.kt`（仅 DeepSeek Web 归一化分支）
+  - `app/src/main/java/me/rerere/rikkahub/service/ChatService.kt`
+  - `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/ProviderConfigureDeepSeekWeb.kt`
+  - 英文/简中/繁中 `strings.xml`
+  - AI 模块 `DeepSeekWebImagesTest.kt`、`DeepSeekWebModelsTest.kt`、`DeepSeekWebPoWTest.kt`
+  - App 模块 `DefaultProvidersTest.kt`、`DeepSeekWebChatErrorTest.kt`
+  - `CHANGES.md`、`FEATURES.md`
+- **验证**：DeepSeek 相关 49 项单元测试零失败，默认供应商另增一项图片声明测试；覆盖实际上传代码的拦截器响应、multipart 字段/后缀、目标 PoW、重复图片、限制边界、上传失败中止、JSON 形态/业务码/缺失 ID、取消、两种模式的 completion 请求体与默认模型声明；不连接 DeepSeek 服务
+- **产物**：`app/build/outputs/apk/f009-images-20261006/RikkaHub.Work-2.5.6-work.1-{arm64-v8a,universal,x86_64}-release.apk`，仅 Release，新建独立目录保留上一轮安装包
+- **参考来源**：[cv-superding/dsh-deepseek-web-login](https://github.com/cv-superding/dsh-deepseek-web-login)（Apache-2.0）的 `src/webapi.ts`，提交 `b84f0a1228c3a8031e7177f49ce09b52d761da11`；协议参考，本地 Kotlin 实现
+- **待验证**：实机上传返回与快速/思考识图；旧配置升级后不走 OCR；其他 API 图片输入回归
+- **commit**：未提交，未执行 commit/tag/push
+- **回滚策略**：只反向应用本图片接入的增量 diff，保留补充一/二/三安全与报错链路；独立提交后可用 `git revert <图片接入提交>`，不得整文件恢复覆盖存量修改
+- **上游同步**：保留 provider 专用图片上传和目标 PoW、统一图片模型声明、DeepSeek Web 旧配置补齐；共享 OCR 和 `GenerationLoop` 不改
+- **日期**：2026-10-06

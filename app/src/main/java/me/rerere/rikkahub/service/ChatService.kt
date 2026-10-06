@@ -30,7 +30,11 @@ import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderManager
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebCapabilityRefusalException
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebImageException
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
@@ -42,6 +46,9 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationLoop
+import me.rerere.rikkahub.data.ai.DeepSeekWebSanitizedMessages
+import me.rerere.rikkahub.data.ai.DeepSeekWebOutputGuard
+import me.rerere.rikkahub.data.ai.DeepSeekWebPseudoToolException
 import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
@@ -60,6 +67,7 @@ import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getAssistantById
@@ -132,10 +140,59 @@ data class ChatError(
     val conversationId: Uuid? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val solution: ChatErrorSolution? = null,
+    val autoDismiss: Boolean = true,
 )
 
 enum class ChatErrorSolution {
     CheckFastModelSettings,
+}
+
+internal fun deepSeekWebChatError(
+    error: Throwable,
+    conversationId: Uuid,
+    getString: (Int, String?) -> String,
+): ChatError? {
+    val titleResource: Int
+    val messageResource: Int
+    val toolName: String?
+    when (error) {
+        is DeepSeekWebImageException -> {
+            toolName = error.message
+            titleResource = R.string.chat_error_dsweb_image_title
+            messageResource = R.string.chat_error_dsweb_image_message
+        }
+        is DeepSeekWebPseudoToolException -> {
+            toolName = error.toolName
+            titleResource = if (error.blocked) R.string.chat_error_dsweb_pseudo_tool_title
+                else R.string.chat_error_dsweb_tool_format_title
+            messageResource = if (error.blocked) R.string.chat_error_dsweb_pseudo_tool_message
+                else R.string.chat_error_dsweb_tool_format_message
+        }
+        is DeepSeekWebCapabilityRefusalException -> {
+            toolName = error.blockedToolName
+            when {
+                !toolName.isNullOrBlank() -> {
+                    titleResource = R.string.chat_error_dsweb_tool_blocked_title
+                    messageResource = R.string.chat_error_dsweb_tool_blocked_message
+                }
+                error.isLocalExecution -> {
+                    titleResource = R.string.chat_error_dsweb_execute_title
+                    messageResource = R.string.chat_error_dsweb_execute_message
+                }
+                else -> {
+                    titleResource = R.string.chat_error_dsweb_capability_title
+                    messageResource = R.string.chat_error_dsweb_capability_message
+                }
+            }
+        }
+        else -> return null
+    }
+    return ChatError(
+        title = getString(titleResource, null),
+        error = IllegalStateException(getString(messageResource, toolName), error),
+        conversationId = conversationId,
+        autoDismiss = false,
+    )
 }
 
 private val inputTransformers by lazy {
@@ -193,11 +250,26 @@ class ChatService(
         conversationId: Uuid? = null,
         title: String? = null,
         solution: ChatErrorSolution? = null,
+        autoDismiss: Boolean = true,
     ) {
         if (error is CancellationException) return
         _errors.update {
-            it + ChatError(title = title, error = error, conversationId = conversationId, solution = solution)
+            it + ChatError(
+                title = title,
+                error = error,
+                conversationId = conversationId,
+                solution = solution,
+                autoDismiss = autoDismiss,
+            )
         }
+    }
+
+    private fun addGenerationError(error: Throwable, conversationId: Uuid, title: String) {
+        val capabilityError = deepSeekWebChatError(error, conversationId) { resource, toolName ->
+            if (toolName == null) context.getString(resource) else context.getString(resource, toolName)
+        }
+        if (capabilityError != null) _errors.update { it + capabilityError }
+        else addError(error, conversationId, title = title)
     }
 
     fun dismissError(id: Uuid) {
@@ -634,6 +706,13 @@ class ChatService(
             // check invalid messages
             checkInvalidMessages(conversationId)
             val conversation = getConversationFlow(conversationId).value
+            val requestMessages = conversation.currentMessages.let {
+                if (messageRange != null) it.subList(messageRange.start, messageRange.endInclusive + 1) else it
+            }
+            DeepSeekWebGuard.refusal(
+                provider = model.findProvider(settings.providers),
+                text = requestMessages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty(),
+            )?.let { throw it }
 
             val tools = try {
                 chatToolFactory.createTools(
@@ -662,13 +741,7 @@ class ChatService(
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
-                messages = conversation.currentMessages.let {
-                    if (messageRange != null) {
-                        it.subList(messageRange.start, messageRange.endInclusive + 1)
-                    } else {
-                        it
-                    }
-                },
+                messages = requestMessages,
                 assistant = assistant,
                 conversationId = conversationId,
                 conversationSystemPrompt = conversation.customSystemPrompt,
@@ -703,16 +776,29 @@ class ChatService(
             }.collect { chunk ->
                 when (chunk) {
                     is GenerationChunk.Messages -> {
+                        val sanitized = sanitizeDeepSeekOutput(chunk.messages, model, settings)
+                        val safeMessages = sanitized?.messages ?: chunk.messages
                         val updatedConversation = getConversationFlow(conversationId).value
-                            .updateCurrentMessages(chunk.messages)
+                            .updateCurrentMessages(safeMessages)
                         updateConversation(conversationId, updatedConversation)
 
                         // 通知等边缘副作用由 ChatNotificationManager 消费；
                         // tryEmit 不挂起，事件丢失只影响单次通知更新，不能反压生成链
-                        chunk.messages.lastOrNull()?.let { lastMessage ->
+                        safeMessages.lastOrNull()?.let { lastMessage ->
                             appEventBus.tryEmit(
                                 AppEvent.ChatGenerationUpdate(conversationId, lastMessage, senderName)
                             )
+                        }
+                        if (sanitized != null) {
+                            sanitized.matches.forEach { match ->
+                                Log.w(
+                                    TAG,
+                                    "DeepSeek Web pseudo tool call blocked: " +
+                                        "${match.toolName}, blockLength=${match.blockLength}",
+                                )
+                            }
+                            val match = sanitized.matches.firstOrNull { it.blocked } ?: sanitized.matches.first()
+                            throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
                         }
                     }
                 }
@@ -724,7 +810,7 @@ class ChatService(
             sessionManager.get(conversationId)?.messageQueue?.pause()
 
             it.printStackTrace()
-            addError(it, conversationId, title = context.getString(R.string.error_title_generation))
+            addGenerationError(it, conversationId, title = context.getString(R.string.error_title_generation))
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
@@ -737,6 +823,15 @@ class ChatService(
                 generateSuggestion(conversationId, finalConversation)
             }
         }
+    }
+
+    private fun sanitizeDeepSeekOutput(
+        messages: List<UIMessage>,
+        model: Model,
+        settings: Settings,
+    ): DeepSeekWebSanitizedMessages? {
+        if (model.findProvider(settings.providers) !is ProviderSetting.DeepSeekWeb) return null
+        return DeepSeekWebOutputGuard.sanitize(messages)
     }
 
     // ---- 检查无效消息 ----

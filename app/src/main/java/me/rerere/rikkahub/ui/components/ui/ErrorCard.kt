@@ -114,8 +114,8 @@ fun ErrorCard(
     val checkFastModelSettings = stringResource(R.string.chat_page_check_fast_model_settings)
     val linkColor = MaterialTheme.colorScheme.primary
 
-    // 5 秒后自动消失
     LaunchedEffect(error.id) {
+        if (!error.autoDismiss) return@LaunchedEffect
         delay(5000)
         onDismiss()
     }

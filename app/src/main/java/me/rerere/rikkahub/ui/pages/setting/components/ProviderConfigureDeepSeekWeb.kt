@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -25,12 +23,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import me.rerere.ai.provider.Model
-import me.rerere.ai.provider.ModelAbility
-import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -169,14 +165,22 @@ internal fun ProviderConfigureDeepSeekWeb(
         )
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = stringResource(R.string.deepseek_web_limits),
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyMedium,
+    CardGroup(title = { Text(stringResource(R.string.provider_dsweb_limits_title)) }) {
+        item(
+            headlineContent = { Text(stringResource(R.string.provider_dsweb_limits_blocked)) },
+            supportingContent = { Text(stringResource(R.string.provider_dsweb_limits_allowed)) },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.provider_dsweb_limits_readonly_note)) },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.provider_dsweb_read_notice)) },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.provider_dsweb_image_notice)) },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.provider_dsweb_limits_footer)) },
         )
     }
 
@@ -190,7 +194,4 @@ internal fun ProviderConfigureDeepSeekWeb(
     }
 }
 
-private val deepSeekModels = listOf(
-    Model("deepseek-web", "快速模式", type = ModelType.CHAT, abilities = listOf(ModelAbility.TOOL)),
-    Model("deepseek-web-thinking", "思考模式", type = ModelType.CHAT, abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING)),
-)
+private val deepSeekModels = DeepSeekWebModels.defaults()

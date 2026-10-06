@@ -12,6 +12,7 @@ import me.rerere.ai.provider.BalanceOption
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import kotlin.uuid.Uuid
@@ -292,10 +293,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "DeepSeek 网页版（免费）",
         enabled = false,
         builtIn = true,
-        models = listOf(
-            Model("deepseek-web", "快速模式", abilities = listOf(ModelAbility.TOOL)),
-            Model("deepseek-web-thinking", "思考模式", abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING)),
-        ),
+        models = DeepSeekWebModels.defaults(),
         description = { Text(stringResource(R.string.deepseek_web_warning)) },
         shortDescription = { Text(stringResource(R.string.deepseek_web_short_description)) },
     ),

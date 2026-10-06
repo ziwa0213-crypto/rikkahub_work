@@ -17,8 +17,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
-import me.rerere.ai.provider.ModelAbility
-import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
@@ -43,11 +41,11 @@ internal class DeepSeekWebProvider(
     context: Context,
 ) : Provider<ProviderSetting.DeepSeekWeb> {
     private val appContext = context.applicationContext
+    private val images = DeepSeekWebImages(client, powHeader = { headers, target ->
+        DeepSeekWebPoW.createHeader(client, appContext, headers, target)
+    })
 
-    override suspend fun listModels(providerSetting: ProviderSetting.DeepSeekWeb): List<Model> = listOf(
-        Model("deepseek-web", "快速模式", type = ModelType.CHAT, abilities = listOf(ModelAbility.TOOL)),
-        Model("deepseek-web-thinking", "思考模式", type = ModelType.CHAT, abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING)),
-    )
+    override suspend fun listModels(providerSetting: ProviderSetting.DeepSeekWeb): List<Model> = DeepSeekWebModels.defaults()
 
     override suspend fun streamText(
         providerSetting: ProviderSetting.DeepSeekWeb,
@@ -56,21 +54,19 @@ internal class DeepSeekWebProvider(
     ): Flow<StreamChunk> = flow {
         require(providerSetting.token.isNotBlank()) { "DeepSeek 网页版尚未登录，请先保存 Token。" }
         val latestUser = messages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty()
-        DeepSeekWebGuard.refusal(latestUser)?.let { refusal ->
-            emit(StreamChunk.TextDelta("local-refusal", refusal))
-            emit(StreamChunk.Finish("stop", "local-refusal", params.model.modelId))
-            return@flow
-        }
+        DeepSeekWebGuard.refusal(latestUser)?.let { throw it }
         gate.withPermit(providerSetting.throttleMinMs, providerSetting.throttleMaxMs) {
             val requestMessages = messages.map { message ->
                 if (message.role == MessageRole.SYSTEM) UIMessage.system(message.toText()) else message
             }
-            val prompt = DeepSeekWebTools.prompt(requestMessages, params.tools, params.model)
             val headers = requestHeaders(providerSetting)
+            val uploadedImages = images.prepare(requestMessages, headers)
+            val prompt = DeepSeekWebTools.prompt(requestMessages, params.tools, params.model, uploadedImages.references)
             val sessionId = createSession(headers)
             try {
                 val pow = DeepSeekWebPoW.createHeader(client, appContext, headers)
-                completion(headers, pow, sessionId, prompt, params.model.modelId == "deepseek-web-thinking")
+                completion(headers, pow, sessionId, prompt, params.model.modelId == "deepseek-web-thinking",
+                    uploadedImages.fileIds, params.tools.map { it.name }.toSet())
                     .collect { emit(it) }
             } finally {
                 deleteSession(headers, sessionId)
@@ -121,18 +117,10 @@ internal class DeepSeekWebProvider(
         sessionId: String,
         prompt: String,
         thinking: Boolean,
+        refFileIds: List<String>,
+        availableToolNames: Set<String>,
     ): Flow<StreamChunk> = callbackFlow {
-        val body = buildJsonObject {
-            put("chat_session_id", sessionId)
-            put("parent_message_id", null as String?)
-            put("prompt", prompt)
-            put("ref_file_ids", kotlinx.serialization.json.JsonArray(emptyList()))
-            put("thinking_enabled", thinking)
-            put("search_enabled", false)
-            put("model_type", "default")
-            put("action", null as String?)
-            put("preempt", false)
-        }
+        val body = deepSeekWebCompletionBody(sessionId, prompt, thinking, refFileIds)
         val requestHeaders = headers.toMutableMap().apply {
             put("Accept", "text/event-stream")
             put("x-ds-pow-response", pow)
@@ -142,13 +130,18 @@ internal class DeepSeekWebProvider(
             .headers(requestHeaders.toHeaders())
             .post(json.encodeToString(body).toRequestBody(JSON))
             .build()
-        val decoder = DeepSeekWebSSE(UUID.randomUUID().toString(), if (thinking) "deepseek-web-thinking" else "deepseek-web")
+        val decoder = DeepSeekWebSSE(
+            responseId = UUID.randomUUID().toString(),
+            model = if (thinking) "deepseek-web-thinking" else "deepseek-web",
+            thinkingEnabled = thinking,
+            availableToolNames = availableToolNames,
+        )
         val listener = object : EventSourceListener() {
             override fun onEvent(source: EventSource, id: String?, type: String?, data: String) {
                 try {
                     if (type == "toast") error("DeepSeek 网页端：${data.take(300)}")
                     decoder.accept(data).forEach { trySend(it) }
-                    if (data.contains("\"FINISHED\"") || data.trim() == "[DONE]") decoder.finish().forEach { trySend(it) }
+                    decoder.refusal?.let { close(it) }
                 } catch (error: Throwable) {
                     close(error)
                 }
@@ -159,8 +152,10 @@ internal class DeepSeekWebProvider(
             }
 
             override fun onClosed(source: EventSource) {
-                decoder.finish().forEach { trySend(it) }
-                close()
+                runCatching {
+                    decoder.finish().forEach { trySend(it) }
+                }.onFailure { close(it) }
+                    .onSuccess { close(decoder.refusal) }
             }
         }
         val source = EventSources.createFactory(client).newEventSource(request, listener)
@@ -202,4 +197,21 @@ internal class DeepSeekWebProvider(
         private val EMPTY = "{}".toRequestBody(JSON)
         private val gate = DeepSeekWebGate()
     }
+}
+
+internal fun deepSeekWebCompletionBody(
+    sessionId: String,
+    prompt: String,
+    thinking: Boolean,
+    refFileIds: List<String>,
+): JsonObject = buildJsonObject {
+    put("chat_session_id", sessionId)
+    put("parent_message_id", null as String?)
+    put("prompt", prompt)
+    put("ref_file_ids", kotlinx.serialization.json.JsonArray(refFileIds.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+    put("thinking_enabled", thinking)
+    put("search_enabled", false)
+    put("model_type", "default")
+    put("action", null as String?)
+    put("preempt", false)
 }

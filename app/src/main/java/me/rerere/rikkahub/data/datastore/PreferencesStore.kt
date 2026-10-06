@@ -28,6 +28,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
@@ -416,7 +417,7 @@ class SettingsStore(
                         )
 
                         is ProviderSetting.DeepSeekWeb -> provider.copy(
-                            models = provider.models.distinctBy { model -> model.id },
+                            models = DeepSeekWebModels.withImageInput(provider.models.distinctBy { model -> model.id }),
                             throttleMinMs = provider.throttleMinMs.coerceIn(1000, 15000),
                             throttleMaxMs = provider.throttleMaxMs.coerceIn(1000, 15000),
                         )

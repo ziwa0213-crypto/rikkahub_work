@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.setting.components
 
+import android.graphics.Color
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -17,9 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import me.rerere.rikkahub.R
 
 @Composable
@@ -28,25 +31,39 @@ internal fun DeepSeekWebLogin(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val webViewHeight = (configuration.screenHeightDp - 260).coerceIn(320, 560).dp
     var captured by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxWidth(0.96f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text(stringResource(R.string.deepseek_web_login_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(if (captured) R.string.deepseek_web_login_captured else R.string.deepseek_web_login_hint))
                 AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(480.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(webViewHeight),
                     factory = {
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
-                            settings.userAgentString = settings.userAgentString
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = true
+                            settings.setSupportZoom(false)
+                            settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
+                            settings.textZoom = 100
+                            isHorizontalScrollBarEnabled = false
+                            setBackgroundColor(Color.WHITE)
                             webViewClient = object : WebViewClient() {
                                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
                                     capture(view, request.url.toString(), request.requestHeaders)
 
                                 override fun onPageFinished(view: WebView, url: String) {
+                                    view.evaluateJavascript(DEEPSEEK_INPUT_FIX_SCRIPT, null)
                                     val cookie = CookieManager.getInstance().getCookie(url).orEmpty()
                                     if (cookie.isNotBlank()) {
                                         val token = capturedToken
@@ -80,6 +97,10 @@ internal fun DeepSeekWebLogin(
                             loadUrl("https://chat.deepseek.com")
                         }
                     },
+                    onRelease = { webView ->
+                        webView.stopLoading()
+                        webView.destroy()
+                    },
                 )
             }
         },
@@ -88,3 +109,42 @@ internal fun DeepSeekWebLogin(
         },
     )
 }
+
+private val DEEPSEEK_INPUT_FIX_SCRIPT = """
+    (function() {
+      if (window.__rikkahubDeepSeekInputFix) return;
+      window.__rikkahubDeepSeekInputFix = true;
+
+      function moveCaretToEnd(input) {
+        if (document.activeElement !== input) return;
+        var end = (input.value || '').length;
+        try { input.setSelectionRange(end, end); } catch (_) {}
+      }
+
+      function patchInput(input) {
+        if (!(input instanceof HTMLInputElement) || input.dataset.rikkaCaretFix === '1') return;
+        if (input.type === 'number') {
+          input.type = 'text';
+          input.inputMode = 'numeric';
+        }
+        input.dataset.rikkaCaretFix = '1';
+        input.addEventListener('input', function() {
+          var current = this;
+          moveCaretToEnd(current);
+          requestAnimationFrame(function() { moveCaretToEnd(current); });
+          setTimeout(function() { moveCaretToEnd(current); }, 0);
+          setTimeout(function() { moveCaretToEnd(current); }, 50);
+        }, true);
+      }
+
+      function scanInputs() {
+        document.querySelectorAll('input').forEach(patchInput);
+      }
+
+      scanInputs();
+      new MutationObserver(scanInputs).observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    })();
+""".trimIndent()

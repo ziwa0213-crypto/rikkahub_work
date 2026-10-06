@@ -202,6 +202,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
    - `FEATURES.md` —— 记录改动文件、commit hash、回滚命令。
 5. **同一文件的多处编辑必须串行**（并行编辑会互相覆盖，这是踩过的坑）。
 6. 提交前跑 **`./gradlew test`**；改数据模型/持久化时尤其不能跳过。
+7. **撤销/删除前列清“要删”和“不得连带删除”**，并核对上下游调用链。删除 F009 供应商跳转链接时，必须保留能力拦截、`ChatError` 构造与发送、`ErrorCardsDisplay` 挂载、`autoDismiss` 字段与判断，以及上游 `CheckFastModelSettings` 分支；不得把“删除入口”理解为“删除报错功能”。
 
 ---
 
@@ -337,4 +338,3 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | 记忆读取范围（F002） | `app/.../data/repository/MemoryRepository.kt` 的 `scopeOf(assistant)`（写入侧在 `ChatToolFactory.kt`，读取侧在 `ChatService.kt`） |
 
 <!-- ==== END rikkahub_work fork section ==== -->
-
