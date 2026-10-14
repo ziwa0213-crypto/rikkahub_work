@@ -55,7 +55,7 @@ Download the APK from this repository's **Releases** page.
 
 - **Per-provider loading animations** — save a loading animation per provider, auto-matched by brand, with support for custom GIF / image.
 - **Liquid glass effect** — refraction and dispersion on the chat input bar (Android 13+), with an automatic fallback on older versions.
-- **Group mode** *(in development)* — switch between chat and group mode from the drawer, with a standalone member library and group configuration.
+- **Group mode** — switch between chat and group mode from the drawer, with a standalone member library and group configuration.
 
 ### ⚙️ Miscellaneous
 
