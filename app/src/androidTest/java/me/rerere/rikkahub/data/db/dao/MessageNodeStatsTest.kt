@@ -103,4 +103,34 @@ class MessageNodeStatsTest {
             )
         )
     }
+
+    @Test
+    fun groupMessagesAreStoredButExcludedFromChatStats() = runBlocking {
+        val groupAssistant = me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID.toString()
+        database.conversationDao().insert(ConversationEntity(id = "group", assistantId = groupAssistant,
+            title = "Group", nodes = "[]", createAt = 0, updateAt = 0, chatSuggestions = "[]", isPinned = false))
+        val messages = """[{"role":"user","createdAt":"2026-10-09T09:00:00","usage":{"promptTokens":10}}]"""
+        insertMessages(messages)
+        dao.insert(MessageNodeEntity(id = "group-node", conversationId = "group", nodeIndex = 0,
+            messages = messages, selectIndex = 0))
+        assertEquals(2, dao.getTokenStats().totalMessages)
+        assertEquals(MessageTokenStats(1, 10, 0, 0), dao.getTokenStats(groupAssistant))
+        assertEquals(listOf(MessageDayCount("2026-10-09", 1)), dao.getMessageCountPerDay("2026-10-09", groupAssistant))
+        assertEquals(1, dao.getNodesOfConversation("group").size)
+    }
+
+    @Test
+    fun legacyGroupMemoryMovesWithoutChangingIdsOrOtherScopes() = runBlocking {
+        val memoryDao = database.memoryDao()
+        val old = "grp:group"
+        val target = "grp:group:conversation"
+        val id = memoryDao.insertMemory(me.rerere.rikkahub.data.db.entity.MemoryEntity(assistantId = old, content = "legacy")).toInt()
+        memoryDao.insertMemory(me.rerere.rikkahub.data.db.entity.MemoryEntity(assistantId = "other", content = "keep"))
+        memoryDao.moveMemoryScope(old, target)
+        memoryDao.moveMemoryScope(old, target)
+        assertEquals(emptyList<me.rerere.rikkahub.data.db.entity.MemoryEntity>(), memoryDao.getMemoriesOfAssistant(old))
+        assertEquals(target, memoryDao.getMemoryById(id)?.assistantId)
+        assertEquals(1, memoryDao.getMemoriesOfAssistant(target).size)
+        assertEquals("keep", memoryDao.getMemoriesOfAssistant("other").single().content)
+    }
 }

@@ -73,7 +73,7 @@ fun AssistantLocalToolPage(id: String) {
 }
 
 @Composable
-private fun AssistantLocalToolContent(
+internal fun AssistantLocalToolContent(
     innerPadding: PaddingValues,
     assistant: Assistant,
     onUpdate: (Assistant) -> Unit

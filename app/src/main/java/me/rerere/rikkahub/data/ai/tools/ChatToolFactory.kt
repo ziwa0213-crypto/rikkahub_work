@@ -15,6 +15,7 @@ import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.WorkspaceShellStatus
+import kotlin.uuid.Uuid
 
 private const val TAG = "ChatToolFactory"
 
@@ -40,15 +41,23 @@ class ChatToolFactory(
         assistant: Assistant,
         model: Model,
         workspaceCwd: String? = null,
+        memoryScope: String? = null,
+        conversationScopeAssistantId: Uuid? = assistant.id,
     ): List<Tool> = buildList {
         if (assistant.enableMemory) {
-            val memoryAssistantId = MemoryRepository.scopeOf(assistant)
+            val memoryAssistantId = memoryScope ?: MemoryRepository.scopeOf(assistant)
             addAll(
                 buildMemoryTools(
                     json = json,
                     onCreation = { content -> memoryRepository.addMemory(memoryAssistantId, content) },
-                    onUpdate = { id, content -> memoryRepository.updateContent(id, content) },
-                    onDelete = { id -> memoryRepository.deleteMemory(id) },
+                    onUpdate = { id, content ->
+                        if (memoryScope == null) memoryRepository.updateContent(id, content)
+                        else memoryRepository.updateContentInScope(memoryScope, id, content)
+                    },
+                    onDelete = { id ->
+                        if (memoryScope == null) memoryRepository.deleteMemory(id)
+                        else memoryRepository.deleteMemoryInScope(memoryScope, id)
+                    },
                 )
             )
         }
@@ -57,7 +66,7 @@ class ChatToolFactory(
         }
         addAll(localTools.getTools(assistant.localTools))
         if (assistant.enableRecentChatsReference) {
-            addAll(createConversationTools(conversationRepository, assistant.id))
+            addAll(createConversationTools(conversationRepository, conversationScopeAssistantId))
         }
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), workspaceCwd))
         if (assistant.enabledSkills.isNotEmpty()) {
@@ -69,7 +78,8 @@ class ChatToolFactory(
             )
         }
 
-        val mcpTools = mcpManager.getAllAvailableTools()
+        val mcpTools = if (memoryScope == null) mcpManager.getAllAvailableTools()
+            else mcpManager.getAllAvailableTools(assistant)
         val invalidNames = mcpTools
             .map { it.second }
             .distinct()

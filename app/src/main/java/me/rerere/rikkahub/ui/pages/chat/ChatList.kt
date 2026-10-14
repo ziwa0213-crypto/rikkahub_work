@@ -94,6 +94,7 @@ import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.message.ChatMessage
@@ -137,6 +138,9 @@ fun ChatList(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
+    groupMode: Boolean = false,
+    onQuote: (me.rerere.ai.ui.UIMessageAnnotation.GroupQuote) -> Unit = {},
+    onMention: (String) -> Unit = {},
 ) {
     AnimatedContent(
         targetState = previewMode,
@@ -179,6 +183,7 @@ fun ChatList(
                 onToolAnswer = onToolAnswer,
                 onToggleFavorite = onToggleFavorite,
                 onConversationSystemPromptChange = onConversationSystemPromptChange,
+                groupMode = groupMode, onQuote = onQuote, onMention = onMention,
             )
         }
     }
@@ -209,6 +214,9 @@ private fun ChatListNormal(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
+    groupMode: Boolean = false,
+    onQuote: (me.rerere.ai.ui.UIMessageAnnotation.GroupQuote) -> Unit = {},
+    onMention: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
@@ -271,13 +279,15 @@ private fun ChatListNormal(
             .associateBy { it.id }
     }
     val lastMessageIndex = conversation.messageNodes.lastIndex
+    val groupModelId = if (conversation.isGroupChat()) conversation.currentMessages.lastOrNull()?.modelId else null
     // The loading animation follows the provider for the model that will be used next.
     val currentProvider = remember(
         assistant,
         settings.chatModelId,
         settings.providers,
+        groupModelId,
     ) {
-        settings.findModelById(assistant?.chatModelId ?: settings.chatModelId)
+        settings.findModelById(groupModelId ?: assistant?.chatModelId ?: settings.chatModelId)
             ?.findProvider(settings.providers, checkOverwrite = false)
     }
 
@@ -375,6 +385,7 @@ private fun ChatListNormal(
                             onToolApproval = onToolApproval,
                             onToolAnswer = onToolAnswer,
                             lastMessage = index == lastMessageIndex,
+                            groupMode = groupMode, onQuote = onQuote, onMention = onMention,
                         )
                     }
                 }

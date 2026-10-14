@@ -32,6 +32,7 @@ import me.rerere.hugeicons.stroke.Tick02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
 import me.rerere.rikkahub.ui.pages.extensions.workspace.toShellStatusLabel
 
 @Composable
@@ -41,6 +42,7 @@ internal fun WorkspaceSelectSheet(
     onSelect: (String?) -> Unit,
     onManage: () -> Unit,
     onDismiss: () -> Unit,
+    scope: WorkspaceOwnerScope = WorkspaceOwnerScope.CHAT,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -74,10 +76,15 @@ internal fun WorkspaceSelectSheet(
                     selected = assistant.workspaceId == null,
                     onClick = { onSelect(null) },
                 )
-                workspaces.forEach { workspace ->
+                workspaces.filter(scope::includes).forEach { workspace ->
+                    val ownerLabel = stringResource(when (workspace.owner) {
+                        "chat" -> R.string.workspace_owner_chat
+                        "group" -> R.string.workspace_owner_group
+                        else -> R.string.workspace_owner_unassigned
+                    })
                     WorkspaceSelectRow(
                         title = workspace.name,
-                        status = workspace.shellStatus.toShellStatusLabel(),
+                        status = "${workspace.shellStatus.toShellStatusLabel()} · $ownerLabel",
                         selected = workspace.id == assistant.workspaceId?.toString(),
                         onClick = { onSelect(workspace.id) },
                     )
@@ -85,6 +92,7 @@ internal fun WorkspaceSelectSheet(
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            WorkspaceCreateButton(scope, workspaces, onSelect)
 
             // 管理工作区
             ListItem(

@@ -74,10 +74,14 @@ private val TOKEN_STATS_SQL = SimpleSQLiteQuery(
         "FROM message_node mn, json_each($VALID_MESSAGES_JSON) j"
 )
 
-suspend fun MessageNodeDAO.getTokenStats(): MessageTokenStats = getTokenStatsRaw(TOKEN_STATS_SQL)
+suspend fun MessageNodeDAO.getTokenStats(excludedAssistantId: String? = null): MessageTokenStats =
+    getTokenStatsRaw(if (excludedAssistantId == null) TOKEN_STATS_SQL else SimpleSQLiteQuery(
+        TOKEN_STATS_SQL.sql + " WHERE NOT EXISTS (SELECT 1 FROM conversationentity c " +
+            "WHERE c.id = mn.conversation_id AND c.assistant_id = ?)", arrayOf(excludedAssistantId)
+    ))
 
 // 按用户消息的 createdAt 字段（LocalDateTime ISO 字符串前10位即日期）统计每日消息数
-suspend fun MessageNodeDAO.getMessageCountPerDay(startDate: String): List<MessageDayCount> =
+suspend fun MessageNodeDAO.getMessageCountPerDay(startDate: String, excludedAssistantId: String? = null): List<MessageDayCount> =
     getMessageCountPerDayRaw(
         SimpleSQLiteQuery(
             "SELECT substr(json_extract(j.value, '$.createdAt'), 1, 10) AS day, " +
@@ -85,7 +89,9 @@ suspend fun MessageNodeDAO.getMessageCountPerDay(startDate: String): List<Messag
                 "FROM message_node mn, json_each($VALID_MESSAGES_JSON) j " +
                 "WHERE json_extract(j.value, '$.role') = 'user' " +
                 "AND json_extract(j.value, '$.createdAt') >= ? " +
+                (if (excludedAssistantId == null) "" else
+                    "AND NOT EXISTS (SELECT 1 FROM conversationentity c WHERE c.id = mn.conversation_id AND c.assistant_id = ?) ") +
                 "GROUP BY day",
-            arrayOf(startDate)
+            if (excludedAssistantId == null) arrayOf(startDate) else arrayOf(startDate, excludedAssistantId)
         )
     )

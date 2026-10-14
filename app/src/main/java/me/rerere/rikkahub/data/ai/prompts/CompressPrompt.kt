@@ -18,3 +18,18 @@ internal val DEFAULT_COMPRESS_PROMPT = """
     {content}
     </conversation>
 """.trimIndent()
+
+internal val DEFAULT_GROUP_COMPRESS_PROMPT = """
+    Compress this group conversation into a briefing for future context in {locale}.
+    Preserve the owner's and deputy's requirements, decisions and conclusions in detail.
+    Summarise other members by name with one or two sentences each. Do not invent facts.
+    Preserve necessary filenames, identifiers and commands. Target {target_tokens} tokens.
+    Start with a clear summary heading. Output only the briefing.
+    {additional_context}
+    <primary>
+    {primary}
+    </primary>
+    <others>
+    {others}
+    </others>
+""".trimIndent()

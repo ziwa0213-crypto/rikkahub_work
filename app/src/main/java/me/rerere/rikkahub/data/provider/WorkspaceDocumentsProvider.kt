@@ -127,7 +127,9 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
     ): String {
         val parent = parseDocId(parentDocumentId)
         require(!parent.isRoot) { "Cannot create document at root" }
-        manager().ensureWorkspace(parent.root)
+        // SAF only exposes files/. An unavailable shared environment must not
+        // prevent users from keeping or editing their private workspace files.
+        manager().filesDir(parent.root).mkdirs()
         val parentDir = resolveFile(parent.root, parent.relPath)
         require(parentDir.isDirectory) { "Parent is not a directory" }
         val target = uniqueChild(parentDir, displayName)

@@ -75,6 +75,10 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.ContextUsage
+import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
+import kotlin.math.roundToInt
+import androidx.compose.material3.LinearProgressIndicator
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
@@ -107,12 +111,23 @@ internal fun FilesPicker(
     onPickAudio: () -> Unit,
     onPickFile: () -> Unit,
     onStartVoiceMode: (() -> Unit)? = null,
+    groupContextUsage: ContextUsage? = null,
+    groupCompressThreshold: Float? = null,
+    onGroupCompressThresholdChange: ((Float) -> Unit)? = null,
+    groupCompressTargetTokens: Int = 2000,
+    groupCompressKeepRecent: Int = 32,
+    groupMode: Boolean = false,
+    groupWorkspaceId: Uuid? = null,
+    groupAllowCwd: Boolean = true,
+    onUpdateGroupWorkspace: (Uuid?) -> Unit = {},
+    onUpdateGroupCwd: (String?) -> Unit = {},
 ) {
     val settings = LocalSettings.current
     val provider = settings.getCurrentChatModel()?.findProvider(providers = settings.providers)
     val navController = LocalNavController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
+    val workspaceAssistant = if (groupMode) assistant.copy(workspaceId = groupWorkspaceId) else assistant
 
     Column(
         modifier = Modifier
@@ -149,13 +164,14 @@ internal fun FilesPicker(
             modifier = Modifier.fillMaxWidth()
         )
 
-        if (workspaces.isNotEmpty()) {
+        run {
             WorkspacePickerListItem(
-                assistant = assistant,
+                assistant = workspaceAssistant,
                 conversation = conversation,
                 workspaces = workspaces,
-                onUpdateAssistant = onUpdateAssistant,
-                onUpdateConversation = onUpdateConversation,
+                onUpdateAssistant = { if (groupMode) onUpdateGroupWorkspace(it.workspaceId) else onUpdateAssistant(it) },
+                onUpdateConversation = { if (groupMode) onUpdateGroupCwd(it.workspaceCwd) else onUpdateConversation(it) },
+                ownerScope = if (groupMode) WorkspaceOwnerScope.GROUP else WorkspaceOwnerScope.CHAT,
                 onNavigateToDetail = { id ->
                     onDismiss()
                     navController.navigate(Screen.WorkspaceDetail(id))
@@ -166,7 +182,9 @@ internal fun FilesPicker(
                 },
                 onNavigateToManage = {
                     onDismiss()
-                    navController.navigate(Screen.Workspaces)
+                    navController.navigate(Screen.Workspaces(
+                        if (groupMode) WorkspaceOwnerScope.GROUP.value else WorkspaceOwnerScope.CHAT.value
+                    ))
                 },
             )
         }
@@ -232,7 +250,17 @@ internal fun FilesPicker(
                 Text(stringResource(R.string.chat_page_compress_context))
             },
             trailingContent = {
-                if (conversation.messageNodes.isNotEmpty()) {
+                if (groupContextUsage != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LinearProgressIndicator(progress = { groupContextUsage.ratio }, modifier = Modifier.width(48.dp).height(4.dp),
+                            color = when {
+                                groupContextUsage.ratio >= 0.9f -> MaterialTheme.colorScheme.error
+                                groupContextUsage.ratio >= (groupCompressThreshold ?: 0.7f) -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.primary
+                            }, trackColor = MaterialTheme.colorScheme.surfaceVariant)
+                        Text("${(groupContextUsage.ratio * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall)
+                    }
+                } else if (conversation.messageNodes.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.chat_page_message_count, conversation.messageNodes.size),
                         style = MaterialTheme.typography.labelSmall,
@@ -251,10 +279,10 @@ internal fun FilesPicker(
         )
 
         // Workspace CWD
-        val boundWorkspace = remember(workspaces, assistant.workspaceId) {
-            workspaces.find { it.id == assistant.workspaceId?.toString() }
+        val boundWorkspace = remember(workspaces, workspaceAssistant.workspaceId) {
+            workspaces.find { it.id == workspaceAssistant.workspaceId?.toString() }
         }
-        if (boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name) {
+        if ((!groupMode || groupAllowCwd) && boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name) {
             var showCwdSheet by remember { mutableStateOf(false) }
             TextButton(
                 onClick = { showCwdSheet = true },
@@ -278,7 +306,8 @@ internal fun FilesPicker(
                     workspaceId = boundWorkspace.id,
                     currentCwd = conversation.workspaceCwd,
                     onSelectCwd = { newCwd ->
-                        onUpdateConversation(conversation.copy(workspaceCwd = newCwd))
+                        if (groupMode) onUpdateGroupCwd(newCwd)
+                        else onUpdateConversation(conversation.copy(workspaceCwd = newCwd))
                     },
                     onDismiss = { showCwdSheet = false },
                 )
@@ -307,7 +336,11 @@ internal fun FilesPicker(
         }, onConfirm = { additionalPrompt, targetTokens, keepRecentMessages ->
             onCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
         }, provider = settings.findModelById(settings.compressModelId)
-            ?.findProvider(settings.providers, checkOverwrite = false))
+            ?.findProvider(settings.providers, checkOverwrite = false),
+            autoCompressThreshold = groupCompressThreshold,
+            onAutoCompressThresholdChange = onGroupCompressThresholdChange,
+            estimatedMaxTokens = groupContextUsage?.maxTokens,
+            initialTargetTokens = groupCompressTargetTokens, initialKeepRecentMessages = groupCompressKeepRecent)
     }
 }
 
@@ -321,6 +354,7 @@ private fun WorkspacePickerListItem(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToTerminal: (String) -> Unit,
     onNavigateToManage: () -> Unit,
+    ownerScope: WorkspaceOwnerScope = WorkspaceOwnerScope.CHAT,
 ) {
     var showSheet by remember { mutableStateOf(false) }
     val boundWorkspace = remember(workspaces, assistant.workspaceId) {
@@ -376,6 +410,7 @@ private fun WorkspacePickerListItem(
 
     if (showSheet) {
         WorkspaceSelectSheet(
+            scope = ownerScope,
             assistant = assistant,
             workspaces = workspaces,
             onSelect = { workspaceId ->

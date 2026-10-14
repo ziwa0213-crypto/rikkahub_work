@@ -33,6 +33,13 @@ class Navigator(private val backStack: MutableList<NavKey>) {
     fun popBackStack() {
         if (backStack.size > 1) backStack.removeLastOrNull()
     }
+
+    fun popBackToChat(): Boolean {
+        val chatIndex = backStack.indexOfLast { it is Screen.Chat }
+        if (chatIndex < 0) return false
+        while (backStack.lastIndex > chatIndex) backStack.removeLastOrNull()
+        return true
+    }
 }
 
 class NavigateOptionsBuilder {

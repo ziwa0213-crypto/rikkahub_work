@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.di
 
 import me.rerere.rikkahub.ui.pages.assistant.AssistantVM
+import me.rerere.rikkahub.ui.pages.group.GroupVM
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailVM
 import me.rerere.rikkahub.ui.pages.backup.BackupVM
 import me.rerere.rikkahub.ui.pages.chat.ChatDrawerVM
@@ -43,6 +44,7 @@ val viewModelModule = module {
     viewModelOf(::DebugVM)
     viewModelOf(::HistoryVM)
     viewModelOf(::AssistantVM)
+    viewModelOf(::GroupVM)
     viewModel<AssistantDetailVM> {
         AssistantDetailVM(
             id = it.get(),

@@ -7,6 +7,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID
 import java.time.Instant
 
 data class MessageSearchResult(
@@ -33,6 +35,7 @@ class MessageFtsManager(private val database: AppDatabase) {
     suspend fun indexConversation(conversation: Conversation) = withContext(Dispatchers.IO) {
         val conversationId = conversation.id.toString()
         db.execSQL("DELETE FROM message_fts WHERE conversation_id = ?", arrayOf(conversationId))
+        if (conversation.isGroupChat()) return@withContext
         conversation.messageNodes.forEach { node ->
             node.messages.forEach { message ->
                 val text = message.extractFtsText()
@@ -84,6 +87,11 @@ class MessageFtsManager(private val database: AppDatabase) {
                    simple_snippet(message_fts, 0, '[', ']', '...', 30) AS snippet
             FROM message_fts
             WHERE text MATCH jieba_query(?)
+            AND NOT EXISTS (
+                SELECT 1 FROM conversationentity AS group_conversation
+                WHERE group_conversation.id = message_fts.conversation_id
+                  AND group_conversation.assistant_id = '$GROUP_CHAT_ASSISTANT_ID'
+            )
             $assistantFilter
             ORDER BY ${sort.orderBy}
             LIMIT 50

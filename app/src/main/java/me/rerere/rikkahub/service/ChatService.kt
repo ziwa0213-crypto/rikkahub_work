@@ -38,6 +38,12 @@ import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebImageException
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.UIMessageAnnotation
+import me.rerere.rikkahub.data.model.resolveDispatch
+import me.rerere.rikkahub.data.model.completedDispatchText
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import java.util.concurrent.ConcurrentHashMap
 import me.rerere.ai.ui.canResumeToolExecution
 import me.rerere.ai.ui.finishPendingTools
 import me.rerere.ai.ui.isEmptyInputMessage
@@ -61,6 +67,7 @@ import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
 import me.rerere.rikkahub.data.ai.transformers.PromptInjectionTransformer
 import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
+import me.rerere.rikkahub.data.ai.transformers.GroupSpeakerTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
@@ -75,6 +82,15 @@ import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.stripSelfSpeakerPrefix
+import me.rerere.rikkahub.data.model.enabledMembers
+import me.rerere.rikkahub.data.model.toAssistant
+import me.rerere.rikkahub.data.model.withGroupSender
+import me.rerere.rikkahub.data.model.displayNameOf
+import me.rerere.rikkahub.data.model.speakingMembers
+import me.rerere.rikkahub.data.model.availableGroupQuotes
+import me.rerere.rikkahub.data.model.applyGroupQuotes
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
@@ -232,6 +248,9 @@ class ChatService(
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
+    private val groupRounds = ConcurrentHashMap<Uuid, GroupGenerationRound>()
+    private val _completedGroupRounds = MutableStateFlow<Map<Uuid, Long>>(emptyMap())
+    internal val completedGroupRounds = _completedGroupRounds.asStateFlow()
 
     private val sessionManager = ConversationSessionManager(
         scope = appScope,
@@ -356,7 +375,7 @@ class ChatService(
                     ).updateCurrentMessages(assistant.presetMessages)
                 }
             }
-            settingsStore.updateAssistant(session.state.value.assistantId)
+            if (!session.state.value.isGroupChat()) settingsStore.updateAssistant(session.state.value.assistantId)
         }
     }
 
@@ -416,12 +435,13 @@ class ChatService(
         dispatchNextQueuedMessage(conversationId)
     }
 
-    fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true) {
+    fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true,
+        annotations: List<UIMessageAnnotation> = emptyList()) {
         if (content.isEmptyInputMessage()) return
         val session = sessionManager.getOrCreate(conversationId)
         synchronized(session) {
             if (session.messageQueue.state.value.messages.isEmpty()) session.messageQueue.resume()
-            session.messageQueue.enqueue(content, answer)
+            session.messageQueue.enqueue(content, answer, annotations = annotations)
             dispatchNextQueuedMessage(conversationId)
         }
     }
@@ -470,16 +490,19 @@ class ChatService(
                 finishInterruptedPendingTools(conversationId)
 
                 val currentConversation = session.state.value
+                if (currentConversation.isGroupChat()) groupRounds.remove(conversationId)
                 val settings = settingsStore.settingsFlow.first()
                 val assistant = settings.getAssistantById(currentConversation.assistantId)
                     ?: settings.getCurrentAssistant()
-                val processedContent = preprocessUserInputParts(content, assistant)
+                val processedContent = if (currentConversation.isGroupChat()) content else preprocessUserInputParts(content, assistant)
 
                 // 添加消息到列表
                 val newConversation = currentConversation.copy(
                     messageNodes = currentConversation.messageNodes + UIMessage(
                         role = MessageRole.USER,
                         parts = processedContent,
+                        annotations = if (currentConversation.isGroupChat()) queued.annotations
+                            .filterIsInstance<UIMessageAnnotation.GroupQuote>().take(1) else emptyList(),
                     ).toMessageNode(),
                 )
                 saveConversation(conversationId, newConversation)
@@ -558,6 +581,7 @@ class ChatService(
                 val conversation = session.state.value
 
                 if (message.role == MessageRole.USER) {
+                    if (conversation.isGroupChat()) groupRounds.remove(conversationId)
                     // 如果是用户消息，则截止到当前消息
                     val node = conversation.getMessageNodeByMessage(message)
                     val indexAt = conversation.messageNodes.indexOf(node)
@@ -675,6 +699,10 @@ class ChatService(
     ) {
         val settings = settingsStore.settingsFlow.first()
         val initialConversation = getConversationFlow(conversationId).value
+        if (initialConversation.isGroupChat()) {
+            handleGroupMessageComplete(conversationId, messageRange)
+            return
+        }
         val assistant = settings.getAssistantById(initialConversation.assistantId)
             ?: settings.getCurrentAssistant()
         val model = settings.findModelById(assistant.chatModelId ?: settings.chatModelId)
@@ -822,6 +850,158 @@ class ChatService(
             sessionManager.launchWithSession(conversationId) {
                 generateSuggestion(conversationId, finalConversation)
             }
+        }
+    }
+
+    private suspend fun handleGroupMessageComplete(conversationId: Uuid, messageRange: ClosedRange<Int>?) {
+        val session = sessionManager.getOrCreate(conversationId)
+        var senderName = ""
+        try {
+            var regenerateSender: UIMessageAnnotation.GroupSender? = null
+            if (messageRange != null) {
+                groupRounds.remove(conversationId)
+                val current = session.state.value
+                regenerateSender = current.messageNodes.getOrNull(messageRange.endInclusive + 1)
+                    ?.currentMessage?.annotations?.filterIsInstance<UIMessageAnnotation.GroupSender>()?.firstOrNull()
+                saveConversation(conversationId, current.copy(messageNodes = current.messageNodes.take(messageRange.endInclusive + 1)))
+            }
+            val round = groupRounds[conversationId] ?: run {
+                val settings = settingsStore.settingsFlow.first()
+                val group = settings.groups.find { conversationId in it.conversationIds }
+                    ?: error(context.getString(R.string.group_chat_missing))
+                val members = group.speakingMembers(settings,
+                    session.state.value.currentMessages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty(),
+                    deputyFirst = group.enableDeputyDispatch)
+                check(members.isNotEmpty()) { context.getString(R.string.group_chat_no_enabled_members) }
+                val pendingMessage = session.state.value.currentMessages.lastOrNull()?.takeIf { message ->
+                    message.getTools().any { !it.isExecuted }
+                }
+                val sender = regenerateSender ?: pendingMessage?.annotations?.filterIsInstance<UIMessageAnnotation.GroupSender>()?.firstOrNull()
+                val turns = members.map { member -> GroupTurn(member,
+                    if (group.enableDeputyDispatch && member.id == group.deputyMemberId) GroupTurnKind.DISPATCH else GroupTurnKind.SPEAK) }
+                val createdRound = GroupGenerationRound(settings, group, turns)
+                // Rebuild the dynamic suffix after process recreation or regeneration using the
+                // already-persisted dispatch reply. Exclude the pending reply being resumed.
+                val history = session.state.value.currentMessages.let { if (pendingMessage != null) it.dropLast(1) else it }
+                val currentHistory = history.drop(history.indexOfLast { it.role == MessageRole.USER } + 1)
+                val dispatchText = currentHistory.completedDispatchText(group.deputyMemberId, sender?.memberId)
+                val previousDispatch = group.resolveDispatch(settings, dispatchText)
+                if (previousDispatch.matched) createdRound.dispatch(previousDispatch.members)
+                val resumeIndex = sender?.let { marker -> createdRound.turns.indexOfLast { it.member.id.toString() == marker.memberId } }
+                check(resumeIndex == null || resumeIndex >= 0) { context.getString(R.string.group_chat_missing) }
+                createdRound.also {
+                    it.index = resumeIndex ?: 0
+                    it.resuming = pendingMessage != null
+                    groupRounds[conversationId] = it
+                }
+            }
+            val done = round.run { turn, resuming ->
+                val member = turn.member
+                currentCoroutineContext().ensureActive()
+                val groupSenderName = round.group.displayNameOf(member)
+                    .ifBlank { context.getString(R.string.group_member_default_name) }
+                val groupSender = member.copy(name = groupSenderName)
+                senderName = groupSenderName
+                val conversation = session.state.value
+                val ownerName = round.settings.displaySetting.userNickname.ifBlank { context.getString(R.string.group_owner_name) }
+                val availableQuotes = round.availableQuotes(round.index) {
+                    val history = conversation.currentMessages
+                    (if (resuming) history.dropLast(1) else history).availableGroupQuotes(ownerName)
+                }
+                val framePrompt = context.getString(
+                    R.string.group_chat_frame_prompt, round.group.name, senderName,
+                    round.members.filter { it.id != member.id }.joinToString(", ") { participant ->
+                        round.group.displayNameOf(participant).ifBlank { context.getString(R.string.group_member_default_name) }
+                    },
+                ) + "\n\n" + round.members.joinToString("\n") { participant ->
+                    val tags = round.settings.groupTags.filter { it.id in participant.tags }.joinToString(", ") { it.name }
+                    "- [$tags] ${round.group.displayNameOf(participant)}"
+                } + when (turn.kind) {
+                    GroupTurnKind.DISPATCH -> "\n\n" + context.getString(R.string.group_chat_deputy_dispatch_prompt)
+                    GroupTurnKind.SUMMARY -> "\n\n" + context.getString(R.string.group_chat_deputy_summary_prompt)
+                    GroupTurnKind.SPEAK -> if (member.id == round.group.deputyMemberId) "\n\n" + context.getString(R.string.group_chat_deputy_prompt) else ""
+                } +
+                    "\n\n" + context.getString(R.string.group_chat_quote_hint) + "\n" + availableQuotes.joinToString("\n") {
+                        "- [msg:${it.targetMessageId}] ${it.targetSenderName}:${it.preview}"
+                    }
+                val assistant = member.toAssistant(round.group, framePrompt)
+                val model = round.settings.findModelById(member.chatModelId ?: round.settings.chatModelId)
+                    ?: error(context.getString(R.string.group_chat_model_missing, senderName))
+                DeepSeekWebGuard.refusal(model.findProvider(round.settings.providers),
+                    conversation.currentMessages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty())?.let { throw it }
+                val memoryScope = MemoryRepository.scopeOfChatGroup(round.group.id, conversationId)
+                val tools = chatToolFactory.createTools(round.settings, assistant, model,
+                    workspaceCwd = conversation.workspaceCwd, memoryScope = memoryScope,
+                    conversationScopeAssistantId = null)
+                val firstResponseIndex = if (resuming) conversation.currentMessages.lastIndex else conversation.currentMessages.size
+                val turnResponseIndex = round.responseStart(round.index) {
+                    if (!resuming) firstResponseIndex else {
+                        val lastOther = conversation.currentMessages.indexOfLast { message ->
+                            message.role != MessageRole.ASSISTANT || message.annotations
+                                .filterIsInstance<UIMessageAnnotation.GroupSender>().firstOrNull()?.memberId != member.id.toString()
+                        }
+                        lastOther + 1
+                    }
+                }
+                if (!resuming) {
+                    val response = UIMessage(role = MessageRole.ASSISTANT, parts = emptyList(), modelId = model.id)
+                        .withGroupSender(groupSender, groupSenderName)
+                    updateConversation(conversationId, conversation.copy(messageNodes = conversation.messageNodes + response.toMessageNode()))
+                }
+                generationLoop.generateText(
+                    // The request transformer limits real history, excluding the empty response slot.
+                    settings = round.settings, model = model, assistant = assistant.copy(contextMessageLimit = 0),
+                    messages = session.state.value.currentMessages,
+                    conversationId = conversationId,
+                    memories = memoryRepository.getMemoriesOfAssistant(memoryScope),
+                    processingStatus = session.processingStatus,
+                    inputTransformers = listOf(GroupSpeakerTransformer(assistant.contextMessageLimit,
+                        context.getString(R.string.group_quote_reply_prefix))) +
+                        inputTransformers,
+                    outputTransformers = outputTransformers, tools = tools,
+                    workspaceCwd = conversation.workspaceCwd,
+                ).collect { chunk ->
+                    if (chunk is GenerationChunk.Messages) {
+                        val sanitized = sanitizeDeepSeekOutput(chunk.messages, model, round.settings)
+                        val messages = (sanitized?.messages ?: chunk.messages).mapIndexed { index, message ->
+                            if (index >= firstResponseIndex) {
+                                message.withGroupSender(groupSender, groupSenderName).stripSelfSpeakerPrefix(groupSenderName)
+                                    .applyGroupQuotes(availableQuotes)
+                            } else message
+                        }
+                        updateConversation(conversationId, session.state.value.updateCurrentMessages(messages))
+                        messages.lastOrNull()?.let { appEventBus.tryEmit(AppEvent.ChatGenerationUpdate(conversationId, it, senderName)) }
+                        if (sanitized != null) {
+                            val match = sanitized.matches.firstOrNull { it.blocked } ?: sanitized.matches.first()
+                            throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
+                        }
+                    }
+                }
+                session.finishGeneration { saveConversation(conversationId, it) }
+                val completed = session.state.value.currentMessages.none { message -> message.getTools().any { it.isPending } }
+                if (completed && turn.kind == GroupTurnKind.DISPATCH) {
+                    val text = session.state.value.currentMessages.drop(turnResponseIndex)
+                        .filter { it.role == MessageRole.ASSISTANT }.joinToString("\n") { it.toText() }
+                    val dispatch = round.group.resolveDispatch(round.settings, text)
+                    if (dispatch.matched) round.dispatch(dispatch.members)
+                }
+                completed
+            }
+            if (done) {
+                groupRounds.remove(conversationId)
+                _completedGroupRounds.update { it + (conversationId to ((it[conversationId] ?: 0) + 1)) }
+            }
+        } catch (error: CancellationException) {
+            groupRounds.remove(conversationId)
+            throw error
+        } catch (error: Exception) {
+            groupRounds.remove(conversationId)
+            session.messageQueue.pause()
+            addGenerationError(error, conversationId, context.getString(R.string.error_title_generation))
+        } finally {
+            val finished = session.finishGeneration { saveConversation(conversationId, it) }
+            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName,
+                finished.currentMessages.lastOrNull()?.toText()?.take(50)))
         }
     }
 
@@ -1026,8 +1206,21 @@ class ChatService(
         conversation: Conversation,
         additionalPrompt: String,
         targetTokens: Int,
-        keepRecentMessages: Int = 32
+        keepRecentMessages: Int = 32,
+        messageFormatter: ((UIMessage) -> String)? = null,
+        tieredBuilder: ((List<UIMessage>) -> String)? = null,
     ): Result<Unit> = runCatching {
+        if (conversation.isGroupChat()) {
+            val session = sessionManager.getOrCreate(conversationId)
+            val compressionJob = currentCoroutineContext()[Job] ?: error("Missing compression job")
+            synchronized(session) {
+                check(session.getJob() == null && session.state.value.messageNodes == conversation.messageNodes && session.state.value.currentMessages.none {
+                    it.getTools().any { tool -> tool.isPending }
+                }) { context.getString(R.string.group_compress_busy) }
+                // Reserve the existing session job slot so queued sends cannot race the summary save.
+                session.setJob(compressionJob, cancelPrevious = false)
+            }
+        }
         val settings = settingsStore.settingsFlow.first()
         val model = settings.findModelById(settings.compressModelId)
             ?: settings.getCurrentChatModel()
@@ -1064,8 +1257,8 @@ class ChatService(
         }
 
         suspend fun compressMessages(messages: List<UIMessage>): String {
-            val contentToCompress = messages.joinToString("\n\n") { it.summaryAsText(maxLength = 2000) }
-            val prompt = settings.compressPrompt.applyPlaceholders(
+            val contentToCompress = messages.joinToString("\n\n") { messageFormatter?.invoke(it) ?: it.summaryAsText(maxLength = 2000) }
+            val prompt = tieredBuilder?.invoke(messages) ?: settings.compressPrompt.applyPlaceholders(
                 "content" to contentToCompress,
                 "target_tokens" to targetTokens.toString(),
                 "additional_context" to if (additionalPrompt.isNotBlank()) {
@@ -1085,7 +1278,7 @@ class ChatService(
         }
 
         val compressedSummaries = coroutineScope {
-            splitMessages(messagesToCompress)
+            (if (tieredBuilder != null) listOf(messagesToCompress) else splitMessages(messagesToCompress))
                 .map { chunk -> async { compressMessages(chunk) } }
                 .awaitAll()
         }
@@ -1300,7 +1493,7 @@ class ChatService(
         val settings = settingsStore.settingsFlow.first()
         val assistant = settings.getAssistantById(currentConversation.assistantId)
             ?: settings.getCurrentAssistant()
-        val processedParts = preprocessUserInputParts(parts, assistant)
+        val processedParts = if (currentConversation.isGroupChat()) parts else preprocessUserInputParts(parts, assistant)
         var edited = false
 
         val updatedNodes = currentConversation.messageNodes.map { node ->
@@ -1313,6 +1506,9 @@ class ChatService(
                 messages = node.messages + UIMessage(
                     role = node.role,
                     parts = processedParts,
+                    annotations = if (currentConversation.isGroupChat()) node.messages.first { it.id == messageId }.annotations
+                        .filter { it is UIMessageAnnotation.GroupQuote ||
+                            node.role == MessageRole.ASSISTANT && it is UIMessageAnnotation.GroupSender } else emptyList(),
                 ),
                 selectIndex = node.messages.size
             )
@@ -1444,7 +1640,7 @@ class ChatService(
         return conversation.copy(messageNodes = updatedNodes)
     }
 
-    private fun UIMessagePart.copyWithForkedFileUrl(): UIMessagePart {
+    internal fun UIMessagePart.copyWithForkedFileUrl(): UIMessagePart {
         fun copyLocalFileIfNeeded(url: String): String {
             if (!url.startsWith("file:")) return url
             val copied = filesManager.createChatFilesByContents(listOf(url.toUri())).firstOrNull()
@@ -1482,12 +1678,12 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
+        groupRounds.remove(conversationId)
         val session = sessionManager.get(conversationId) ?: return
         val jobs = synchronized(session) {
             session.messageQueue.pause()
             session.cancelJobs()
         }
-        if (jobs.isEmpty()) return
         jobs.forEach { it.join() }
         finishInterruptedPendingTools(conversationId)
     }

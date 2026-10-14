@@ -1,6 +1,7 @@
 package me.rerere.ai.provider.providers.openai
 
 import android.util.Log
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -213,7 +214,13 @@ class ResponseAPI(
         stream: Boolean
     ): JsonObject {
         val host = providerSetting.baseUrl.toHttpUrl().host
-        val capabilities = resolveResponseProviderCapabilities(host)
+        val useFunctionTools = params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
+        val capabilities = resolveResponseProviderCapabilities(host, params.model.modelId).copy(
+            forceReasoningBack = (host.contains("deepseek", ignoreCase = true) ||
+                    params.model.modelId.contains("deepseek", ignoreCase = true)) &&
+                    (useFunctionTools || params.model.tools.isNotEmpty()) &&
+                    isDeepSeekThinkingEnabled(params),
+        )
         return buildJsonObject {
             put("model", params.model.modelId)
             put("stream", stream)
@@ -234,7 +241,7 @@ class ResponseAPI(
             }
 
             // messages
-            put("input", buildMessages(messages))
+            put("input", buildMessages(messages, capabilities))
 
             // reasoning
             if (params.model.abilities.contains(ModelAbility.REASONING)) {
@@ -257,8 +264,6 @@ class ResponseAPI(
             // tools
             // Response API 的 tools 是扁平数组, 函数工具和内置工具可以共存, 必须写在同一个 key 下,
             // 否则后写入的会覆盖前者
-            val useFunctionTools =
-                params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
             if (useFunctionTools || params.model.tools.isNotEmpty()) {
                 putJsonArray("tools") {
                     if (useFunctionTools) {
@@ -300,7 +305,8 @@ class ResponseAPI(
         }.mergeCustomBody(params.customBody)
     }
 
-    internal fun buildMessages(messages: List<UIMessage>) = buildJsonArray {
+    internal fun buildMessages(messages: List<UIMessage>,
+        capabilities: ResponseProviderCapabilities = ResponseProviderCapabilities()) = buildJsonArray {
         messages
             .filter { message ->
                 message.role != MessageRole.SYSTEM && (
@@ -312,16 +318,30 @@ class ResponseAPI(
             }
             .forEach { message ->
                 if (message.role == MessageRole.ASSISTANT) {
-                    addAssistantItems(message)
+                    addAssistantItems(message, capabilities)
                 } else {
                     addUserItems(message)
                 }
             }
     }
 
-    private fun JsonArrayBuilder.addAssistantItems(message: UIMessage) {
+    private fun JsonArrayBuilder.addAssistantItems(message: UIMessage, capabilities: ResponseProviderCapabilities) {
         val groups = groupPartsByToolBoundary(message.parts)
         val contentBuffer = mutableListOf<UIMessagePart>()
+        var emittedTurnReasoning = false
+        fun ensureTurnReasoning() {
+            if (capabilities.forceReasoningBack && !emittedTurnReasoning) {
+                add(buildJsonObject {
+                    put("type", "reasoning")
+                    put("id", "rs_" + UUID.randomUUID().toString().replace("-", ""))
+                    put("summary", buildJsonArray {})
+                    put("content", buildJsonArray {
+                        add(buildJsonObject { put("type", "reasoning_text"); put("text", "") })
+                    })
+                })
+                emittedTurnReasoning = true
+            }
+        }
 
         for (group in groups) {
             when (group) {
@@ -337,6 +357,7 @@ class ResponseAPI(
                                 }
                                 // 先输出累积的文本/图片内容
                                 if (contentBuffer.isNotEmpty()) {
+                                    ensureTurnReasoning()
                                     addContentItem(MessageRole.ASSISTANT, contentBuffer)
                                     contentBuffer.clear()
                                 }
@@ -348,9 +369,12 @@ class ResponseAPI(
                                         it.metadataAs<OpenAIReasoningMetadata>()?.reasoningId == reasoningId
                                     }
                                 }
-                                add(buildJsonObject {
+                                val reasoningItem = buildJsonObject {
                                     put("type", "reasoning")
                                     reasoningId?.let { put("id", it) }
+                                    if (reasoningId == null && capabilities.forceReasoningBack) {
+                                        put("id", "rs_" + UUID.randomUUID().toString().replace("-", ""))
+                                    }
                                     put("summary", buildJsonArray {
                                         reasoningParts
                                             .filter { it.reasoningType == ReasoningType.SUMMARY_TEXT }
@@ -366,8 +390,12 @@ class ResponseAPI(
                                     val content = reasoningParts
                                         .filter { it.reasoningType == ReasoningType.REASONING_TEXT }
                                         .filter { it.reasoning.isNotEmpty() }
-                                    if (encryptedContent == null && content.isNotEmpty()) {
+                                    if (capabilities.forceReasoningBack ||
+                                        content.isNotEmpty() && !(capabilities.supportEncryptedContent && encryptedContent != null)) {
                                         put("content", buildJsonArray {
+                                            if (content.isEmpty() && capabilities.forceReasoningBack) {
+                                                add(buildJsonObject { put("type", "reasoning_text"); put("text", "") })
+                                            }
                                             content.forEach {
                                                 add(buildJsonObject {
                                                     put("type", "reasoning_text")
@@ -376,14 +404,22 @@ class ResponseAPI(
                                             }
                                         })
                                     }
-                                    encryptedContent?.let {
+                                    encryptedContent?.takeIf { capabilities.supportEncryptedContent }?.let {
                                         put("encrypted_content", it)
                                     }
-                                })
+                                }
+                                val hasPayload = reasoningItem["summary"]?.jsonArray?.isNotEmpty() == true ||
+                                    reasoningItem["content"]?.jsonArray?.isNotEmpty() == true ||
+                                    reasoningItem.containsKey("encrypted_content")
+                                if (hasPayload || reasoningId != null) {
+                                    add(reasoningItem)
+                                    emittedTurnReasoning = true
+                                }
                             }
 
                             is UIMessagePart.Image -> {
                                 if (contentBuffer.isNotEmpty()) {
+                                    ensureTurnReasoning()
                                     addContentItem(MessageRole.ASSISTANT, contentBuffer)
                                     contentBuffer.clear()
                                 }
@@ -396,6 +432,7 @@ class ResponseAPI(
 
                             is UIMessagePart.ServerTool -> {
                                 if (contentBuffer.isNotEmpty()) {
+                                    ensureTurnReasoning()
                                     addContentItem(MessageRole.ASSISTANT, contentBuffer)
                                     contentBuffer.clear()
                                 }
@@ -408,6 +445,7 @@ class ResponseAPI(
                 }
 
                 is PartGroup.Tools -> {
+                    ensureTurnReasoning()
                     // 先输出累积的内容
                     if (contentBuffer.isNotEmpty()) {
                         addContentItem(MessageRole.ASSISTANT, contentBuffer)
@@ -460,12 +498,14 @@ class ResponseAPI(
                             }
                         })
                     }
+                    emittedTurnReasoning = false
                 }
             }
         }
 
         // 输出剩余内容
         if (contentBuffer.isNotEmpty()) {
+            ensureTurnReasoning()
             addContentItem(MessageRole.ASSISTANT, contentBuffer)
         }
     }
@@ -715,12 +755,17 @@ private fun List<UIMessagePart>.isOnlyTextPart(): Boolean {
 
 internal data class ResponseProviderCapabilities(
     val supportsReasoningSummary: Boolean = true,
-    val supportEncryptedContent: Boolean = true
+    val supportEncryptedContent: Boolean = true,
+    val forceReasoningBack: Boolean = false,
 )
 
-internal fun resolveResponseProviderCapabilities(host: String): ResponseProviderCapabilities {
-    return when (host) {
-        "ark.cn-beijing.volces.com" -> ResponseProviderCapabilities(
+internal fun resolveResponseProviderCapabilities(host: String, modelId: String = ""): ResponseProviderCapabilities {
+    return when {
+        host == "ark.cn-beijing.volces.com" -> ResponseProviderCapabilities(
+            supportsReasoningSummary = false,
+            supportEncryptedContent = false
+        )
+        host.contains("deepseek", ignoreCase = true) || modelId.contains("deepseek", ignoreCase = true) -> ResponseProviderCapabilities(
             supportsReasoningSummary = false,
             supportEncryptedContent = false
         )

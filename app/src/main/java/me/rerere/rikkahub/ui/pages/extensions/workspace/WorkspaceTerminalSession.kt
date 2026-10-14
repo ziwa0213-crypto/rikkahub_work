@@ -18,6 +18,7 @@ import com.termux.view.TerminalViewClient
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.workspace.RootfsPatchOptions
 import me.rerere.workspace.RootfsPatcher
+import me.rerere.workspace.WorkspaceManager
 import java.io.File
 
 internal fun createWorkspaceTerminalSession(
@@ -25,12 +26,12 @@ internal fun createWorkspaceTerminalSession(
     root: String,
     client: TerminalSessionClient,
     shellCompatibilityMode: Boolean,
+    manager: WorkspaceManager,
 ): TerminalSession {
     val appContext = context.applicationContext
-    val workspaceDir = File(File(appContext.filesDir, "workspaces"), root)
-    val filesDir = File(workspaceDir, "files")
-    val linuxDir = File(workspaceDir, "linux")
-    val tempDir = File(workspaceDir, "tmp")
+    val filesDir = manager.filesDir(root)
+    val linuxDir = manager.linuxDir(root)
+    val tempDir = manager.tempDir(root)
     val skillsDir = File(appContext.filesDir, FileFolders.SKILLS).apply { mkdirs() }
     val builtinSkillsDir = File(appContext.filesDir, FileFolders.BUILTIN_SKILLS).apply { mkdirs() }
     val nativeLibraryDir = File(appContext.applicationInfo.nativeLibraryDir)
@@ -93,22 +94,16 @@ internal fun createWorkspaceTerminalSession(
     }
 }
 
-internal fun prepareWorkspaceTerminalSession(context: Context, root: String) {
+internal fun prepareWorkspaceTerminalSession(context: Context, root: String, manager: WorkspaceManager) {
     val appContext = context.applicationContext
-    val workspaceDir = File(File(appContext.filesDir, "workspaces"), root)
-    val linuxDir = File(workspaceDir, "linux")
-    File(workspaceDir, "files").mkdirs()
-    File(workspaceDir, "tmp").mkdirs()
+    val linuxDir = manager.linuxDir(root)
+    manager.filesDir(root).mkdirs()
+    manager.tempDir(root).mkdirs()
     File(appContext.filesDir, FileFolders.SKILLS).mkdirs()
     RootfsPatcher().patch(
         linuxDir,
         RootfsPatchOptions(nameservers = appContext.activeDnsServers())
     )
-}
-
-internal fun workspaceRootfsReady(context: Context, root: String): Boolean {
-    val linuxDir = File(File(File(context.applicationContext.filesDir, "workspaces"), root), "linux")
-    return linuxDir.isDirectory && File(linuxDir, "bin/sh").isFile
 }
 
 internal class WorkspaceTerminalSessionClient(

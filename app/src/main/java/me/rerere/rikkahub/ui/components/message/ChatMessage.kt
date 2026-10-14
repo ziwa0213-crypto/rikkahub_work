@@ -8,6 +8,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,12 +38,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import kotlin.math.abs
+import me.rerere.rikkahub.data.model.groupQuote
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
@@ -77,6 +92,11 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.memberRefOf
+import me.rerere.rikkahub.data.model.displayNameOf
+import me.rerere.rikkahub.ui.pages.group.LocalGroupChatContext
+import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
@@ -118,6 +138,9 @@ fun ChatMessage(
     onClearTranslation: (UIMessage) -> Unit = {},
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
+    groupMode: Boolean = false,
+    onQuote: (UIMessageAnnotation.GroupQuote) -> Unit = {},
+    onMention: (String) -> Unit = {},
 ) {
     val message = node.messages[node.selectIndex]
     val settings = LocalSettings.current.displaySetting
@@ -132,6 +155,46 @@ fun ChatMessage(
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
+    val groupSender = message.annotations.filterIsInstance<UIMessageAnnotation.GroupSender>().firstOrNull()
+    val isGroupAssistant = message.role == MessageRole.ASSISTANT && groupSender != null
+    val ownerName = settings.userNickname.ifBlank { stringResource(R.string.group_owner_name) }
+    val quote by rememberUpdatedState(message.groupQuote(ownerName))
+    val onQuoteState by rememberUpdatedState(onQuote)
+    val density = LocalDensity.current
+    val threshold = with(density) { 72.dp.toPx() }
+    val maxOffset = with(density) { 110.dp.toPx() }
+    val edge = with(density) { 24.dp.toPx() }
+    val windowWidth by rememberUpdatedState(LocalWindowInfo.current.containerSize.width)
+    var bubbleLeft by remember { mutableFloatStateOf(0f) }
+    val outward = if (message.role == MessageRole.USER) 1f else -1f
+    var dragOffset by remember(message.id, groupMode) { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(dragOffset, spring(), label = "groupQuoteSwipe")
+    val swipeModifier = if (groupMode && (isGroupAssistant || message.role == MessageRole.USER)) {
+        Modifier.onGloballyPositioned { bubbleLeft = it.positionInWindow().x - animatedOffset }
+            .graphicsLayer { translationX = animatedOffset }.pointerInput(message.id, groupMode) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                // Leave drawer-edge gestures alone, including outward drags on right-side user bubbles.
+                val windowX = bubbleLeft + down.position.x
+                if (windowX < edge || windowX > windowWidth - edge) return@awaitEachGesture
+                val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                    if (overSlop * outward > 0) {
+                        change.consume()
+                        dragOffset = (overSlop * 0.7f * outward).coerceIn(0f, maxOffset) * outward
+                    }
+                }
+                if (drag != null) {
+                    val finished = horizontalDrag(drag.id) { change ->
+                        dragOffset = ((dragOffset + (change.position.x - change.previousPosition.x) * 0.7f) * outward)
+                            .coerceIn(0f, maxOffset) * outward
+                        change.consume()
+                    }
+                    if (finished && abs(dragOffset) >= threshold) onQuoteState(quote)
+                }
+                dragOffset = 0f
+            }
+        }
+    } else Modifier
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start,
@@ -144,7 +207,21 @@ fun ChatMessage(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                ChatMessageAssistantAvatar(
+                if (message.role == MessageRole.ASSISTANT && groupSender != null) {
+                    val group = LocalGroupChatContext.current
+                    val member = LocalSettings.current.groupMembers.find { it.id.toString() == groupSender.memberId }
+                    val ref = group?.memberRefOf(groupSender.memberId)
+                    val displayName = group.displayNameOf(groupSender, member)
+                    val displayAvatar = ref?.avatar ?: member?.avatar ?: Avatar.Dummy
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        UIAvatar(name = displayName, value = displayAvatar,
+                            modifier = Modifier.size(28.dp), loading = loading,
+                            onLongClick = if (groupMode) ({ onMention(displayName) }) else null)
+                        Text(displayName, style = MaterialTheme.typography.labelLargeEmphasized,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    }
+                } else ChatMessageAssistantAvatar(
                     message = message,
                     model = model,
                     assistant = assistant,
@@ -160,6 +237,9 @@ fun ChatMessage(
             }
         }
         ProvideTextStyle(textStyle) {
+            Column(modifier = if (groupMode) swipeModifier.fillMaxWidth() else swipeModifier,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start) {
             MessagePartsBlock(
                 assistant = assistant,
                 role = message.role,
@@ -167,10 +247,13 @@ fun ChatMessage(
                 annotations = message.annotations,
                 loading = loading,
                 model = model,
+                isGroupAssistant = isGroupAssistant,
+                groupMode = groupMode,
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
                 onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
             )
+            }
 
             message.translation?.let { translation ->
                 CollapsibleTranslationText(
@@ -271,6 +354,8 @@ private fun MessagePartsBlock(
     parts: List<UIMessagePart>,
     annotations: List<UIMessageAnnotation>,
     loading: Boolean,
+    isGroupAssistant: Boolean = false,
+    groupMode: Boolean = false,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onUserMessageClick: (() -> Unit)? = null,
@@ -282,6 +367,9 @@ private fun MessagePartsBlock(
     val hapticFeedback = LocalHapticFeedback.current
     val settings = LocalSettings.current
     val partsState by rememberUpdatedState(parts)
+    val groupQuote = if (groupMode) annotations.filterIsInstance<UIMessageAnnotation.GroupQuote>().firstOrNull() else null
+    val firstTextIndex = parts.indexOfFirst { it is UIMessagePart.Text }
+    if (firstTextIndex < 0 && groupQuote != null) GroupQuoteBlock(groupQuote)
 
     val handleClickCitation: (String) -> Unit = remember {
         handler@{ citationId ->
@@ -347,6 +435,11 @@ private fun MessagePartsBlock(
                                         loading = loading && !step.tool.isExecuted,
                                         onToolApproval = onToolApproval,
                                         onToolAnswer = onToolAnswer,
+                                        requestingMemberName = annotations.filterIsInstance<UIMessageAnnotation.GroupSender>()
+                                            .firstOrNull()?.let { sender ->
+                                                LocalGroupChatContext.current.displayNameOf(sender,
+                                                    settings.groupMembers.find { it.id.toString() == sender.memberId })
+                                            },
                                     )
                                 }
                             }
@@ -378,6 +471,7 @@ private fun MessagePartsBlock(
                                     onClick = { onUserMessageClick?.invoke() },
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
+                                        if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
                                         MarkdownBlock(
                                             content = part.text.replaceRegexes(
                                                 assistant = assistant,
@@ -389,13 +483,14 @@ private fun MessagePartsBlock(
                                     }
                                 }
                             } else {
-                                if (settings.displaySetting.showAssistantBubble) {
+                                if (settings.displaySetting.showAssistantBubble || isGroupAssistant) {
                                     Surface(
                                         modifier = Modifier.animateContentSize(),
                                         shape = RoundedCornerShape(16.dp),
                                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
+                                            if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
                                             MarkdownBlock(
                                                 content = part.text.replaceRegexes(
                                                     assistant = assistant,
@@ -583,7 +678,8 @@ private fun MessagePartsBlock(
     }
 
     // Annotations (always rendered at the end)
-    if (annotations.isNotEmpty()) {
+    val citations = annotations.filterIsInstance<UIMessageAnnotation.UrlCitation>()
+    if (citations.isNotEmpty()) {
         Column(
             modifier = Modifier.animateContentSize(),
         ) {
@@ -607,7 +703,7 @@ private fun MessagePartsBlock(
                             .padding(4.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        annotations.fastForEachIndexed { index, annotation ->
+                        citations.fastForEachIndexed { index, annotation ->
                             when (annotation) {
                                 is UIMessageAnnotation.UrlCitation -> {
                                     Row(
@@ -634,8 +730,19 @@ private fun MessagePartsBlock(
                     expand = !expand
                 }
             ) {
-                Text(stringResource(R.string.citations_count, annotations.size))
+                Text(stringResource(R.string.citations_count, citations.size))
             }
+        }
+    }
+}
+
+@Composable
+private fun GroupQuoteBlock(quote: UIMessageAnnotation.GroupQuote) {
+    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+        Column(Modifier.padding(8.dp).widthIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${stringResource(R.string.group_quote_reply_prefix)} ${quote.targetSenderName}",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(quote.preview, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

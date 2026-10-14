@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,16 +32,27 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.OutlinedNumberInput
 import me.rerere.rikkahub.ui.components.ui.LoadingAnimationIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 @Composable
 fun CompressContextDialog(
     onDismiss: () -> Unit,
     onConfirm: (additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int) -> Job,
     provider: ProviderSetting? = null,
+    autoCompressThreshold: Float? = null,
+    onAutoCompressThresholdChange: ((Float) -> Unit)? = null,
+    estimatedMaxTokens: Int? = null,
+    initialTargetTokens: Int = 2000,
+    initialKeepRecentMessages: Int = 32,
 ) {
     var additionalPrompt by remember { mutableStateOf("") }
-    var selectedTokens by remember { mutableIntStateOf(2000) }
-    var keepRecentMessages by remember { mutableIntStateOf(32) }
+    var selectedTokens by remember { mutableIntStateOf(initialTargetTokens) }
+    var keepRecentMessages by remember { mutableIntStateOf(initialKeepRecentMessages) }
     val tokenOptions = listOf(500, 1000, 2000, 4000)
     var currentJob by remember { mutableStateOf<Job?>(null) }
     val isLoading = currentJob?.isActive == true
@@ -65,6 +77,7 @@ fun CompressContextDialog(
         },
         text = {
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (isLoading) {
@@ -83,6 +96,20 @@ fun CompressContextDialog(
                     }
                 } else {
                     Text(stringResource(R.string.chat_page_compress_context_desc))
+
+                    if (autoCompressThreshold != null && onAutoCompressThresholdChange != null) {
+                        var threshold by remember(autoCompressThreshold) { mutableFloatStateOf(autoCompressThreshold) }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.group_compress_threshold_label), style = MaterialTheme.typography.labelMedium)
+                            Text("${(threshold * 100).roundToInt()}%", style = MaterialTheme.typography.labelMedium)
+                        }
+                        Slider(value = threshold, onValueChange = { threshold = it }, valueRange = 0.30f..0.95f,
+                            steps = 12, onValueChangeFinished = { onAutoCompressThresholdChange(threshold) })
+                        if (estimatedMaxTokens != null) Text(stringResource(R.string.group_compress_threshold_hint,
+                            NumberFormat.getIntegerInstance().format((estimatedMaxTokens * threshold).toLong())),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        HorizontalDivider()
+                    }
 
                     // Token size selector
                     Text(

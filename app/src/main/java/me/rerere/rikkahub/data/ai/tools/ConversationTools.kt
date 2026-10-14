@@ -22,7 +22,7 @@ import kotlin.uuid.Uuid
  */
 fun createConversationTools(
     conversationRepo: ConversationRepository,
-    assistantId: Uuid,
+    assistantId: Uuid?,
 ): List<Tool> = listOf(
     Tool(
         name = "recent_chats",

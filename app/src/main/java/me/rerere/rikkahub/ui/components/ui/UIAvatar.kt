@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,7 +98,8 @@ fun UIAvatar(
     modifier: Modifier = Modifier,
     loading: Boolean = false,
     onUpdate: ((Avatar) -> Unit)? = null,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val filesManager: FilesManager = koinInject()
     val context = LocalContext.current
@@ -146,16 +148,11 @@ fun UIAvatar(
     }
 
     Box(modifier = modifier.then(Modifier.size(32.dp))) {
-        Surface(
-            shape = rememberAvatarShape(loading),
-            modifier = Modifier.fillMaxSize(),
-            onClick = {
-                onClick?.invoke()
-                if (onUpdate != null) showPickOption = true
-            },
-            tonalElevation = 4.dp,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-        ) {
+        val click = {
+            onClick?.invoke()
+            if (onUpdate != null) showPickOption = true
+        }
+        val content: @Composable () -> Unit = {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxSize()
@@ -191,6 +188,14 @@ fun UIAvatar(
                     }
                 }
             }
+        }
+        if (onLongClick == null) {
+            Surface(shape = rememberAvatarShape(loading), modifier = Modifier.fillMaxSize(), onClick = click,
+                tonalElevation = 4.dp, color = MaterialTheme.colorScheme.secondaryContainer, content = content)
+        } else {
+            Surface(shape = rememberAvatarShape(loading),
+                modifier = Modifier.fillMaxSize().combinedClickable(onClick = click, onLongClick = onLongClick),
+                tonalElevation = 4.dp, color = MaterialTheme.colorScheme.secondaryContainer, content = content)
         }
 
         // Show edit icon when editable

@@ -45,8 +45,9 @@ val repositoryModule = module {
 
     single {
         val context: Context = get()
+        val baseDir = File(context.filesDir, "workspaces")
         WorkspaceManager(
-            baseDir = File(context.filesDir, "workspaces"),
+            baseDir = baseDir,
             shellRunner = ProotShellRunner(
                 nativeLibraryDir = File(context.applicationInfo.nativeLibraryDir),
             ),
@@ -77,7 +78,8 @@ val repositoryModule = module {
     }
 
     single {
-        WorkspaceRepository(get(), get(), get(), get())
+        WorkspaceRepository(dao = get(), manager = get(), rootfsInstaller = get(),
+            settingsStore = get())
     }
 
     single {

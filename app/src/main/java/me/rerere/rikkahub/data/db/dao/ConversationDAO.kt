@@ -33,6 +33,9 @@ interface ConversationDAO {
     @Query("SELECT * FROM conversationentity WHERE assistant_id = :assistantId ORDER BY is_pinned DESC, update_at DESC LIMIT :limit")
     suspend fun getRecentConversationsOfAssistant(assistantId: String, limit: Int): List<ConversationEntity>
 
+    @Query("SELECT * FROM conversationentity WHERE assistant_id != :excludedAssistantId ORDER BY is_pinned DESC, update_at DESC LIMIT :limit")
+    suspend fun getRecentConversationsExcludingAssistant(excludedAssistantId: String, limit: Int): List<ConversationEntity>
+
     @Query("SELECT * FROM conversationentity WHERE title LIKE '%' || :searchText || '%' ORDER BY is_pinned DESC, update_at DESC")
     fun searchConversations(searchText: String): Flow<List<ConversationEntity>>
 
@@ -80,6 +83,12 @@ interface ConversationDAO {
 
     @Query("UPDATE conversationentity SET is_pinned = :isPinned WHERE id = :id")
     suspend fun updatePinStatus(id: String, isPinned: Boolean)
+
+    @Query("UPDATE conversationentity SET title = :title WHERE id = :id")
+    suspend fun updateTitle(id: String, title: String)
+
+    @Query("UPDATE conversationentity SET workspace_cwd = :cwd WHERE id = :id AND assistant_id = :assistantId")
+    suspend fun updateWorkspaceCwd(id: String, cwd: String, assistantId: String)
 
     @Query("UPDATE conversationentity SET assistant_id = :assistantId, folder_id = '' WHERE id = :id")
     suspend fun updateAssistantId(id: String, assistantId: String)

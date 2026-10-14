@@ -43,6 +43,8 @@ import me.rerere.ai.provider.ModelType
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
+import me.rerere.rikkahub.ui.components.ai.WorkspaceCreateButton
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
 import me.rerere.rikkahub.ui.components.ai.ReasoningButton
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -195,7 +197,7 @@ internal fun AssistantBasicContent(
             ) {
                 val selectedWorkspace = workspaces.find { it.id == assistant.workspaceId?.toString() }
                 Select(
-                    options = listOf<WorkspaceEntity?>(null) + workspaces,
+                    options = listOf<WorkspaceEntity?>(null) + workspaces.filter(WorkspaceOwnerScope.CHAT::includes),
                     selectedOption = selectedWorkspace,
                     onOptionSelected = { workspace ->
                         onUpdate(
@@ -209,6 +211,9 @@ internal fun AssistantBasicContent(
                         workspace?.name ?: stringResource(R.string.workspace_no_binding)
                     },
                 )
+                WorkspaceCreateButton(WorkspaceOwnerScope.CHAT, workspaces) {
+                    onUpdate(assistant.copy(workspaceId = Uuid.parse(it)))
+                }
             }
 
             HorizontalDivider()

@@ -50,6 +50,34 @@ class MemoryRepositoryTest {
     }
 
     @Test
+    fun `chat group uses a namespace distinct from all existing scopes`() {
+        val id = Uuid.random()
+        val scope = MemoryRepository.scopeOfChatGroup(id)
+        assertEquals("grp:$id", scope)
+        assertFalse(scope == MemoryRepository.scopeOf(id))
+        assertFalse(scope == MemoryRepository.scopeOf(Assistant(id = id)))
+        assertFalse(scope == MemoryRepository.GLOBAL_MEMORY_ID)
+    }
+
+    @Test
+    fun `chat group memory writes and deletes do not affect other scopes`() = kotlinx.coroutines.runBlocking {
+        val id = Uuid.random()
+        val chatScope = MemoryRepository.scopeOfChatGroup(id)
+        val otherScope = MemoryRepository.scopeOfChatGroup(Uuid.random())
+        repository.addMemory(id.toString(), "assistant")
+        repository.addMemory(MemoryRepository.scopeOf(id), "memory group")
+        repository.addMemory(otherScope, "other chat group")
+        val memory = repository.addMemory(chatScope, "chat group")
+        repository.updateContent(memory.id, "edited")
+        assertEquals(listOf("edited"), repository.getMemoriesOfAssistant(chatScope).map { it.content })
+        repository.deleteMemory(memory.id)
+        assertEquals(emptyList<String>(), dao.contents(chatScope))
+        assertEquals(listOf("assistant"), dao.contents(id.toString()))
+        assertEquals(listOf("memory group"), dao.contents(MemoryRepository.scopeOf(id)))
+        assertEquals(listOf("other chat group"), dao.contents(otherScope))
+    }
+
+    @Test
     fun `legacy assistant json defaults to private memory`() {
         val assistant = JsonInstant.decodeFromString<Assistant>("{}")
 
@@ -132,6 +160,71 @@ class MemoryRepositoryTest {
         assertEquals(emptyList<String>(), dao.contents("source"))
         assertEquals(listOf("m1"), dao.contents("target"))
         assertEquals(listOf("m2"), dao.contents("other"))
+    }
+
+    @Test
+    fun `conversation scopes isolate groups conversations and ordinary memories`() = kotlinx.coroutines.runBlocking {
+        val group = Uuid.random()
+        val a = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
+        val b = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
+        val c = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
+        listOf(a, b, c, MemoryRepository.GLOBAL_MEMORY_ID).forEach { repository.addMemory(it, it) }
+        val memory = repository.getMemoriesOfAssistant(a).single()
+        repository.updateContentInScope(a, memory.id, "edited")
+        assertEquals(listOf("edited"), dao.contents(a))
+        listOf(b, c, MemoryRepository.GLOBAL_MEMORY_ID).forEach { assertEquals(listOf(it), dao.contents(it)) }
+        repository.deleteMemoriesOfAssistant(a)
+        assertEquals(emptyList<String>(), dao.contents(a))
+        assertEquals(listOf(b), dao.contents(b))
+    }
+
+    @Test
+    fun `legacy group migration preserves ids merges target and is idempotent`() = kotlinx.coroutines.runBlocking {
+        val group = Uuid.random()
+        val old = MemoryRepository.scopeOfChatGroup(group)
+        val target = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
+        val legacy = repository.addMemory(old, "legacy")
+        repository.addMemory(target, "existing")
+        repository.moveScope(old, target)
+        repository.moveScope(old, target)
+        assertEquals(emptyList<String>(), dao.contents(old))
+        assertEquals(listOf("legacy", "existing"), dao.contents(target))
+        assertEquals(target, dao.getMemoryById(legacy.id)?.assistantId)
+        assertEquals(legacy, repository.getMemoriesOfAssistant(target).first())
+    }
+
+    @Test
+    fun `guessed ids cannot edit or delete another conversation memory`() = kotlinx.coroutines.runBlocking {
+        val own = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
+        val other = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
+        val memory = repository.addMemory(other, "keep")
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            kotlinx.coroutines.runBlocking { repository.updateContentInScope(own, memory.id, "bad") }
+        }
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            kotlinx.coroutines.runBlocking { repository.deleteMemoryInScope(own, memory.id) }
+        }
+        assertEquals(listOf("keep"), dao.contents(other))
+        repository.deleteMemoryInScope(other, memory.id)
+        assertEquals(emptyList<String>(), dao.contents(other))
+    }
+
+    @Test
+    fun `duplicated group memories use new rows and remain independent after edits and deletion`() = kotlinx.coroutines.runBlocking {
+        val source = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
+        val target = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
+        val first = repository.addMemory(source, "first")
+        val second = repository.addMemory(source, "second")
+        repository.copyMemories(source, target)
+        val copies = repository.getMemoriesOfAssistant(target)
+        assertEquals(listOf("first", "second"), copies.map { it.content })
+        assertFalse(copies.any { it.id == first.id || it.id == second.id })
+        repository.updateContentInScope(target, copies.first().id, "copy edit")
+        assertEquals(listOf("first", "second"), dao.contents(source))
+        repository.deleteMemoriesOfAssistant(source)
+        assertEquals(listOf("copy edit", "second"), dao.contents(target))
+        repository.deleteMemoriesOfAssistant(target)
+        assertEquals(emptyList<String>(), dao.contents(target))
     }
 
     private class FakeMemoryDao : MemoryDAO {

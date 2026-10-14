@@ -46,6 +46,7 @@ import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.DisplaySetting
+import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FileUtils
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -140,18 +141,20 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
-                    item(
-                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_title)) },
-                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = displaySetting.showAssistantBubble,
-                                onCheckedChange = {
-                                    updateDisplaySetting(displaySetting.copy(showAssistantBubble = it))
-                                }
-                            )
-                        },
-                    )
+                    if (settings.uiMode == UiMode.CHAT) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_title)) },
+                            supportingContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = displaySetting.showAssistantBubble,
+                                    onCheckedChange = {
+                                        updateDisplaySetting(displaySetting.copy(showAssistantBubble = it))
+                                    }
+                                )
+                            },
+                        )
+                    }
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_bubble_opacity_title)) },
                         supportingContent = {

@@ -175,7 +175,7 @@ fun ColumnScope.ConversationList(
 }
 
 @Composable
-private fun DateHeaderItem(
+internal fun DateHeaderItem(
     label: String,
     modifier: Modifier = Modifier
 ) {
@@ -196,8 +196,9 @@ private fun DateHeaderItem(
 }
 
 @Composable
-private fun PinnedHeader(
-    modifier: Modifier = Modifier
+internal fun PinnedHeader(
+    modifier: Modifier = Modifier,
+    label: String = stringResource(R.string.pinned_chats)
 ) {
     Row(
         modifier = modifier
@@ -214,7 +215,7 @@ private fun PinnedHeader(
         )
         Spacer(Modifier.size(8.dp))
         Text(
-            text = stringResource(R.string.pinned_chats),
+            text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary

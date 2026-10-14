@@ -13,6 +13,7 @@ import java.io.Reader
 import java.io.StringReader
 import java.io.StringWriter
 import kotlin.time.toJavaInstant
+import kotlin.uuid.Uuid
 
 class TemplateTransformer(
     private val engine: PebbleEngine,
@@ -22,36 +23,46 @@ class TemplateTransformer(
         ctx: TransformerContext,
         messages: List<UIMessage>,
     ): List<UIMessage> {
-        val template = engine.getTemplate(ctx.assistant.id.toString())
-        val timeZone = TimeZone.currentSystemDefault()
-        return messages.map { message ->
-            if (message.isSynthetic) return@map message
+        return applyMessageTemplate(engine, ctx.assistant.id, messages)
+    }
+}
 
-            // 使用消息本身的发送时间而不是当前时间, 保证多次请求时渲染结果稳定, 不破坏 prompt 缓存
-            val createdAt = message.createdAt.toInstant(timeZone).toJavaInstant()
-            message.copy(
-                parts = message.parts.map { part ->
-                    when (part) {
-                        is UIMessagePart.Text -> {
-                            val result = StringWriter()
-                            template.evaluate(
-                                result, mapOf(
-                                    "message" to part.text,
-                                    "role" to message.role.name.lowercase(),
-                                    "time" to createdAt.toLocalTime(),
-                                    "date" to createdAt.toLocalDate(),
-                                )
-                            )
-                            part.copy(
-                                text = result.toString()
-                            )
-                        }
+internal fun applyMessageTemplate(
+    engine: PebbleEngine,
+    assistantId: Uuid,
+    messages: List<UIMessage>,
+): List<UIMessage> {
+    // Transient group assistants have no template in the assistant settings.
+    val template = runCatching { engine.getTemplate(assistantId.toString()) }.getOrNull()
+        ?: return messages
+    val timeZone = TimeZone.currentSystemDefault()
+    return messages.map { message ->
+        if (message.isSynthetic) return@map message
 
-                        else -> part
+        // 使用消息本身的发送时间而不是当前时间, 保证多次请求时渲染结果稳定, 不破坏 prompt 缓存
+        val createdAt = message.createdAt.toInstant(timeZone).toJavaInstant()
+        message.copy(
+            parts = message.parts.map { part ->
+                when (part) {
+                    is UIMessagePart.Text -> {
+                        val result = StringWriter()
+                        template.evaluate(
+                            result, mapOf(
+                                "message" to part.text,
+                                "role" to message.role.name.lowercase(),
+                                "time" to createdAt.toLocalTime(),
+                                "date" to createdAt.toLocalDate(),
+                            )
+                        )
+                        part.copy(
+                            text = result.toString()
+                        )
                     }
+
+                    else -> part
                 }
-            )
-        }
+            }
+        )
     }
 }
 

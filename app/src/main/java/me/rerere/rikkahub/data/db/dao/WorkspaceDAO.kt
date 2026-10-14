@@ -29,4 +29,5 @@ interface WorkspaceDAO {
 
     @Query("DELETE FROM workspaces WHERE id = :id")
     suspend fun deleteById(id: String): Int
+
 }

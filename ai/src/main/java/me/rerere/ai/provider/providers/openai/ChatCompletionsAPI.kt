@@ -74,6 +74,17 @@ import kotlin.time.Clock
 
 private const val TAG = "ChatCompletionsAPI"
 
+// Manual request parameters override the model switch, including models without
+// a REASONING capability flag configured in the app.
+internal fun isDeepSeekThinkingEnabled(params: TextGenerationParams): Boolean {
+    val override = buildJsonObject {}.mergeCustomBody(params.customBody)["thinking"] as? JsonObject
+    return when ((override?.get("type") as? JsonPrimitive)?.content) {
+        "enabled" -> true
+        "disabled" -> false
+        else -> ModelAbility.REASONING in params.model.abilities && params.reasoningLevel != ReasoningLevel.OFF
+    }
+}
+
 class ChatCompletionsAPI(
     private val client: OkHttpClient,
     private val keyRoulette: KeyRoulette
@@ -233,6 +244,8 @@ class ChatCompletionsAPI(
         val hasTools = hasTools(params)
         val includeHistoryReasoning = providerSetting.includeHistoryReasoning ||
                 (isDeepSeekDialect(host, params.model.modelId) && hasTools)
+        val forceReasoningBack = isDeepSeekDialect(host, params.model.modelId) && hasTools &&
+                isDeepSeekThinkingEnabled(params)
         return buildJsonObject {
             put("model", params.model.modelId)
             put(
@@ -240,6 +253,7 @@ class ChatCompletionsAPI(
                 buildMessages(
                     messages = messages,
                     includeHistoryReasoning = includeHistoryReasoning,
+                    forceReasoningBack = forceReasoningBack,
                     includeOpenRouterReasoningDetails = isOpenRouter,
                     supportInputModalities = params.model.inputModalities,
                 )
@@ -468,6 +482,7 @@ class ChatCompletionsAPI(
         includeHistoryReasoning: Boolean = true,
         includeOpenRouterReasoningDetails: Boolean = false,
         supportInputModalities: List<Modality> = listOf(Modality.TEXT, Modality.IMAGE),
+        forceReasoningBack: Boolean = false,
     ) = buildJsonArray {
         val filteredMessages = messages.filter { it.isValidToUpload() }
 
@@ -476,6 +491,7 @@ class ChatCompletionsAPI(
                 addAssistantMessages(
                     message = message,
                     includeReasoning = includeHistoryReasoning,
+                    forceReasoningBack = forceReasoningBack,
                     includeOpenRouterReasoningDetails = includeOpenRouterReasoningDetails,
                     supportInputModalities = supportInputModalities,
                 )
@@ -490,6 +506,7 @@ class ChatCompletionsAPI(
         includeReasoning: Boolean,
         includeOpenRouterReasoningDetails: Boolean,
         supportInputModalities: List<Modality>,
+        forceReasoningBack: Boolean = false,
     ) {
         val groups = groupPartsByToolBoundary(message.parts)
         val contentBuffer = mutableListOf<UIMessagePart>()
@@ -516,6 +533,7 @@ class ChatCompletionsAPI(
                         tools = group.tools,
                         reasoningPart = reasoningPart,
                         includeOpenRouterReasoningDetails = includeOpenRouterReasoningDetails,
+                        forceReasoningBack = forceReasoningBack,
                     )?.let { assistantMessage ->
                         add(assistantMessage)
                     }
@@ -541,6 +559,7 @@ class ChatCompletionsAPI(
                 tools = emptyList(),
                 reasoningPart = reasoningPart,
                 includeOpenRouterReasoningDetails = includeOpenRouterReasoningDetails,
+                forceReasoningBack = forceReasoningBack,
             )?.let { assistantMessage ->
                 add(assistantMessage)
             }
@@ -552,6 +571,7 @@ class ChatCompletionsAPI(
         tools: List<UIMessagePart.Tool>,
         reasoningPart: UIMessagePart.Reasoning?,
         includeOpenRouterReasoningDetails: Boolean,
+        forceReasoningBack: Boolean = false,
     ): JsonObject? {
         val hasUsableContent = contentParts.any { part ->
             when (part) {
@@ -574,7 +594,9 @@ class ChatCompletionsAPI(
             put("role", "assistant")
 
             // reasoning_content
-            if (hasReasoning) {
+            if (forceReasoningBack) {
+                put("reasoning_content", reasoningPart?.reasoning.orEmpty())
+            } else if (hasReasoning) {
                 if (!reasoningDetails.isNullOrEmpty()) {
                     put("reasoning_details", reasoningDetails)
                 } else {

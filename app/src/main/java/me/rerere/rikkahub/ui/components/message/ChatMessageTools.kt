@@ -96,10 +96,11 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     loading: Boolean = false,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
+    requestingMemberName: String? = null,
 ) {
     // ask_user 是交互式问答流程, 不走注册式渲染框架
     if (tool.toolName == ASK_USER_TOOL_NAME) {
-        AskUserToolStep(tool = tool, loading = loading, onToolAnswer = onToolAnswer)
+        AskUserToolStep(tool = tool, loading = loading, onToolAnswer = onToolAnswer, requestingMemberName = requestingMemberName)
         return
     }
 
@@ -258,6 +259,7 @@ private fun ChainOfThoughtScope.AskUserToolStep(
     tool: UIMessagePart.Tool,
     loading: Boolean,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)?,
+    requestingMemberName: String? = null,
 ) {
     val isPending = tool.isPending
     val isAnswered = tool.approvalState is ToolApprovalState.Answered
@@ -303,6 +305,9 @@ private fun ChainOfThoughtScope.AskUserToolStep(
             }
         },
         label = {
+            Column {
+            if (requestingMemberName != null) Text(stringResource(R.string.group_asking_user, requestingMemberName),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 text = if (questions.size <= 1) firstQuestion else stringResource(
                     R.string.chat_message_tool_ask_questions,
@@ -314,6 +319,7 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            }
         },
         content = {
             Column(

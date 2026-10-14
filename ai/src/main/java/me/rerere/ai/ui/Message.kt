@@ -46,6 +46,18 @@ data class UIMessage(
         }
     }
 
+    fun summaryAsTextWithSender(ownerLabel: String, systemLabel: String = "SYSTEM", maxLength: Int = Int.MAX_VALUE): String {
+        val sender = annotations.filterIsInstance<UIMessageAnnotation.GroupSender>().firstOrNull()
+        val label = when {
+            sender != null -> sender.memberName
+            role == MessageRole.USER -> ownerLabel
+            role == MessageRole.SYSTEM -> systemLabel
+            else -> role.name
+        }
+        val text = "[$label]: ${toText()}"
+        return if (text.length > maxLength) text.take(maxLength) + "..." else text
+    }
+
     fun getTools() = parts.filterIsInstance<UIMessagePart.Tool>()
 
     fun isValidToUpload() = parts.any { part ->

@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
 import me.rerere.ai.ui.UIMessagePart
 import kotlin.uuid.Uuid
 
@@ -144,5 +145,16 @@ class ChatInputState {
             is UIMessagePart.Document -> this.url
             else -> null
         }
+    }
+}
+
+// Both the @ chooser and avatar long-press use the current selection, not the end of the draft.
+fun ChatInputState.insertMention(name: String, replacementRange: TextRange = textContent.selection) {
+    val start = replacementRange.min.coerceIn(0, textContent.text.length)
+    val end = replacementRange.max.coerceIn(start, textContent.text.length)
+    val mention = "@$name "
+    textContent.edit {
+        replace(start, end, mention)
+        selection = TextRange(start + mention.length)
     }
 }

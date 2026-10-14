@@ -75,7 +75,7 @@ fun ExtensionsPage() {
                         supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
                     )
                     item(
-                        onClick = { navController.navigate(Screen.Workspaces) },
+                        onClick = { navController.navigate(Screen.Workspaces()) },
                         leadingContent = { Icon(HugeIcons.Folder01, null) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },

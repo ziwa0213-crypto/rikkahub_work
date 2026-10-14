@@ -32,6 +32,7 @@ import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GROUP_COMPRESS_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_OCR_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_SUGGESTION_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TITLE_PROMPT
@@ -43,6 +44,9 @@ import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV2Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.Group
+import me.rerere.rikkahub.data.model.GroupMember
+import me.rerere.rikkahub.data.model.normalizeGroupData
 import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.MemoryGroup
@@ -133,6 +137,7 @@ class SettingsStore(
         val OCR_PROMPT = stringPreferencesKey("ocr_prompt")
         val COMPRESS_MODEL = stringPreferencesKey("compress_model")
         val COMPRESS_PROMPT = stringPreferencesKey("compress_prompt")
+        val GROUP_COMPRESS_PROMPT = stringPreferencesKey("group_compress_prompt")
 
         // 提供商
         val PROVIDERS = stringPreferencesKey("providers")
@@ -141,6 +146,10 @@ class SettingsStore(
         val SELECT_ASSISTANT = stringPreferencesKey("select_assistant")
         val ASSISTANTS = stringPreferencesKey("assistants")
         val ASSISTANT_TAGS = stringPreferencesKey("assistant_tags")
+        val UI_MODE = stringPreferencesKey("ui_mode")
+        val GROUP_MEMBERS = stringPreferencesKey("group_members")
+        val GROUPS = stringPreferencesKey("groups")
+        val GROUP_TAGS = stringPreferencesKey("group_tags")
 
         // 搜索
         val SEARCH_SERVICES = stringPreferencesKey("search_services")
@@ -216,12 +225,18 @@ class SettingsStore(
                 preferences[OCR_PROMPT] = settings.ocrPrompt
                 preferences[COMPRESS_MODEL] = settings.compressModelId.toString()
                 preferences[COMPRESS_PROMPT] = settings.compressPrompt
+                preferences[GROUP_COMPRESS_PROMPT] = settings.groupCompressPrompt
 
                 preferences[PROVIDERS] = JsonInstant.encodeToString(settings.providers)
 
                 preferences[ASSISTANTS] = JsonInstant.encodeToString(settings.assistants)
                 preferences[SELECT_ASSISTANT] = settings.assistantId.toString()
                 preferences[ASSISTANT_TAGS] = JsonInstant.encodeToString(settings.assistantTags)
+                val groupSettings = settings.normalizeGroupData()
+                preferences[UI_MODE] = groupSettings.uiMode.name
+                preferences[GROUP_MEMBERS] = JsonInstant.encodeToString(groupSettings.groupMembers)
+                preferences[GROUPS] = JsonInstant.encodeToString(groupSettings.groups)
+                preferences[GROUP_TAGS] = JsonInstant.encodeToString(groupSettings.groupTags)
 
                 preferences[SEARCH_SERVICES] = JsonInstant.encodeToString(settings.searchServices)
                 preferences[SEARCH_COMMON] = JsonInstant.encodeToString(settings.searchCommonOptions)
@@ -291,6 +306,7 @@ class SettingsStore(
                 ocrPrompt = preferences[OCR_PROMPT] ?: DEFAULT_OCR_PROMPT,
                 compressModelId = preferences[COMPRESS_MODEL]?.let { Uuid.parse(it) } ?: DEFAULT_AUTO_MODEL_ID,
                 compressPrompt = preferences[COMPRESS_PROMPT] ?: DEFAULT_COMPRESS_PROMPT,
+                groupCompressPrompt = preferences[GROUP_COMPRESS_PROMPT] ?: DEFAULT_GROUP_COMPRESS_PROMPT,
                 assistantId = preferences[SELECT_ASSISTANT]?.let { Uuid.parse(it) }
                     ?: DEFAULT_ASSISTANT_ID,
                 assistantTags = preferences[ASSISTANT_TAGS]?.let {
@@ -356,6 +372,11 @@ class SettingsStore(
                 } ?: BackupReminderConfig(),
                 loadingAnimationHintDismissed = preferences[LOADING_ANIMATION_HINT_DISMISSED] == true,
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
+                uiMode = preferences[UI_MODE]?.let { value -> UiMode.entries.find { it.name == value } }
+                    ?: UiMode.CHAT,
+                groupMembers = preferences[GROUP_MEMBERS]?.let { JsonInstant.decodeFromString(it) } ?: emptyList(),
+                groups = preferences[GROUPS]?.let { JsonInstant.decodeFromString(it) } ?: emptyList(),
+                groupTags = preferences[GROUP_TAGS]?.let { JsonInstant.decodeFromString(it) } ?: emptyList(),
             )
         }
         .map {
@@ -460,6 +481,7 @@ class SettingsStore(
                 quickMessages = settings.quickMessages.distinctBy { it.id },
             )
         }
+        .map { it.normalizeGroupData() }
         .onEach {
             get<PebbleEngine>().templateCache.invalidateAll()
         }
@@ -602,6 +624,7 @@ data class Settings(
     val ocrPrompt: String = DEFAULT_OCR_PROMPT,
     val compressModelId: Uuid = Uuid.random(),
     val compressPrompt: String = DEFAULT_COMPRESS_PROMPT,
+    val groupCompressPrompt: String = DEFAULT_GROUP_COMPRESS_PROMPT,
     val assistantId: Uuid = DEFAULT_ASSISTANT_ID,
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,
@@ -629,12 +652,19 @@ data class Settings(
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val loadingAnimationHintDismissed: Boolean = false,
     val launchCount: Int = 0,
+    val uiMode: UiMode = UiMode.CHAT,
+    val groupMembers: List<GroupMember> = emptyList(),
+    val groups: List<Group> = emptyList(),
+    val groupTags: List<Tag> = emptyList(),
 ) {
     companion object {
         // 构造一个用于初始化的settings, 但它不能用于保存，防止使用初始值存储
         fun dummy() = Settings(init = true)
     }
 }
+
+@Serializable
+enum class UiMode { CHAT, GROUP }
 
 @Serializable
 data class NetworkSetting(

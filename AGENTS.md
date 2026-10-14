@@ -187,7 +187,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 - **Release tag** = versionName 且**不带 `v`**（如 `2.5.5-work.1`）。
   🔴 **绝不能拿 versionCode 数字当 tag** —— 比较器把 `192` 解析成 core `[192]`，而 `2.5.5-work.1` 是 `[2,5,5]`，`192 > 2` → **永远误报有更新**。
 - 🔴 **tag 的核心号必须大于已装 versionName 的核心号**（例：已装 2.5.5 时，发 `2.5.4-work.5` 永不提示更新）。
-- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **194** = `2.5.6-work.1`；本次目标为 **195**；上游源码里的旧值直接拿来用会导致降级拒装）。
+- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **196** = `2.5.6-work.3`；下一正式版至少 **197**；本次同步已发布版本的源码，保持196不变）。
 
 ---
 
@@ -208,14 +208,15 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 ## 五、当前状态
 
-> 最后更新：**2026-10-06**
+> 最后更新：**2026-10-14**（当前开发状态；下方早期合并/发布记录保留作历史）
 
 - **上游基线**：**2.5.6**（2026-10-01 17:55 北京发布）；2.5.4 / 2.5.5 我们**未单独出包**，改为两版一次合并（见 `发布准备/上游合并指引·2.5.4+2.5.5.md`）
-- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复 / F008 加载动画个性化 / **F009 DeepSeek Web 内置供应商**
-- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → `2.5.5-work.2`(193) → **`2.5.6-work.1`(194，当前基线)**
-  · 本地开发版本：**`2.5.6-work.2` / versionCode `195`**，Release 构建已核验，待用户确认
+- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复 / F008 加载动画个性化 / F009 DeepSeek Web / F010 记忆迁移多选 / F011 随想搜索。F012 一期及二期 A/B/C/D/C+1/E/F、共用 Rootfs 回退及群内昵称/头像已实现；2026-10-14 维护者已发布三个签名 Release。F012 手机交互与真实供应商验收仍由维护者执行，不能因发布标为全部通过。
+- **F006 验证状态**：方案乙修复后，维护者提供的《本次推送清单·2.5.6-work.3》确认2026-10-12实机压测通过：A崩溃回归（进出聊天页/旋转/切换会话各20次）、C性能（帧率/发热/耗电）、D兜底（旧glass配置不崩、默认模糊）。原Phase 0原型复核项已归档；这是维护者反馈，本轮未操作设备，未提供可复用的帧率/功耗原始测量值。
+- **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → `2.5.5-work.2`(193) → `2.5.6-work.1`(194) → `2.5.6-work.2`(195) → **`2.5.6-work.3`(196)**（2026-10-14 10:11北京时间正式发布，GitHub API已核实非草稿、非预发布，三个资产名/大小/SHA-256与本地交付一致）
+  · 本地版本：**`2.5.6-work.3 / 196`**。本次源码提交以远端master `6b7f8ee7` 为父提交，保留其README更新，包含全部F012及DeepSeek双协议修正。维护者已授权补齐文档、提交、推送master与纠正同名标签；后续按远端master/tag及版本核验同步结果。本批不生成Debug或重新上传APK；下方分期和打包记录均为历史。
 - **当前推进**（2026-09-30）：
-  1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项和阿拉伯语资源。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
+  1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项。后续语言按维护者决定仅英文/简中/繁中，阿拉伯语不保留。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
      - F007 补丁**已实测可干净套到 2.5.5**（`f007_on_2.5.4.patch`，无需重做）
      - ⚠️ **最大风险**：`haze 2.0.0-rc02 → 2.0.0`，影响 F006 的「模糊 / 兼容」两档 → **必须实机看效果**
@@ -334,3 +335,165 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 | 记忆读取范围（F002） | `app/.../data/repository/MemoryRepository.kt` 的 `scopeOf(assistant)`（写入侧在 `ChatToolFactory.kt`，读取侧在 `ChatService.kt`） |
 
 <!-- ==== END rikkahub_work fork section ==== -->
+
+## F012 第一期补充约定（2026-10-06）
+
+- 基线为 `2.5.6-work.2 / 195`（`f79210c1`），开发目标为 `2.5.6-work.3 / 196`；本轮只生成 Debug，不构建 Release、不推送、不创建标签。
+- Debug 仅编译和输出 `arm64-v8a`；不输出 x86_64 或 Universal Debug APK，正式版架构配置保持不变。
+- APK、源码归档、校验值和交付说明统一放在仓库根目录 `artifacts/<versionName>/<批次>/`，不直接散放在下载目录。不同批次分目录保留，`artifacts/` 不提交 Git、不纳入源码压缩包。
+- 只实施模式切换、组员/群组管理、群组配置和占位聊天页，不接群聊生成、消息归属、存储或记忆机制。
+- 新页面复用 `AssistantPage` / `AssistantDetailPage` 骨架与标准组件，颜色使用 `CustomColors` 和 `MaterialTheme.colorScheme`。
+- `Settings` 仅追加带默认值的 `uiMode`、`groupMembers`、`groups`，同步 DataStore 读写与无效标签/组员引用清理；不迁移 Room。
+- 从助手导入组员是名称/模型/提示词/流式/思考预算的独立快照，不存助手引用。
+- 不修改 `Conversation`、`UIMessage`、工具契约、F003/F004/F007/F008/F009 的既有逻辑；群组路径与原聊天路径隔离。
+- 只使用英文、简体中文、繁体中文；不添加依赖、硬编码颜色或离屏混合模式。
+
+## F012 修正单②至⑦补充约定（2026-10-07）
+
+- 当前仍为 `2.5.6-work.3 / 196`，以本地未提交工作区为准；仅 ARM64 Debug、完整源码，不构建 Release、不执行 commit/tag/push、不操作设备。
+- 原一期中“按创建时间排序”和“只读输入栏”的范围被②至⑦取代：库列表顺序可拖拽并保留，群内 priority 独立；使用真实 ChatInput 但发送只提示并清空，独立 GroupVM 草稿，不接群聊生成。
+- Group 的资源设置归属群组、数值参数归属 GroupMember，所有新增字段带默认值；助手快照仍只复制原五项，不复制数值调参。
+- 群聊记忆范围必须为 `grp:`，不可与 F010 的 `g:` 或助手范围混用；本期仅在群组设置页管理，生成读取后续接入。
+- 复用 MCP/本地工具的临时 Assistant 只当组件参数，绝不能写入 settings.assistants。
+- 群组背景用独立 GroupBackground，保留 hazeSource 和同一 LiquidGlassChatHost/熔断路径，不改 AssistantBackground。
+- 唯二共享组件例外：AssistantLocalToolContent private -> internal；BackgroundPicker 添加默认 label/description。其余 ChatInput/玻璃宿主/Background/MeshGradient/McpPicker/ExtensionContent/PropertyEditor/CardGroup/ReorderableDrag 不改。
+- 群组输入栏展示/调整当前聊天助手模型等是一期已知取舍，必须在 CHANGES 和交付说明记录；实际群聊生成与资源接线仍留第二期。
+- 上传文档 AGENTS 中的旧发布状态与阿拉伯语保留描述不覆盖当前工作区约定；本项目始终只保留 values、values-zh、values-zh-rTW。
+
+## F012 修正单⑩补充约定（2026-10-07，优先于上述旧口径）
+
+- 以维护者更正的“思考预算改为群组级并由输入框调节”任务书为准，作废“下移”说法；仍为 `2.5.6-work.3 / 196`，仅 ARM64 Debug 与完整源码，不构建 Release、不提交/推送/打标签、不操作设备。
+- 思考等级归属 Group，追加带 AUTO 默认值的 reasoningLevel，复用现有输入框灯泡读写当前群组；不得新增 UI、移动按钮或修改 ReasoningButton/ReasoningPicker。群组模式无条件显示，聊天模式保持原模型能力守卫与助手读写。
+- 允许第三处共享组件例外：ChatInput 追加默认 null 的 reasoningLevelOverride / onUpdateReasoningLevelOverride，并仅覆盖灯泡读写。上游升级需同时重套④的 AssistantLocalToolContent 可见性、⑦的 BackgroundPicker 默认文案参数与⑩的 ChatInput 覆盖接口/ChatPage 接线；取代旧“唯二例外/ChatInput 不得改”口径。
+- GroupMember 的旧 reasoningLevel 和 importSnapshot 逻辑完全保留，仅加注释；从助手导入的当前有效行为特征只剩 streamOutput，旧思考值保留兼容但不生效，不自动带入 Group。
+- 从已知取舍中移除思考等级；模型、工具审批、快捷消息仍沿用当前聊天助手配置，本单不处理。无群组调节时复用创建提示，不修改助手；群聊请求/生成接线留第二期。
+- 保留②至⑦的输入栏/独立草稿/玻璃路径、⑧透明顶栏及⑨胶囊同底色；不新增依赖或资源 key，不改 GenerationLoop/ChatService/Room，仍只保留三语。无设备授权时不能以编译或静态核对替代实机截图/录屏验收。
+
+## F012 修正单⑪至⑬补充约定（2026-10-07，优先于上述旧口径）
+
+- 仍为 `2.5.6-work.3 / 196`，仅 ARM64 Debug 与完整源码，不构建 Release、不提交/推送/打标签、不操作设备。**⑧⑨⑩ 已完成并核对通过，本轮只做⑪⑫⑬**，不得回退任何一项。
+- **⑪ 群聊列表对齐聊天记录**：抽屉 `GroupChatList` 改为「日期分组头 + 置顶分组头 + 单行胶囊（`RoundedCornerShape(50f)`、`padding(horizontal = 12.dp, vertical = 6.dp)`）+ 长按菜单（置顶/取消置顶、重命名、编辑群组、删除）」，`Group` 追加 `isPinned: Boolean = false`，日期用 `createdAt`。
+  🔴 **抽屉排序（`isPinned` 降序 → `createdAt` 降序）只用于渲染，绝不写回 `settings.groups`**；拖拽排序仍归群组设置页 `GroupPage` 独有，抽屉内不提供拖拽。
+  分组头**复用而非复制**：`ConversationList.kt` 的 `DateHeaderItem`（:178）、`PinnedHeader`（:199）由 `private` 提为 `internal`，`PinnedHeader` 追加带默认值的 `label` 参数（原调用点零改动）。`ConversationItem` / `ConversationList` / `ConversationListItem` 一律不改。
+- **⑫ 群聊顶栏按钮组**：`GroupChatContent.kt` 的 `actions` 改为「`设置(Settings03)` + `新建(MessageAdd01)` + `⋮(MoreVertical)`」，`⋮` 内为「`记忆(Brain02)` → `Screen.GroupMemory` **二级页面**」与「`会话列表(LeftToRightListBullet)` → 占位提示」。仅新增 `group_new_chat` / `group_chat_options` 两个 key；复用 `assistant_page_tab_memory`、`more_options`、`group_next_phase`，**值不得修改**。群组设置页既有记忆入口保留。群为 `null` 时点记忆不得崩溃（须 `group?.let`）。
+- **⑬ 修正⑩的两个实机缺陷**（维护者实测）：
+  ① `ChatPage.kt` 的 `group?.reasoningLevel ?: ReasoningLevel.AUTO` 回退，导致无群时灯泡仍显示、且值恒回弹「自动」→ 去掉回退值，无群时 `override` 为 `null`；
+  ② `ChatInput.kt` 的 `ModelSelectorButton` 在群组模式无条件渲染且读写当前助手模型 → 改为 `if (!groupMode)` 不渲染。
+  为此 `ChatInput` 追加 `groupMode: Boolean = false`；`showReasoningButton` **分模式**：`groupMode` 为 `true` 时只看 `reasoningLevelOverride != null`（**完全不再看 model**），`false` 时保持原 `model?.abilities?.contains(ModelAbility.REASONING) == true`。
+  搜索、工具审批、快捷消息本轮不动，仍属⑤的已知取舍。
+- 🔴 **上游升级需重做清单更新为四处**（**取代旧「唯二例外 / ChatInput 不得改 / 第三处例外」口径**）：
+  ① `AssistantLocalToolPage.kt:76` 的 `AssistantLocalToolContent` `private` → `internal`（④）
+  ② `BackgroundPicker.kt` 的 `label` / `description` 默认参数（⑦）
+  ③ `ChatInput.kt` 的 `reasoningLevelOverride` / `onUpdateReasoningLevelOverride`（⑩）**+ `groupMode`（⑬）+ 灯泡显示条件分模式、模型选择器 `if (!groupMode)` 分支（⑩⑬）**
+  ④ `ConversationList.kt:178/199` 的 `DateHeaderItem`、`PinnedHeader` `private` → `internal`（⑪）
+  另 `ChatPage.kt` 被⑩与⑬共同修改（`ChatInput(...)` 调用块），属同一范围的需重做项。
+- 保留③至⑩的既有成果：独立 `GroupVM` 草稿、输入栏动画与液态玻璃路径、⑧透明顶栏、⑨胶囊同底色、⑩的 `Group.reasoningLevel` 与 `GroupMember.reasoningLevel` 兼容保留。**不回退任何一项。**
+- 语言仍只保留 `values` / `values-zh` / `values-zh-rTW`；不新增依赖、不改 `GenerationLoop`/`ChatService`/`Room`/`Settings` 既有字段；群聊生成与记忆读取接线仍留第二期。
+
+## F012 二期 A 当前约定（2026-10-09，优先于上述一期状态）
+
+- 当前开发版 `2.5.6-work.3 / 196`，上游基线 2.5.6；HEAD 为 `f79210c1`，一期修正①至⑬及二期 A 仍未提交。只交付 ARM64 Debug 与完整源码，不构建 Release、不 commit/tag/push、不操作模拟器/设备、不使用真实账号/API 验证。
+- 群聊已接入生成与消息持久化，旧段落里的“占位/第二期未接入”是一期历史。只做二期 A：按 enabled 和 priority 严格串行，成员可见前面的发言；不使用 talkativeness/标签策略，不做子群、权重、引用、主动发言、独立状态机或新审批配置。
+- 固定占位助手 UUID 为 `8d78b652-5242-4f1b-9c03-a7712328b5c4`，绝不能 random；临时 Assistant 仅作为请求参数，不能写入 settings.assistants。Group 新字段 enableMemory=true、systemPrompt=""、conversationIds=[] 必须保留默认值及序列化。
+- 记忆是会话级 `grp:<groupId>:<conversationId>`；旧一参 `grp:<groupId>` 保留，并事务迁移到首个会话，保留 ID。记忆入口在当前会话顶栏，不在群组设置页；工具写入检查 scope，不得修改其他桶。
+- 群聊进全库备份，但不进普通列表/置顶/标题或全文搜索/FTS/统计。FTS 采用任务书方案乙，在索引入口跳过，搜索再过滤旧项；统计扩展函数加可选排除参数，不改 Room schema 或旧 DAO 签名。删除群须停止生成并清理关联会话和记忆，复制群不复制 conversationIds。
+- GroupSender 保存 memberId/memberName；头像来自组员库，成员已删除时回退头像但保留历史名。请求前缀只通过 GroupSpeakerTransformer 添加，正文/工具参数不改。生成、队列、前台通知、Partial 审批和 ask_user 均复用原设施，GenerationLoop 未修改。
+- 上游升级需重套的一期四处组件例外仍有效；二期共享改动的实际名单见 FEATURES 的二期 A 章节，已超过原估算 11 处，不以数字掩盖修改范围。尤其保留 MCP 可选 Assistant 参数、群统计排除、GroupSender 引用分类，以及 ChatInput 群模式隔离；单聊默认参数与行为不变。
+- 保留⑧透明顶栏、⑨胶囊同底色、⑩群级思考、⑪列表、⑫顶栏三按钮、⑬隐藏群模型选择。输入栏现隐藏属于单聊的搜索/审批/快捷消息入口，避免误改助手；群聊语音和压缩尚未实现。
+- 只保留英文/简中/繁中，不新增依赖、硬编码颜色或离屏混合。台账与交付说明区分自动检查和设备验收，后者未经执行不得标通过。
+
+## F012 二期 B/C/D 当前约定（2026-10-10，优先于上述二期 A 范围）
+
+- 依据维护者授权的 `Codex任务包-F012二期BCD-20261010.zip`，仍保持 `2.5.6-work.3 / 196`，仅 ARM64 Debug 和完整工作区源码；不构建 Release、不 commit/tag/push、不操作设备或真实账号/API。
+- 维护者最新指示为“BCD 改完再生成 APK 和源码”，覆盖任务包的中途出包建议。完成 B/C/D 的全部实现和自动检查后，统一交付一批产物，不中途等待设备检查；设备验收由维护者执行，未经实测不能标通过。
+- `Group.toolApprovalMode` 默认 Partial、非 Transient；toAssistant 传入群级档位，ChatInput/ChatPage 复用群级思考覆盖参数模式。无群隐藏审批按钮，群模式回调缺失不得退回修改聊天助手。既有 ToolApprovalButton、风险分级、Partial 的 OR 升级与 ask_user 恒确认不变。
+- B 完整复制重新生成群/会话/MessageNode 的 ID，保留 UIMessage ID、分支选择、会话标题及时间，物理复制所有分支附件（含工具结果嵌套附件）、本地背景和会话/遗留群记忆。失败清理新群记录、会话、记忆及复制文件，不改源群。copyWithForkedFileUrl 仅 private → internal，函数体不变；它实际是 ChatService 的成员扩展，通过 with(chatService) 调用，不是任务书所写的顶层函数。复用既有 copyMemories，不暴露 DAO；GroupVM 注入 Context，不改基类。
+- C 的 groupTags 从空开始，旧群组/组员标签需要重新选择，组员库显示可关闭提示；assistantTags 及聊天助手不变。新建/编辑组员标签必填、群标签非必填。副群主在已启用成员中最后总结一次，用户 @ 仅限定已启用的本群成员；全部提及均无效时回退普通顺序。不引入内部消息、副群主 @ 调度、权重、并行或新状态机。
+- D 以滑动引用补充为准：组员气泡向左、用户气泡向右；引用态用按模式/群/会话键控的 remember，非 rememberSaveable。长按组员头像和输入 @ 共用 insertMention，光标在插入文本后。UIAvatar 追加默认 null 的 onLongClick，仅群头像启用同层长按，普通头像保持原 Surface 点击路径，避免任务书外层长按被内部点击吞掉。
+- GroupQuote 随消息持久化，在既有内存队列中保留（不新增队列持久化）。可引用清单为当前历史最近十条有正文的用户/组员消息，单成员审批恢复保持同一清单；解析首个现有 Text 的合法标记，只认清单内 ID。无合法 ID 保留原文、不挂伪引用，有合法 ID 则清理识别到的标记并只挂首个合法目标。请求侧引用和说话人前缀合并到首个现有 Text，绝不新增/重排 parts，保留 A 修正二的 reasoning 顺序及自身前缀剥离。ask_user 显示提问组员，不改既有 HITL/审批设施。
+- 上游升级除 A/一期例外，还需重套 ChatInput/ChatPage 群审批、引用及补全接线，PreferencesStore 的 groupTags 读写，UIMessageAnnotation 的 GroupQuote，MessageQueue 默认 annotations，ChatInputState/ChatCompletionProvider 提及接口，ChatMessage/ChatMessageTools/UIAvatar 的群模式 UI 分支；具体文件及回滚边界见 FEATURES。
+- 只保留 values / values-zh / values-zh-rTW，保留一期修正①至⑬、二期 A 及两份修正成果。上传 AGENTS 的旧版本状态、阿拉伯语描述不能覆盖本地约定；本段合并新增规则，不整文件替换已有 AGENTS。
+
+## F012 BCD 修正 / C+1 / E 当前约定（2026-10-12，优先于上述旧范围）
+
+- 当前仍为 `2.5.6-work.3 / 196`，仅 ARM64 Debug 与完整工作区源码，目录 `artifacts/2.5.6-work.3/F012-BCD-C1-E-debug/`。维护者已授权实施整个新包，统一完成再交付；不 Release/commit/tag/push，不操作设备/模拟器或真实账号/API，不覆盖旧批次。
+- 抽屉群选择器与当前群会话列表分工；会话重命名/置顶只改对应列，严禁拿缺 messageNodes 的轻量列表对象 updateConversation。默认新对话自动编号，删除只针对选中群会话；顶栏重复会话弹窗移除。
+- C+1 enableDeputyDispatch 默认 false。开时先分派，有效点名按 talkativeness 降序，其他组员保留 priority，最后副群主总结；无有效点名不追加总结，不重复普通成员。用户 @筛选保留；关闭时副群主仍最后普通发言一次。复用 extractMentions，成员名优先标签名，忽略禁用/非本群/自己，dispatch 只一次、SUMMARY 不再解析 @。
+- GroupTurn 区分分派/发言/总结，quote 缓存按 turn 下标；审批保留 round 当前 index，重建恢复用 indexOfLast 并参考本轮已保存分派正文，不增加内部消息/role/annotation。任务书追加重复成员的示例由验收顺序覆盖。
+- Responses API 保留；DeepSeek capability 禁加密请求、回传已有 reasoning_text，旧加密元数据不阻止明文；OpenAI 加密行为和 F007 原 ChatCompletionsAPI 不改。只密文无明文的真实响应未经联网验证，不宣称已解决服务端所有情形。
+- 群压缩只开独立入口，不放开 allowConversationActions。summaryAsText 不改，另加说话人格式化；摘要仍 UIMessage.user，近期 message ID/注解保留。分层默认开：群主/副群主详细、其他成员按名简要并保头尾；独立 groupCompressPrompt 使用现有 {key}，完整 DataStore 读写与默认值兼容。
+- 自动压缩提醒默认 true，仅群模式；整轮成功完成且 session 无任务/待审批工具后检查 token 或消息阈值。到阈值先弹窗，确认才调模型，暂不后 20% 迟滞。进度显示与判断共用 ContextUsage，无机器人图标；聊天模式消息计数/压缩行为不变。手动框阈值30%～95%，拖完立即保存，聊天模式隐藏。
+- Model 无独立 contextLength 字段：群上限>0 时使用，否则128,000；输入用量先 promptTokens+cachedTokens，无有效真实用量时启发式。压缩后的旧保留消息 usage 失效，通过消息时间边界回退估算。不可把估算当真实完整请求 token，也不改 Room schema。
+- 群压缩先加载 getConversationById 完整节点并校验当前会话快照，预留原 session job 防并发保存；任务失败不写摘要。所有新序列化字段均有默认值，三语、旧组件例外和一期/A/B/C/D成果必须保留。自动检查不替代维护者的设备/覆盖安装/供应商验收。
+
+## DeepSeek 修正 / F012 F 当前约定（2026-10-13，优先于上述旧范围）
+
+- 维护者已授权整个 `Codex任务包-20261012-DeepSeek修正与F012F.zip`，并要求“一次性交付”：DeepSeek 修正、F-1、F-2 全部完成后统一交付，覆盖包内分阶段出包要求。保持 `2.5.6-work.3 / 196`、ARM64 Debug、完整工作区源码；目录 `artifacts/2.5.6-work.3/F012-DeepSeek-F-debug/`。不 Release/commit/tag/push，不操作设备或真实账号/API，不覆盖前批。
+- DeepSeek 修复只落共享 ChatCompletionsAPI/ResponseAPI。host/model 方言+含工具+思考开启时，续答空/缺 reasoning 也必须回传；显式 `thinking.type` 覆盖能力/等级默认。不对其他厂商、无工具、关闭思考强制补空；保留 F007、OpenAI 密文路径、群前缀 mapIndexed 的原 parts 顺序，不加群模式判定。
+- Group 新默认 workspaceId=null、enableRecentChatsReference=true、enableWebSearch=true、enableTimeReminder=false、timeReminderIntervalMinutes=60 全部持久化；toAssistant 传完整群资源配置，两个会话级覆盖开关明确 false。Assistant 属性反射测试必须随上游新增字段更新。群工具不新增白名单，沿原 createTools；审批、ask_user 恒确认及 F009 网页只读限制不变。
+- createTools 默认 conversationScopeAssistantId=assistant.id，群显式 null 查询全部单聊；SQL 先排除群占位助手再 LIMIT，既有 FTS 群过滤不回退。群工具和 GenerationLoop 都传会话 cwd；附件菜单绑定/目录和文件补全使用群 workspace，不动单聊助手。群 CWD 只更新对应数据库列，不用轻量会话覆盖消息；切换工作区清理群内会话 CWD。
+- WorkspaceEntity owner/shared_rootfs_from 默认 NULL，Room25→26 自动加列且导出26.json；F-2 不再改 schema。旧 owner=null 两边可见，聊天/群组新建分别 chat/group，管理页默认null。删除同步清理助手/群绑定；normalizeGroupData 纯函数，未传有效工作区集合时保留绑定，启动显式传 ID 集清洗。
+- WorkspaceManager 上游模块仅加 rootfsOverride 默认null 与 linuxDir 一行，null行为不变。Registry 只拿baseDir不反向注入manager，按 source.id 找 source.root，拒绝失效/自引用/链式/非法路径；每次实际访问前刷新。复用READY独立source，不下载rootfs、不复制环境，文件和PRoot临时目录独立；Python/pip、/tmp、/var/tmp共用，明确展示、不擅自增加/tmp挂载。
+- 共享工作区隐藏安装入口且 repository require 拒绝；删群只删自身物理root，绝不沿linuxDir删源。删源事务清空依赖 sharedRootfsFrom、标BROKEN、保留私有文件；不静默创建替代环境。创建/安装/删除及文件/命令操作锁住生命周期，查询/流保持可响应。内置终端也通过manager解析，源失效/重装时关闭相关session；SAF只创建files。启动清理须先刷新registry。
+- 新字段/default/schema不能为回滚而删除。未提交时逐文件对照前批源码反向应用当前功能，保留一期/A/B/C/D/C+1/E；schema26数据降级不保证。上游重套清单及已验证/设备待验边界记 FEATURES 与本批 DELIVERY，不能将设备测试编译或本机shell夹具写成Android/供应商实测。
+
+## F012 F-1 归属入口与共享环境补充（2026-10-13，覆盖上述共享限群设计）
+
+- 依据新版“工作区归属入口与文案(1)”补充，仍为 `2.5.6-work.3 / 196`。仅交付 ARM64 Debug 与完整源码，目录 `artifacts/2.5.6-work.3/F012-workspace-owner-debug/`，保留所有前批成果，不 Release/commit/tag/push，不操作设备或真实账号/API。
+- 管理页卡片菜单在重命名和删除之间新增设置归属。setOwner 仅更新 owner/updatedAt，不清理群或助手绑定；已绑定且改归属时显示说明。null 的过滤逻辑仍是两边可见，持久化字段与 Room26/schema 不改。
+- 管理页新建增加默认未归属的归属选择，以及环境选择。管理页、助手页、聊天/群组 sheet 均默认预选首个 READY 独立源；手动选独立或其他源后不得被列表更新覆盖。无源默认独立。放宽共享限制只删除 require(owner == "group")，保留源存在、非共享、路径与 READY/rootfs 检查。
+- 共享实例整张“启用 Shell”卡隐藏；来源/代价移到“工作区信息”的“共用环境”。非共享保留安装/重装/进度及原文案；数据层禁止共享实例独立安装继续有效。
+- 新建/归属保存失败保留对话框并展示错误，防重复提交；复用 Select/AlertDialog，不新增依赖。三语“未归属”去括号，新增归属标题、入口、绑定说明与共享信息标题。
+- 上游共享需重套：WorkspacePage.kt、WorkspaceVM.kt、WorkspaceDetailPage.kt、WorkspaceRepository.kt；fork 自有 WorkspaceCreateButton.kt 也保留默认源/手动选择保护，三语资源同步。回滚逐文件反向应用本批，保留旧 F012 和 Room26，不整文件 checkout。
+
+## F012 F-1 补充二 当前约定（2026-10-13，群组专属修订版，优先于上述旧范围）
+
+- 以“RikkaHub Work-F-1补充二修订（群组专属）-20261013.zip”的第2版为准，覆盖旧补充一及补充二的全模式安装迁移和共享放宽方案。版本保持 `2.5.6-work.3 / 196`；仅 ARM64 Debug 与完整工作区源码，目录 `artifacts/2.5.6-work.3/F012-workspace-group-only-debug/`，不覆盖前批，不 Release/commit/tag/push，不操作设备或真实账号/API。
+- WorkspaceOwnerScope.includes() 保持 `owner == null || owner == value` 原样，未归属仍两边可见。Screen.Workspaces 为 data class、scope 默认 null，FilesPicker 按 groupMode 传 chat/group，GroupConfigPage 传 group，ExtensionsPage 不传；页面过滤但 VM 仍给全量 flow。新建默认归属=scope，全部视图默认 null；名称重复检查、环境来源及来源名称继续使用全量列表。
+- 安装入口只对 owner=group 搬迁：详情页整卡不渲染，管理页菜单仅 owner=group 且 sharedRootfsFrom=null 显示安装/重装，顺序重命名→设置归属→安装→删除。聊天/未归属继续详情页安装，WorkspaceDetailVM 原安装状态/方法、进度、对话框与失败弹窗保留。WorkspaceVM 承接群列表的 workspaceId+progress/error，预留单槽防并发、先关对应终端、取消异常重抛、finally 清进度；列表安装期间全部安装项置灰。
+- RootfsProgress、InstallRootfsDialog、DEFAULT_ROOTFS_URL 原样搬到 WorkspaceInstall.kt，仅提升 internal，详情和列表共用一份。共用环境信息在详情信息卡；settingsError、兼容模式、审批、文件页、顶栏及下载文案/URL 保持。已有非群共享记录不删除、不重置环境，仍禁止独立安装。
+- 共享创建恢复 `require(owner == "group") { "Only group workspaces can share rootfs" }`，只加回这一行，来源存在/非共享/合法路径/READY 校验和 createGroupWorkspaceFor 不改。WorkspaceCreateButton 仅 GROUP 显示/预选复用源；管理页仅归属=群组显示/预选。切回 chat/null 清空源，提交也明确传 null；手动选择后列表更新不覆盖。setOwner 仍只改归属/时间，不解绑、不清共享列；历史共享记录继续读取兼容。
+- 不改 WorkspaceOwnerScope、Registry/Manager、owner 类型/default、Room26/schema、版本、DeepSeek/工具审批或三语现有值。本批无新依赖/语言/key；shared_environment 已在前批提供，不重复新增。
+- 上游重套本轮 RouteActivity、FilesPicker、GroupConfigPage、ExtensionsPage、WorkspacePage、WorkspaceVM、WorkspaceDetailPage、WorkspaceCreateButton、WorkspaceRepository 的增量，并带新 WorkspaceInstall 与路由/共享测试；WorkspaceDetailVM 与前批完全等价保留。前批 WorkspaceOwnerScope、WorkspaceSelectSheet、AssistantBasicPage 补丁仍保留。对照前批源码逐项反向回滚，不整文件 checkout/reset，不删除持久化字段；自动检查和手机验收分开记录。
+
+## F012 二期-F 回退单 当前约定（2026-10-13，优先于上述所有旧范围）
+
+- 本轮以“RikkaHub Work-回退共用Rootfs与安装入口-20261013.zip”为准。保持 `2.5.6-work.3 / 196`、ARM64 Debug、完整工作区源码；目录 `artifacts/2.5.6-work.3/F012-workspace-rootfs-rollback-debug/`，不覆盖前批。不 Release/commit/tag/push，不操作设备或真实账号/API。
+- 共用 Rootfs UI 与机制全部移除：删除 WorkspaceRootfsRegistry、rootfsOverride、注入、共享创建/校验/DAO/终端分支，删除复用选择器、来源说明及三语六个 key。新建均为独立、未安装工作区。删除 WorkspaceSharingTest/SharedRootfsTest，使用 WorkspaceBasicTest 保证基础行为。
+- 数据库字段及列保留，WorkspaceEntity 和 Room26/schema 不变。checkIntegrity 开头把历史 sharedRootfsFrom 非 null 的记录清为 null、shellStatus=DISABLED，再读全表做原完整性检查；保留归属、绑定、私有文件和原源环境，需要用户自行重新安装。清理按记录只执行一次，不删除文件。
+- 安装统一恢复到详情页：三个组件原样搬回 private 后删除 WorkspaceInstall.kt；所有归属均显示“启用 Shell”。列表移除安装项/进度/对话框与 VM 安装状态。WorkspaceDetailVM 完全不动，settingsError、兼容模式、工具审批、文件页及顶栏保留。
+- 保留 WorkspaceOwnerScope.includes()、Screen.Workspaces(scope) 与三个导航点、按来源过滤、设置归属、新建归属及“未归属”去括号。WorkspaceSelectSheet 每行显示“Shell 状态 · 归属”，只复用已有 owner key；绑定不改变归属。
+- 源码核实偏差：GroupStorageTest 仍调用删除后的 deleteAndDetachDependents，无法原样保留并编译；只将这一项更新为删除选中工作区不影响其他记录，其余群存储测试和 WorkspaceMigrationTest 不动。生产 sharedRootfsFrom 引用仅保留实体字段及启动清理。
+- CHANGES 必须显著记录移除“复用已有 Linux 环境（共用 Rootfs）”；FEATURES 记录文件清单/回退边界。DeepSeek、F009 只读、F004 审批、F012 其他阶段、F006/F008 不改；只保留三语，不新增字符串或依赖。
+- 上游重套清单：RouteActivity、WorkspacePage、WorkspaceVM、WorkspaceDetailPage、WorkspaceSelectSheet、FilesPicker、GroupConfigPage、ExtensionsPage、WorkspaceCreateButton、WorkspaceRepository、WorkspaceDAO、WorkspaceTerminalSessionManager、RepositoryModule、workspace/WorkspaceManager。逐项对照前批源码反向应用，不整文件 checkout/reset；已清理的数据不会通过代码回退自动恢复。
+
+## F012 群内昵称与群内头像 当前约定（2026-10-13，与回退单同批交付）
+
+- 本轮还包含“RikkaHub Work-群内昵称与头像-20261013.zip”，与上一回退单一起生成 `2.5.6-work.3 / 196` ARM64 Debug 和完整源码，交付目录沿用 `F012-workspace-rootfs-rollback-debug/`。不 Release/commit/tag/push、不操作设备或真实账号/API。
+- GroupMemberRef 仅追加带默认值的 nickname=""、avatar=null；withOrderedMembers trim 昵称，其他字段及默认值不变。GroupMember、GroupVM、PreferencesStore、数据库及 Room26/schema 完全不动。
+- GroupChat 的 memberRefOf(Uuid/String)、displayNameOf/displayAvatarOf 解析群内覆盖；CompositionLocal 只承载显示，按当前渲染 mode 提供 group/null。历史气泡不改注解或数据库，实时读取昵称/头像；清空昵称回落当前本名，成员/群引用失效时保留历史名及默认头像。工具提问卡、长按 @、成员列表和输入 @ 候选同步。
+- task 源码偏差：chatContent 实为单聊专用，提供点放到 AnimatedContent 的共同 body；withGroupSender 会优先 member.name，因此调用前用临时 member.copy(name=群内名)，函数体/签名不改；resolveDispatch 实际只有一个 extractMentions 调用，连同 speakingMembers 均传别名。生成 framePrompt/通知与 toAssistant 使用群内名，原前缀及 parts 顺序完全不改。
+- 编辑头像立即提交并保留昵称草稿，昵称仅保存时 trim 并提交；保存带最新头像避免异步写回旧值，不额外添加头像清除入口。已有 UIAvatar 选择器与保存/移除按钮复用，旧 group_next_phase 保留。
+- 三语各新增仅 group_nickname_hint/group_avatar_hint；不建其他语言。GroupMemberProfileTest 检查旧 JSON、群间隔离、清空回落、消息昵称/parts 保留、别名点名与调度、复制/排序/归一化保留。实际点击/截图/覆盖安装仍由维护者验收。
+- 上游重套申报：ChatMessage.kt、ChatPage.kt、ChatService.kt；fork 文件 Group.kt、GroupChat.kt、GroupConfigPage.kt、GroupConfigDialogs.kt 和新 GroupChatContext.kt 随源码保留。CHANGES/FEATURES 与交付逐项验收说明同批同步。
+- 本批验证：121套件/818项Debug JVM测试全绿，ARM64 Debug及androidTest代码编译通过；新增profile7项、独立工作区6项。仅安装取消夹具使用127.0.0.1，不用外部服务/真实账号。相对前批24改/3增/4删，其他源码哈希一致；版本/包名/ARM64-only/前批Debug签名/WASM均通过。设备交互、覆盖安装与真实PRoot/供应商仍待维护者验收，最终Lint报告随交付。
+- 最终Lint为44既有错误/249警告/3提示：错误与前批完全一致，无新增错误；仅group_next_phase按任务书保留变为未使用警告。没有baseline或suppress。完整源码1887文件含子模块385文件，ZIP哈希/CRC/gradlew执行位通过；产物与说明在本批artifacts目录，前批保留。
+
+## 2.5.6-work.3 Release 本地交付（2026-10-14，覆盖历史 Debug-only 打包范围）
+
+> 以下记录本轮最初仅打包的授权与结果；维护者随后已发布APK并授权源码同步，当前范围以末尾“正式发布与源码同步”段为准。
+
+- 维护者明确要求只生成三个 Release 包和完整 GitHub 更新日志，暂不上传源码。允许使用已配置的本地 Release 签名；不生成 Debug、不 commit/tag/push、不建 Release、不操作设备或真实供应商。
+- 版本固定 2.5.6-work.3 / 196，Release 包名 me.rerere.rikkahub.plus；沿用已发布 work.2 的 Release 证书。保留 Debug 包名和配置，不拿 Debug 证书给正式版签名。版本无需再次递增；发布成功后下一正式版 versionCode 至少197。
+- 三包命名 RikkaHub.Work.2.5.6-work.3-{arm64-v8a,universal,x86_64}-release.apk，目录 artifacts/2.5.6-work.3/F012-release-20261014/。构建用 :app:assembleRelease，不用 buildAll 或 assembleDebug。
+- 功能源码与最终回退/群内身份 Debug 批次1887文件核对相同，本次只改发布台账及说明；完整更新日志按work.2到本版最终行为整理，不把历史共享Rootfs或占位功能写成当前能力。
+- DeepSeek 双协议推理回传修正已在源码，须如实说明；进一步挂起的排查不新增实现，不声称所有端点问题已实测解决。未经设备/账号验证不得删除待验状态，不把本地出包标为已发布。
+- 最终签名、包名/版本、三个ABI、非debuggable、三语、WASM、测试和哈希核验随本批交付，发布日志不使用“见某文件”替代具体改动。上传/标签/远程状态留待维护者另行授权。
+- 本轮 `:app:assembleRelease` 成功（11分54秒），Release Lint Vital通过；三个APK已核验196/work.3、包名、各语言应用名、ABI、三语、WASM、ZIP CRC、非debuggable及与work.2一致的V2签名。原Debug APK哈希/时间不变，未新建源码ZIP。
+- 工程未注册 `testReleaseUnitTest`；只运行 `testDebugUnitTest`，不打Debug包。功能代码未变，Gradle复用121套件/818项全绿报告（44秒任务检查、全部UP-TO-DATE）；不称为新执行818项或Release变体测试。全仓Lint44既有错误/249警告/3提示仍保留，设备、覆盖安装和真实供应商验收未执行。
+
+## 2.5.6-work.3 正式发布与源码同步（2026-10-14，覆盖历史禁止推送范围）
+
+- 维护者已明确授权补齐发布/F006压测文档、提交完整源码、推送origin/master及将远端2.5.6-work.3标签重指向本次源码提交。保留远端README，不上传开发文档、凭据、keystore、缓存或artifacts，不重复上传APK，不启动F013。
+- 版本仍为2.5.6-work.3/196，已公开Release的三个APK哈希与本地一致；错误旧tag指向fedf4d44（195/work.2），纠正时用明确旧值的force-with-lease，只更新该标签。master只允许快进推送，最终tag须与master源码HEAD一致。
+- 提交前运行全模块JVM测试；功能代码及Room26 schema须与Release构建基准一致，允许台账及远端README变化。F006实机结论仅同步维护者反馈，不替其他功能填写手机验收通过。下一正式版versionCode至少197。

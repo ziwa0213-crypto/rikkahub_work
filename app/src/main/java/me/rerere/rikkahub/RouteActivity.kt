@@ -76,6 +76,14 @@ import me.rerere.rikkahub.ui.hooks.readStringPreference
 import me.rerere.rikkahub.ui.hooks.rememberCustomAsrState
 import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
 import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
+import me.rerere.rikkahub.ui.pages.group.GroupMemberPage
+import me.rerere.rikkahub.ui.pages.group.GroupPage
+import me.rerere.rikkahub.ui.pages.group.GroupConfigPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupMcpPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupLocalToolPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupExtensionsPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupMemoryPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupRequestPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
@@ -349,6 +357,15 @@ class RouteActivity : ComponentActivity() {
                                 AssistantPage()
                             }
 
+                            entry<Screen.GroupMembers> { GroupMemberPage() }
+                            entry<Screen.Groups> { GroupPage() }
+                            entry<Screen.GroupConfig> { key -> GroupConfigPage(key.groupId) }
+                            entry<Screen.GroupMcp> { key -> GroupMcpPage(key.groupId) }
+                            entry<Screen.GroupLocalTool> { key -> GroupLocalToolPage(key.groupId) }
+                            entry<Screen.GroupExtensions> { key -> GroupExtensionsPage(key.groupId) }
+                            entry<Screen.GroupMemory> { key -> GroupMemoryPage(key.groupId, key.conversationId) }
+                            entry<Screen.GroupRequest> { key -> GroupRequestPage(key.groupId) }
+
                             entry<Screen.AssistantDetail> { key ->
                                 AssistantDetailPage(key.id)
                             }
@@ -495,8 +512,8 @@ class RouteActivity : ComponentActivity() {
                                 SkillsPage()
                             }
 
-                            entry<Screen.Workspaces> {
-                                WorkspacePage()
+                            entry<Screen.Workspaces> { key ->
+                                WorkspacePage(scope = key.scope)
                             }
 
                             entry<Screen.WorkspaceDetail> { key ->
@@ -596,6 +613,30 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Assistant : Screen
+
+    @Serializable
+    data object GroupMembers : Screen
+
+    @Serializable
+    data object Groups : Screen
+
+    @Serializable
+    data class GroupConfig(val groupId: String) : Screen
+
+    @Serializable
+    data class GroupMcp(val groupId: String) : Screen
+
+    @Serializable
+    data class GroupLocalTool(val groupId: String) : Screen
+
+    @Serializable
+    data class GroupExtensions(val groupId: String) : Screen
+
+    @Serializable
+    data class GroupMemory(val groupId: String, val conversationId: String) : Screen
+
+    @Serializable
+    data class GroupRequest(val groupId: String) : Screen
 
     @Serializable
     data class AssistantDetail(val id: String) : Screen
@@ -706,7 +747,7 @@ sealed interface Screen : NavKey {
     data object Skills : Screen
 
     @Serializable
-    data object Workspaces : Screen
+    data class Workspaces(val scope: String? = null) : Screen
 
     @Serializable
     data class WorkspaceDetail(val id: String) : Screen
@@ -726,4 +767,3 @@ sealed interface Screen : NavKey {
     @Serializable
     data object Stats : Screen
 }
-

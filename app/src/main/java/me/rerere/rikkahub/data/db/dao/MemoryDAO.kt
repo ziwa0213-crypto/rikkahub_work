@@ -4,11 +4,17 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 import me.rerere.rikkahub.data.db.entity.MemoryEntity
 
 @Dao
 interface MemoryDAO {
+    @Transaction
+    suspend fun moveMemoryScope(fromScope: String, toScope: String) {
+        getMemoriesOfAssistant(fromScope).forEach { updateMemory(it.copy(assistantId = toScope)) }
+    }
+
     @Query("SELECT * FROM memoryentity WHERE assistant_id = :assistantId")
     fun getMemoriesOfAssistantFlow(assistantId: String): Flow<List<MemoryEntity>>
 

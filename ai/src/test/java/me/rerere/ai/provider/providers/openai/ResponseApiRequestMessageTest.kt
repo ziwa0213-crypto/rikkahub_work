@@ -16,6 +16,7 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.CustomBody
 import me.rerere.ai.ui.OpenAIReasoningMetadata
 import me.rerere.ai.ui.ReasoningType
 import me.rerere.ai.ui.ServerToolMetadata
@@ -368,6 +369,98 @@ class ResponseApiRequestMessageTest {
             content?.single()?.jsonObject?.get("text")?.jsonPrimitive?.content,
         )
         assertFalse(reasoningItem.containsKey("encrypted_content"))
+    }
+
+    @Test
+    fun `deepseek responses replay plaintext even alongside previous encrypted metadata`() {
+        val provider = ProviderSetting.OpenAI(baseUrl = "https://api.deepseek.com/v1")
+        val message = UIMessage(role = MessageRole.ASSISTANT, parts = listOf(
+            UIMessagePart.Reasoning(reasoning = "actual thinking", reasoningType = ReasoningType.REASONING_TEXT,
+                metadata = OpenAIReasoningMetadata(reasoningId = "rs_ds", encryptedContent = "legacy").toMetadata()),
+            UIMessagePart.Text("answer")))
+        val body = api.buildRequestBody(provider, listOf(UIMessage.user("question"), message), createReasoningParams(), false)
+        assertFalse(body["include"]?.jsonArray.orEmpty().any { it.jsonPrimitive.content == "reasoning.encrypted_content" })
+        val reasoning = body["input"]!!.jsonArray.map { it.jsonObject }.first { it["type"]?.jsonPrimitive?.content == "reasoning" }
+        assertEquals("actual thinking", reasoning["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
+        assertFalse(reasoning.containsKey("encrypted_content"))
+        assertFalse(body["reasoning"]?.jsonObject?.containsKey("summary") == true)
+        assertFalse(resolveResponseProviderCapabilities("relay.DeepSeek.example").supportEncryptedContent)
+        assertTrue(resolveResponseProviderCapabilities("api.openai.com").supportEncryptedContent)
+    }
+
+    @Test
+    fun `blank reasoning is omitted without losing assistant text`() {
+        val input = api.buildMessages(listOf(UIMessage.assistant("answer").copy(parts = listOf(
+            UIMessagePart.Reasoning(reasoning = "", reasoningType = ReasoningType.REASONING_TEXT), UIMessagePart.Text("answer")))))
+        assertEquals(1, input.size)
+        assertEquals("assistant", input.single().jsonObject["role"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun `deepseek reasoning accompanies each tool continuation including missing parts`() {
+        for (emptyPart in listOf(emptyList(), listOf(UIMessagePart.Reasoning(reasoning = "")))) {
+            val message = UIMessage(role = MessageRole.ASSISTANT, parts = listOf(
+                UIMessagePart.Reasoning(reasoning = "first", reasoningType = ReasoningType.REASONING_TEXT),
+                createExecutedTool("call_1", "test_tool", "{}", "result"),
+            ) + emptyPart + UIMessagePart.Text("done"))
+            val params = TextGenerationParams(model = Model(modelId = "deepseek-reasoner",
+                abilities = listOf(ModelAbility.REASONING, ModelAbility.TOOL)), reasoningLevel = ReasoningLevel.AUTO,
+                tools = listOf(Tool("test_tool", "test", execute = { emptyList() })))
+            val body = api.buildRequestBody(ProviderSetting.OpenAI(baseUrl = "https://relay.example/v1"),
+                listOf(UIMessage.user("question"), message), params, false)
+            val input = body["input"]!!.jsonArray.map { it.jsonObject }
+            val reasoning = input.filter { it["type"]?.jsonPrimitive?.content == "reasoning" }
+            assertEquals(2, reasoning.size)
+            assertEquals("", reasoning.last()["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
+            assertTrue(reasoning.all { it.containsKey("id") && !it.containsKey("encrypted_content") })
+            assertEquals("reasoning", input[input.indexOfLast { it["role"]?.jsonPrimitive?.content == "assistant" } - 1]["type"]!!.jsonPrimitive.content)
+            for (provider in listOf(ProviderSetting.OpenAI(baseUrl = "https://api.openai.com/v1"),
+                ProviderSetting.OpenAI(baseUrl = "https://api.deepseek.com/v1"))) {
+                val normal = if (provider.baseUrl.contains("openai")) params.copy(model = params.model.copy(modelId = "gpt-5"))
+                    else params.copy(tools = emptyList())
+                val previous = api.buildRequestBody(provider, listOf(UIMessage.assistant("done")), normal, false)
+                assertFalse(previous["input"]!!.jsonArray.any { it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning" })
+            }
+        }
+    }
+
+    @Test fun `deepseek multi turn reasoning order and tool results hold in both stream modes and chat prefixes`() {
+        for (stream in listOf(false, true)) for (group in listOf(false, true)) {
+            val prefix = if (group) "[Alice] " else ""
+            val message = UIMessage(role = MessageRole.ASSISTANT, parts = listOf(
+                UIMessagePart.Reasoning(reasoning = "first", reasoningType = ReasoningType.REASONING_TEXT),
+                UIMessagePart.Text(prefix + "search"),
+                createExecutedTool("one", "test_tool", "{}", "one-result"),
+                createExecutedTool("two", "test_tool", "{}", "two-result"),
+                UIMessagePart.Text(prefix + "again"),
+                createExecutedTool("three", "test_tool", "{}", "three-result"),
+                UIMessagePart.Text(prefix + "done")))
+            val params = TextGenerationParams(model = Model(modelId = "deepseek-reasoner",
+                abilities = listOf(ModelAbility.REASONING, ModelAbility.TOOL)), reasoningLevel = ReasoningLevel.AUTO,
+                tools = listOf(Tool("test_tool", "test", execute = { emptyList() })))
+            val input = api.buildRequestBody(ProviderSetting.OpenAI(baseUrl = "https://relay.example/v1"),
+                listOf(UIMessage.user("question"), message), params, stream)["input"]!!.jsonArray.map { it.jsonObject }
+            val types = input.map { it["type"]?.jsonPrimitive?.content ?: it["role"]!!.jsonPrimitive.content }
+            assertEquals(listOf("user", "reasoning", "assistant", "function_call", "function_call",
+                "function_call_output", "function_call_output", "reasoning", "assistant", "function_call",
+                "function_call_output", "reasoning", "assistant"), types)
+            val reasoning = input.filter { it["type"]?.jsonPrimitive?.content == "reasoning" }
+            assertEquals(listOf("first", "", ""), reasoning.map { it["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content })
+            assertEquals(listOf(prefix + "search", prefix + "again", prefix + "done"), input
+                .filter { it["role"]?.jsonPrimitive?.content == "assistant" }.map { it["content"]!!.jsonPrimitive.content })
+        }
+    }
+
+    @Test fun `deepseek empty reasoning respects normal and custom disabled thinking`() {
+        val provider = ProviderSetting.OpenAI(baseUrl = "https://api.deepseek.com/v1")
+        val params = TextGenerationParams(model = Model(modelId = "deepseek-chat", abilities = listOf(ModelAbility.REASONING, ModelAbility.TOOL)),
+            tools = listOf(Tool("test_tool", "test", execute = { emptyList() })), reasoningLevel = ReasoningLevel.OFF)
+        for ((enabled, request) in listOf(false to params, true to params.copy(customBody = listOf(CustomBody("thinking",
+            buildJsonObject { put("type", "enabled") })), model = params.model.copy(abilities = listOf(ModelAbility.TOOL))),
+            false to params.copy(reasoningLevel = ReasoningLevel.AUTO, customBody = listOf(CustomBody("thinking",
+                buildJsonObject { put("type", "disabled") }))))) {
+            val input = api.buildRequestBody(provider, listOf(UIMessage.assistant("answer")), request, false)["input"]!!.jsonArray
+            assertEquals(enabled, input.any { it.jsonObject["type"]?.jsonPrimitive?.content == "reasoning" })
+        }
     }
 
     @Test

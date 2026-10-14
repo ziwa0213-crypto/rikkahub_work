@@ -406,6 +406,17 @@ class StreamTraceReplayTest {
         putJsonArray("annotations") {
             annotations.forEach { annotation ->
                 when (annotation) {
+                    is UIMessageAnnotation.GroupSender -> add(buildJsonObject {
+                        put("type", "group_sender")
+                        put("memberId", annotation.memberId)
+                        put("memberName", annotation.memberName)
+                    })
+                    is UIMessageAnnotation.GroupQuote -> add(buildJsonObject {
+                        put("type", "group_quote")
+                        put("targetMessageId", annotation.targetMessageId)
+                        put("targetSenderName", annotation.targetSenderName)
+                        put("preview", annotation.preview)
+                    })
                     is UIMessageAnnotation.UrlCitation -> add(buildJsonObject {
                         put("type", "url_citation")
                         put("title", annotation.title)

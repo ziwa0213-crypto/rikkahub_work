@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.workspace.WorkspaceManager
+import me.rerere.workspace.WorkspaceShellStatus
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -29,11 +32,26 @@ import java.util.concurrent.atomic.AtomicLong
 class WorkspaceTerminalSessionManager internal constructor(
     context: Context,
     private val appScope: AppScope,
+    private val repository: WorkspaceRepository,
+    private val manager: WorkspaceManager,
 ) {
     private val appContext = context.applicationContext
     private val workspaceStates = MutableStateFlow<Map<String, WorkspaceTerminalTabsState>>(emptyMap())
     private val nextTabId = AtomicLong(1)
     private val creationJobs = mutableMapOf<String, Job>()
+
+    init {
+        appScope.launch(Dispatchers.Main.immediate) {
+            repository.listFlow().collect { workspaces ->
+                val readyRoots = workspaces.filter { workspace ->
+                    workspace.shellStatus == WorkspaceShellStatus.READY.name
+                }.map { it.root }.toSet()
+                (workspaceStates.value.keys + creationJobs.keys).filter { it !in readyRoots }.forEach {
+                    closeWorkspace(it)
+                }
+            }
+        }
+    }
 
     internal fun observeWorkspace(root: String): Flow<WorkspaceTerminalTabsState> =
         workspaceStates
@@ -120,24 +138,15 @@ class WorkspaceTerminalSessionManager internal constructor(
         }
         updateState(root) { it.copy(isCreating = true) }
 
-        val prepared = if (initialState.readiness == WorkspaceTerminalReadiness.Ready) {
-            true
-        } else {
-            try {
-                withContext(Dispatchers.IO) {
-                    if (!workspaceRootfsReady(appContext, root)) {
-                        false
-                    } else {
-                        prepareWorkspaceTerminalSession(appContext, root)
-                        true
-                    }
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                Log.e(TAG, "Failed to prepare terminal for workspace $root", error)
-                false
+        val prepared = try {
+            repository.prepareTerminalEnvironment(root) {
+                prepareWorkspaceTerminalSession(appContext, root, manager)
             }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Log.e(TAG, "Failed to prepare terminal for workspace $root", error)
+            false
         }
 
         if (!prepared) {
@@ -162,6 +171,7 @@ class WorkspaceTerminalSessionManager internal constructor(
                 context = appContext,
                 root = root,
                 client = client,
+                manager = manager,
                 shellCompatibilityMode = shellCompatibilityMode,
             )
         }.onFailure { error ->

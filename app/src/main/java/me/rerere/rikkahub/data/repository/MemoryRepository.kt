@@ -17,6 +17,12 @@ class MemoryRepository(private val memoryDAO: MemoryDAO) {
     companion object {
         const val GLOBAL_MEMORY_ID = "__global__"
         const val GROUP_MEMORY_PREFIX = "g:"
+        const val GROUP_CHAT_MEMORY_PREFIX = "grp:"
+
+        fun scopeOfChatGroup(groupId: Uuid): String = "$GROUP_CHAT_MEMORY_PREFIX$groupId"
+
+        fun scopeOfChatGroup(groupId: Uuid, conversationId: Uuid): String =
+            "$GROUP_CHAT_MEMORY_PREFIX$groupId:$conversationId"
 
         fun scopeOf(assistant: Assistant): String = when {
             assistant.useGlobalMemory -> GLOBAL_MEMORY_ID
@@ -111,5 +117,19 @@ class MemoryRepository(private val memoryDAO: MemoryDAO) {
 
     suspend fun deleteMemory(id: Int) {
         memoryDAO.deleteMemory(id)
+    }
+
+    suspend fun moveScope(fromScope: String, toScope: String) {
+        if (fromScope != toScope) memoryDAO.moveMemoryScope(fromScope, toScope)
+    }
+
+    suspend fun updateContentInScope(scope: String, id: Int, content: String): AssistantMemory {
+        check(memoryDAO.getMemoryById(id)?.assistantId == scope) { "Memory does not belong to this conversation" }
+        return updateContent(id, content)
+    }
+
+    suspend fun deleteMemoryInScope(scope: String, id: Int) {
+        check(memoryDAO.getMemoryById(id)?.assistantId == scope) { "Memory does not belong to this conversation" }
+        deleteMemory(id)
     }
 }

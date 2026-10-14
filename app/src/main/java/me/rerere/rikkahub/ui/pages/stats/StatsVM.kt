@@ -13,6 +13,7 @@ import me.rerere.rikkahub.data.db.dao.MessageNodeDAO
 import me.rerere.rikkahub.data.db.dao.getMessageCountPerDay
 import me.rerere.rikkahub.data.db.dao.getTokenStats
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -55,17 +56,18 @@ class StatsVM(
         // 基于用户消息的 createdAt 统计每日活跃消息数，SQLite 侧 GROUP BY，返回 ≤371 行
         val conversationsPerDay = withContext(Dispatchers.IO) {
             messageNodeDAO
-                .getMessageCountPerDay(startDate)
+                .getMessageCountPerDay(startDate, GROUP_CHAT_ASSISTANT_ID.toString())
                 .mapNotNull { entry ->
                     runCatching { LocalDate.parse(entry.day) to entry.count }.getOrNull()
                 }
                 .toMap()
         }
 
-        val totalConversations = conversationDAO.countAll()
+        val totalConversations = conversationDAO.countByAssistant()
+            .filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.sumOf { it.count }
 
         // json_each() + json_extract() 在 SQLite 侧聚合，不再加载完整 JSON 到 Kotlin
-        val tokenStats = messageNodeDAO.getTokenStats()
+        val tokenStats = messageNodeDAO.getTokenStats(GROUP_CHAT_ASSISTANT_ID.toString())
 
         val launchCount = settingsStore.settingsFlow.value.launchCount
 

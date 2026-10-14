@@ -1,4 +1,5 @@
 import com.android.build.api.dsl.Packaging
+import com.android.build.api.variant.FilterConfiguration
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.FileInputStream
@@ -26,8 +27,8 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 195
-        versionName = "2.5.6-work.2"
+        versionCode = 196
+        versionName = "2.5.6-work.3"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
@@ -88,6 +89,9 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
             buildConfigField("String", "VERSION_NAME", "\"${android.defaultConfig.versionName}\"")
             buildConfigField("String", "VERSION_CODE", "\"${android.defaultConfig.versionCode}\"")
         }
@@ -124,6 +128,16 @@ android {
         compilerOptions.optIn.add("kotlin.time.ExperimentalTime")
         compilerOptions.optIn.add("kotlinx.coroutines.ExperimentalCoroutinesApi")
         compilerOptions.optIn.add("androidx.navigation3.runtime.ExperimentalNavigation3Api")
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        variant.outputs.forEach { output ->
+            output.enabled.set(output.filters.any {
+                it.filterType == FilterConfiguration.FilterType.ABI && it.identifier == "arm64-v8a"
+            })
+        }
     }
 }
 

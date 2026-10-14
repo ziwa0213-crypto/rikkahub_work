@@ -119,6 +119,11 @@ class WorkspaceDetailVM(
     init {
         loadWorkspace()
         refresh()
+        viewModelScope.launch {
+            repository.listFlow().collect { workspaces ->
+                _state.update { it.copy(workspace = workspaces.find { workspace -> workspace.id == id }) }
+            }
+        }
     }
 
     fun selectArea(area: WorkspaceStorageArea) {

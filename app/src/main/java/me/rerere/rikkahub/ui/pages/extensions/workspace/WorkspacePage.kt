@@ -6,15 +6,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,6 +42,7 @@ import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.PencilEdit01
+import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import androidx.compose.ui.res.stringResource
@@ -46,19 +51,28 @@ import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
+import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
+fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
     val navController = LocalNavController.current
-    val workspaces by vm.workspaces.collectAsStateWithLifecycle()
+    val allWorkspaces by vm.workspaces.collectAsStateWithLifecycle()
+    val workspaces = remember(allWorkspaces, scope) {
+        if (scope == null) allWorkspaces else allWorkspaces.filter { it.owner == null || it.owner == scope }
+    }
+    val saving by vm.saving.collectAsStateWithLifecycle()
+    val saveError by vm.saveError.collectAsStateWithLifecycle()
+    val settings = LocalSettings.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<WorkspaceEntity?>(null) }
     var deleteTarget by remember { mutableStateOf<WorkspaceEntity?>(null) }
+    var ownerTarget by remember { mutableStateOf<WorkspaceEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -70,7 +84,7 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = { vm.dismissSaveError(); showAddDialog = true }) {
                 Icon(HugeIcons.Add01, contentDescription = null)
             }
         },
@@ -92,6 +106,7 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
                 WorkspaceCard(
                     workspace = workspace,
                     onRename = { editTarget = workspace },
+                    onSetOwner = { vm.dismissSaveError(); ownerTarget = workspace },
                     onDelete = { deleteTarget = workspace },
                     onOpen = { navController.navigate(Screen.WorkspaceDetail(workspace.id)) },
                 )
@@ -103,11 +118,14 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
         EditWorkspaceDialog(
             title = stringResource(R.string.workspace_page_create),
             initialName = "",
-            existingNames = workspaces.map { it.name.trim() }.toSet(),
-            onDismiss = { showAddDialog = false },
-            onConfirm = { name ->
-                vm.create(name)
-                showAddDialog = false
+            existingNames = allWorkspaces.map { it.name.trim() }.toSet(),
+            showOwner = true,
+            initialOwner = scope,
+            saving = saving,
+            error = saveError,
+            onDismiss = { showAddDialog = false; vm.dismissSaveError() },
+            onConfirm = { name, owner ->
+                vm.create(name, owner) { showAddDialog = false }
             },
         )
     }
@@ -116,12 +134,24 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
         EditWorkspaceDialog(
             title = stringResource(R.string.workspace_page_rename),
             initialName = workspace.name,
-            existingNames = workspaces.filter { it.id != workspace.id }.map { it.name.trim() }.toSet(),
+            existingNames = allWorkspaces.filter { it.id != workspace.id }.map { it.name.trim() }.toSet(),
             onDismiss = { editTarget = null },
-            onConfirm = { name ->
+            onConfirm = { name, _ ->
                 vm.rename(workspace, name)
                 editTarget = null
             },
+        )
+    }
+
+    ownerTarget?.let { workspace ->
+        WorkspaceOwnerDialog(
+            workspace = workspace,
+            bound = settings.assistants.any { it.workspaceId?.toString() == workspace.id } ||
+                settings.groups.any { it.workspaceId?.toString() == workspace.id },
+            saving = saving,
+            error = saveError,
+            onDismiss = { ownerTarget = null; vm.dismissSaveError() },
+            onConfirm = { owner -> vm.setOwner(workspace, owner) { ownerTarget = null } },
         )
     }
 
@@ -172,6 +202,7 @@ private fun EmptyWorkspaceState() {
 private fun WorkspaceCard(
     workspace: WorkspaceEntity,
     onRename: () -> Unit,
+    onSetOwner: () -> Unit,
     onDelete: () -> Unit,
     onOpen: () -> Unit,
 ) {
@@ -214,21 +245,31 @@ private fun WorkspaceCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Text(stringResource(when (workspace.owner) {
+                        "chat" -> R.string.workspace_owner_chat
+                        "group" -> R.string.workspace_owner_group
+                        else -> R.string.workspace_owner_unassigned
+                    }), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 ItemActionMenu(
-                    actions = listOf(
-                        ItemAction(
+                    actions = buildList {
+                        add(ItemAction(
                             text = stringResource(R.string.common_rename),
                             icon = HugeIcons.PencilEdit01,
                             onClick = onRename,
-                        ),
-                        ItemAction(
+                        ))
+                        add(ItemAction(
+                            text = stringResource(R.string.workspace_set_owner),
+                            icon = HugeIcons.Settings03,
+                            onClick = onSetOwner,
+                        ))
+                        add(ItemAction(
                             text = stringResource(R.string.common_delete),
                             icon = HugeIcons.Delete01,
                             destructive = true,
                             onClick = onDelete,
-                        ),
-                    )
+                        ))
+                    }
                 )
             }
         }
@@ -240,41 +281,111 @@ private fun EditWorkspaceDialog(
     title: String,
     initialName: String,
     existingNames: Set<String>,
+    showOwner: Boolean = false,
+    initialOwner: String? = null,
+    saving: Boolean = false,
+    error: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String?) -> Unit,
 ) {
     var name by rememberSaveable(initialName) { mutableStateOf(initialName) }
+    var owner by rememberSaveable(initialOwner) { mutableStateOf(initialOwner) }
     val trimmedName = name.trim()
     val isDuplicate = trimmedName.isNotEmpty() && trimmedName in existingNames
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.workspace_page_name)) },
-                singleLine = true,
-                isError = isDuplicate,
-                supportingText = if (isDuplicate) {
-                    { Text(stringResource(R.string.workspace_page_name_duplicate)) }
-                } else null,
-            )
+            Column(
+                modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.workspace_page_name)) },
+                    singleLine = true,
+                    enabled = !saving,
+                    isError = isDuplicate,
+                    supportingText = if (isDuplicate) {
+                        { Text(stringResource(R.string.workspace_page_name_duplicate)) }
+                    } else null,
+                )
+                if (showOwner) {
+                    WorkspaceOwnerSelect(owner) {
+                        if (!saving && owner != it) {
+                            owner = it
+                        }
+                    }
+                }
+                error?.let { Text(it.ifBlank { stringResource(R.string.workspace_detail_settings_save_failed) },
+                    color = MaterialTheme.colorScheme.error) }
+                if (saving) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(trimmedName) },
-                enabled = name.isNotBlank() && !isDuplicate,
+                onClick = { onConfirm(trimmedName, owner) },
+                enabled = !saving && name.isNotBlank() && !isDuplicate,
             ) {
                 Text(stringResource(R.string.common_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, enabled = !saving) {
                 Text(stringResource(R.string.common_cancel))
             }
         },
+    )
+}
+
+@Composable
+private fun WorkspaceOwnerSelect(owner: String?, onSelect: (String?) -> Unit) {
+    Text(stringResource(R.string.workspace_page_owner))
+    Select(
+        options = listOf(null, "chat", "group"),
+        selectedOption = owner,
+        onOptionSelected = onSelect,
+        modifier = Modifier.fillMaxWidth(),
+        optionToString = { value -> stringResource(when (value) {
+            "chat" -> R.string.workspace_owner_chat
+            "group" -> R.string.workspace_owner_group
+            else -> R.string.workspace_owner_unassigned
+        }) },
+    )
+}
+
+@Composable
+private fun WorkspaceOwnerDialog(
+    workspace: WorkspaceEntity,
+    bound: Boolean,
+    saving: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (String?) -> Unit,
+) {
+    var owner by rememberSaveable(workspace.id) { mutableStateOf(workspace.owner) }
+    AlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text(stringResource(R.string.workspace_set_owner)) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                WorkspaceOwnerSelect(owner) { if (!saving) owner = it }
+                if (bound && owner != workspace.owner) Text(stringResource(R.string.workspace_owner_binding_notice),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                error?.let { Text(it.ifBlank { stringResource(R.string.workspace_detail_settings_save_failed) },
+                    color = MaterialTheme.colorScheme.error) }
+                if (saving) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(owner) }, enabled = !saving) {
+            Text(stringResource(R.string.common_save))
+        } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) {
+            Text(stringResource(R.string.common_cancel))
+        } },
     )
 }

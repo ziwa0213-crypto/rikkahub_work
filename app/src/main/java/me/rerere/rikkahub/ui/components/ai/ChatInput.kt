@@ -58,6 +58,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -88,6 +90,7 @@ import dev.chrisbanes.haze.glass.hazeGlass
 import dev.chrisbanes.haze.glass.material3.Material3
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
+import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ModelType
@@ -108,6 +111,9 @@ import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
+import me.rerere.rikkahub.data.model.ToolApprovalMode
+import me.rerere.ai.ui.UIMessageAnnotation
+import me.rerere.rikkahub.ui.hooks.insertMention
 import me.rerere.rikkahub.service.MessageQueueState
 import me.rerere.rikkahub.service.QueuedMessage
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
@@ -157,6 +163,14 @@ fun ChatInput(
     forceLiquidGlass: Boolean = false,
     onInputPanelBoundsChanged: ((Float, Float, IntSize) -> Unit)? = null,
     onInputHeightChanged: ((Int) -> Unit)? = null,
+    groupMode: Boolean = false,
+    reasoningLevelOverride: ReasoningLevel? = null,
+    onUpdateReasoningLevelOverride: ((ReasoningLevel) -> Unit)? = null,
+    toolApprovalModeOverride: ToolApprovalMode? = null,
+    onUpdateToolApprovalModeOverride: ((ToolApprovalMode) -> Unit)? = null,
+    quoteTarget: UIMessageAnnotation.GroupQuote? = null,
+    onClearQuote: () -> Unit = {},
+    inputFocusRequester: FocusRequester? = null,
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -310,10 +324,23 @@ fun ChatInput(
                         MediaFileInputRow(state = state)
                     }
 
+                    if (groupMode && quoteTarget != null) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                            Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${quoteTarget.targetSenderName}:${quoteTarget.preview}", Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                IconButton(onClick = onClearQuote, modifier = Modifier.size(40.dp)) {
+                                    Icon(HugeIcons.Cancel01, stringResource(R.string.group_quote_clear), Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
                     TextInputRow(
                         state = state,
                         completionProviders = completionProviders,
                         onSendMessage = { sendMessage() },
+                        groupMode = groupMode,
+                        focusRequester = inputFocusRequester,
                     )
 
                     Row(
@@ -329,56 +356,72 @@ fun ChatInput(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            // Model Picker
-                            ModelSelectorButton(
-                                state = modelListState,
-                                onlyIcon = true,
-                                modifier = Modifier,
-                            )
+                            // Group models are configured on each member.
+                            if (!groupMode) {
+                                ModelSelectorButton(
+                                    state = modelListState,
+                                    onlyIcon = true,
+                                    modifier = Modifier,
+                                )
+                            }
 
-                            // Search
-                            val enableSearchMsg = stringResource(R.string.web_search_enabled)
-                            val disableSearchMsg = stringResource(R.string.web_search_disabled)
-                            val chatModel = settings.getCurrentChatModel()
-                            SearchPickerButton(
-                                enableSearch = enableSearch,
-                                settings = settings,
-                                onUpdateSearchMode = { mode ->
-                                    onUpdateSearchMode(mode)
-                                    val enabled = mode != SearchMode.OFF
-                                    toaster.show(
-                                        message = if (enabled) enableSearchMsg else disableSearchMsg,
-                                        duration = 1.seconds,
-                                        type = if (enabled) {
-                                            ToastType.Success
-                                        } else {
-                                            ToastType.Normal
-                                        }
-                                    )
-                                },
-                                onUpdateSearchService = onUpdateSearchService,
-                                model = chatModel,
-                            )
+                            if (!groupMode) {
+                                val enableSearchMsg = stringResource(R.string.web_search_enabled)
+                                val disableSearchMsg = stringResource(R.string.web_search_disabled)
+                                val chatModel = settings.getCurrentChatModel()
+                                SearchPickerButton(
+                                    enableSearch = enableSearch,
+                                    settings = settings,
+                                    onUpdateSearchMode = { mode ->
+                                        onUpdateSearchMode(mode)
+                                        val enabled = mode != SearchMode.OFF
+                                        toaster.show(
+                                            message = if (enabled) enableSearchMsg else disableSearchMsg,
+                                            duration = 1.seconds,
+                                            type = if (enabled) ToastType.Success else ToastType.Normal,
+                                        )
+                                    },
+                                    onUpdateSearchService = onUpdateSearchService,
+                                    model = chatModel,
+                                )
+                            }
 
                             // Reasoning
                             val model = settings.getCurrentChatModel()
-                            if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
+                            val reasoningLevel = reasoningLevelOverride ?: assistant.reasoningLevel
+                            val showReasoningButton = if (groupMode) {
+                                reasoningLevelOverride != null
+                            } else {
+                                model?.abilities?.contains(ModelAbility.REASONING) == true
+                            }
+                            if (showReasoningButton) {
                                 ReasoningButton(
-                                    reasoningLevel = assistant.reasoningLevel,
-                                    onUpdateReasoningLevel = {
-                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
+                                    reasoningLevel = reasoningLevel,
+                                    onUpdateReasoningLevel = { level ->
+                                        if (onUpdateReasoningLevelOverride != null) {
+                                            onUpdateReasoningLevelOverride(level)
+                                        } else {
+                                            onUpdateAssistant(assistant.copy(reasoningLevel = level))
+                                        }
                                     },
                                     onlyIcon = true,
                                 )
                             }
 
-                            ToolApprovalButton(
-                                mode = assistant.toolApprovalMode,
-                                onUpdateMode = {
-                                    onUpdateAssistant(assistant.copy(toolApprovalMode = it))
-                                },
-                                onlyIcon = true,
-                            )
+                            val showApprovalButton = !groupMode || toolApprovalModeOverride != null
+                            if (showApprovalButton) {
+                                ToolApprovalButton(
+                                    mode = toolApprovalModeOverride ?: assistant.toolApprovalMode,
+                                    onUpdateMode = { mode ->
+                                        if (groupMode) {
+                                            onUpdateToolApprovalModeOverride?.invoke(mode)
+                                        } else {
+                                            onUpdateAssistant(assistant.copy(toolApprovalMode = mode))
+                                        }
+                                    },
+                                    onlyIcon = true,
+                                )
+                            }
 
                         }
 
@@ -517,12 +560,14 @@ private fun TextInputRow(
     state: ChatInputState,
     completionProviders: List<ChatCompletionProvider>,
     onSendMessage: () -> Unit,
+    groupMode: Boolean,
+    focusRequester: FocusRequester?,
 ) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
     val assistant = settings.getCurrentAssistant()
-    val quickMessages = remember(settings.quickMessages, assistant.quickMessageIds) {
-        settings.getQuickMessagesOfAssistant(assistant)
+    val quickMessages = remember(settings.quickMessages, assistant.quickMessageIds, groupMode) {
+        if (groupMode) emptyList() else settings.getQuickMessagesOfAssistant(assistant)
     }
 
     Column(
@@ -634,7 +679,8 @@ private fun TextInputRow(
             CompletionPopup(
                 completionList = list,
                 onItemClick = { item ->
-                    state.applyCompletion(list.replacementRange, item)
+                    if (groupMode && item.mentionName != null) state.insertMention(item.mentionName, list.replacementRange)
+                    else state.applyCompletion(list.replacementRange, item)
                     completionList = null
                 },
             )
@@ -645,6 +691,7 @@ private fun TextInputRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("chat_input")
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .contentReceiver(receiveContentListener)
                 .onFocusChanged {
                     isFocused = it.isFocused

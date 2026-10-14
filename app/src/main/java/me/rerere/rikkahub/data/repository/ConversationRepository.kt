@@ -6,6 +6,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import androidx.paging.map
+import androidx.paging.filter
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -22,6 +23,8 @@ import me.rerere.rikkahub.data.db.entity.MessageNodeEntity
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID
+import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.utils.JsonInstant
 import java.time.Instant
 import kotlin.uuid.Uuid
@@ -42,11 +45,19 @@ class ConversationRepository(
     suspend fun hasFileReference(fileUrl: String): Boolean =
         messageNodeDAO.hasFileReference(JsonInstant.encodeToString(fileUrl))
 
-    suspend fun getRecentConversations(assistantId: Uuid, limit: Int = 10): List<Conversation> {
-        return conversationDAO.getRecentConversationsOfAssistant(
+    fun getGroupConversations(ids: List<Uuid>): Flow<List<Conversation>> = conversationDAO.getAll()
+        .map { entities -> entities.filter {
+            it.assistantId == GROUP_CHAT_ASSISTANT_ID.toString() && it.id in ids.map(Uuid::toString)
+        }.map { conversationEntityToConversation(it, emptyList()) } }
+
+    suspend fun getRecentConversations(assistantId: Uuid?, limit: Int = 10): List<Conversation> {
+        val recent = if (assistantId == null) conversationDAO.getRecentConversationsExcludingAssistant(
+            excludedAssistantId = GROUP_CHAT_ASSISTANT_ID.toString(), limit = limit,
+        ) else conversationDAO.getRecentConversationsOfAssistant(
             assistantId = assistantId.toString(),
             limit = limit
-        ).map { entity ->
+        )
+        return recent.map { entity ->
             val nodes = loadMessageNodes(entity.id)
             conversationEntityToConversation(entity, nodes)
         }
@@ -222,7 +233,7 @@ class ConversationRepository(
         return conversationDAO
             .searchConversations(titleKeyword)
             .map { flow ->
-                flow.map { entity ->
+                flow.filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.map { entity ->
                     conversationEntityToConversation(entity, emptyList())
                 }
             }
@@ -236,7 +247,7 @@ class ConversationRepository(
         ),
         pagingSourceFactory = { conversationDAO.searchConversationsPaging(titleKeyword) }
     ).flow.map { pagingData ->
-        pagingData.map { entity ->
+        pagingData.filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.map { entity ->
             conversationSummaryToConversation(entity)
         }
     }
@@ -283,11 +294,11 @@ class ConversationRepository(
     }
 
     suspend fun countConversations(): Int {
-        return conversationDAO.countAll()
+        return conversationDAO.countByAssistant().filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.sumOf { it.count }
     }
 
     suspend fun countConversationsByAssistant(): Map<Uuid, Int> {
-        return conversationDAO.countByAssistant().mapNotNull { row ->
+        return conversationDAO.countByAssistant().filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.mapNotNull { row ->
             runCatching { Uuid.parse(row.assistantId) }.getOrNull()?.let { it to row.count }
         }.toMap()
     }
@@ -328,7 +339,9 @@ class ConversationRepository(
                 conversationToConversationEntity(conversation)
             )
         }
-        filesManager.deleteChatFiles(fullConversation.files)
+        filesManager.deleteChatFiles(if (fullConversation.isGroupChat()) {
+            fullConversation.files.filterNot { hasFileReference(it.toString()) }
+        } else fullConversation.files)
     }
 
     suspend fun searchMessages(
@@ -400,7 +413,7 @@ class ConversationRepository(
         return conversationDAO
             .getPinnedConversations()
             .map { flow ->
-                flow.map { entity ->
+                flow.filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.map { entity ->
                     conversationEntityToConversation(entity, emptyList())
                 }
             }
@@ -411,6 +424,14 @@ class ConversationRepository(
             id = conversationId.toString(),
             isPinned = isPinned,
         )
+    }
+
+    suspend fun updateConversationTitle(conversationId: Uuid, title: String) {
+        conversationDAO.updateTitle(conversationId.toString(), title)
+    }
+
+    suspend fun updateGroupWorkspaceCwd(conversationId: Uuid, cwd: String?) {
+        conversationDAO.updateWorkspaceCwd(conversationId.toString(), cwd.orEmpty(), GROUP_CHAT_ASSISTANT_ID.toString())
     }
 
     suspend fun updateConversationAssistant(conversationId: Uuid, assistantId: Uuid) {
