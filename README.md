@@ -35,6 +35,16 @@ Download the APK from this repository's **Releases** page.
 
 ## 🔀 What's Different from Upstream
 
+### 👥 Group Mode
+
+**A third mode alongside chat** — several AI members take turns speaking in one conversation, so you get multiple perspectives in a single thread.
+
+- A standalone **member library** — build a member once and reuse it across groups
+- **Turn-based replies** with strict ordering; an optional **deputy** can dispatch work to members by tag
+- **Quote and reply** in both directions; members can also ask you questions mid-run
+- Group-scoped **workspace** and per-group **context compression**
+- In-group **nicknames and avatars**, applied live to the whole history
+
 ### 🗂 Memory
 
 - **Memory groups** — share a single set of memories across several assistants, while keeping private and built-in global memory.
@@ -55,7 +65,6 @@ Download the APK from this repository's **Releases** page.
 
 - **Per-provider loading animations** — save a loading animation per provider, auto-matched by brand, with support for custom GIF / image.
 - **Liquid glass effect** — refraction and dispersion on the chat input bar (Android 13+), with an automatic fallback on older versions.
-- **Group mode** — a third mode alongside chat. Switch from the drawer; comes with a standalone member library, per-group configuration, a group-scoped workspace, and in-group nicknames / avatars.
 
 ### ⚙️ Miscellaneous
 
@@ -71,11 +80,14 @@ The following are implemented or under design but **not yet released**. They wil
 A built-in browser built around one idea: **your login credentials must never reach the model provider.**
 
 - **You** sign in, solve captchas, and perform risky actions — the AI only *sees* the page content.
-- 🔴 **No `eval_js`.** The AI may only call a small whitelist of JS functions (`readText`, `click`, `typeInto`, …) with plain arguments.
-- 🔴 **High-risk elements are hard-refused** — payment, delete, authorize, publish, password fields. If the AI tries, the action fails and you are told.
-- ⭐ **Local redaction filter** — tokens, card numbers, JWTs and password fields are replaced with `[redacted:…]` **before the content leaves the process**.
+- 🔴 **No arbitrary JS.** The AI gets 8 fixed tools (`browser_read`, `browser_click`, `browser_type`, `browser_scroll`, `browser_open`, …) and a small whitelist of page functions. It never gets `document`, `fetch` or cookies.
+- 🔴 **High-risk actions are hard-refused** — payment, delete, authorize, publish, password fields. If the AI tries, the action fails and you are told.
+- ⭐ **On-device redaction** — tokens, card numbers, JWTs and password contents are replaced with `[redacted:…]` **before the page content leaves the process**.
+- **Request on demand** — when `scrape_web` or a skill cannot fetch a page (login wall, captcha, JS-rendered), the AI can *ask* to open the browser. The request goes through the normal **tool-approval** flow; approving it opens the page so you can sign in.
+- **Floating panel** — a collapsible mini bar, so you can still see the AI's output while browsing.
 - **Desktop / mobile switcher** — a two-way segmented control in the toolbar. Switching never re-creates the WebView, so you stay signed in.
-- ⛔ Not planned: headless mode (cannot pass captcha), full DOM access, arbitrary JS execution.
+- 🚫 **Chat mode only** — the browser is **not** available in group mode: no entry point, no tools.
+- ⛔ Not planned: headless mode (cannot pass captcha), full DOM access, arbitrary JS execution, screenshots.
 
 ### 🧠 Group Memory Migration (chat ⇄ group)
 
