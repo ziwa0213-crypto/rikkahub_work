@@ -55,12 +55,43 @@ Download the APK from this repository's **Releases** page.
 
 - **Per-provider loading animations** — save a loading animation per provider, auto-matched by brand, with support for custom GIF / image.
 - **Liquid glass effect** — refraction and dispersion on the chat input bar (Android 13+), with an automatic fallback on older versions.
-- **Group mode** — switch between chat and group mode from the drawer, with a standalone member library and group configuration.
+- **Group mode** — a third mode alongside chat. Switch from the drawer; comes with a standalone member library, per-group configuration, a group-scoped workspace, and in-group nicknames / avatars.
 
 ### ⚙️ Miscellaneous
 
 - **Fork-aware update check** — update checks read this fork's GitHub Releases only; you download and install the APK yourself.
 - **About page & branding cleanup** — the app name is `RikkaHub Work`, sponsor / promo entries are removed, and exported content is watermark-free.
+
+## 🚧 In Development
+
+The following are implemented or under design but **not yet released**. They will land in upcoming builds.
+
+### 🔐 Credential-Isolated Browser
+
+A built-in browser built around one idea: **your login credentials must never reach the model provider.**
+
+- **You** sign in, solve captchas, and perform risky actions — the AI only *sees* the page content.
+- 🔴 **No `eval_js`.** The AI may only call a small whitelist of JS functions (`readText`, `click`, `typeInto`, …) with plain arguments.
+- 🔴 **High-risk elements are hard-refused** — payment, delete, authorize, publish, password fields. If the AI tries, the action fails and you are told.
+- ⭐ **Local redaction filter** — tokens, card numbers, JWTs and password fields are replaced with `[redacted:…]` **before the content leaves the process**.
+- **Desktop / mobile switcher** — a two-way segmented control in the toolbar. Switching never re-creates the WebView, so you stay signed in.
+- ⛔ Not planned: headless mode (cannot pass captcha), full DOM access, arbitrary JS execution.
+
+### 🧠 Group Memory Migration (chat ⇄ group)
+
+Move memories between chat assistants and groups, **in both directions**, with per-item selection.
+
+- **Into a group** — import from any assistant (private / global / any memory group) on the group memory page.
+- **Into an assistant** — import from any group conversation on the assistant memory page.
+- Pick individual entries and choose **copy** or **move**.
+
+### 🫀 Pulse Mode *(design stage)*
+
+A third mode next to chat and group: the assistant **runs on its own** and only reaches out when something matters. Scheduled tasks, periodic self-checks, and an optional awareness layer (notifications / SMS / email).
+
+### 🧠 Memory System Upgrade *(design stage)*
+
+Let memories *grow*: categories, reinforcement counts, and promotion of well-established entries into permanent guidelines.
 
 ## ✨ Features
 
