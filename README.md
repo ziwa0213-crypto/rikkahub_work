@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="docs/icon.png" alt="App Icon" width="100" />
+  <img src="docs/icon.png" alt="App 图标" width="100" />
   <h1>RikkaHub Work</h1>
 
-A fork of RikkaHub — a native Android LLM chat client that supports switching between different providers for conversations. 🤖💬
+RikkaHub Work 是 RikkaHub 的个人 fork —— 一个原生 Android LLM 聊天客户端，支持在不同供应商之间切换对话。🤖💬
 
-[简体中文](README_ZH_CN.md) | English
+[English](README_EN.md) | 简体中文
 </div>
 
 <div align="center">
@@ -12,152 +12,152 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
   <img src="docs/img/desktop.png" alt="Models Picker" width="450" />
 </div>
 
-## 📌 About This Fork
+## 📌 关于本 fork
 
-RikkaHub Work is a **personal fork** of [RikkaHub](https://github.com/rikkahub/rikkahub), kept mainly for my own use and shared as is. It follows upstream releases and adds a set of features and fixes on top of them.
+RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 fork**，以自用为主，顺手分享。它跟随上游发版，并在此基础上追加了一批功能与修复。
 
-- **Not an official RikkaHub release.** Everything here is built on upstream work. Issues with this fork should be reported **in this repository**, not upstream.
-- **Versioning**: `{upstream version}-work.{n}`, e.g. `2.5.6-work.3`. `n` resets to `1` whenever a new upstream version is followed.
-- **Languages**: English, 简体中文, 繁體中文 only.
-- Builds are distributed through this repository's GitHub Releases.
+- **不是 RikkaHub 官方版本。** 本仓库的一切都建立在上游工作之上；本 fork 的问题请提到**本仓库**，与上游无关。
+- **版本号规则**：`{上游版本}-work.{n}`，例如 `2.5.6-work.3`。每次跟进新的上游版本时，`n` 归 1。
+- **语言**：仅保留 English、简体中文、繁體中文。
+- 构建产物通过本仓库的 GitHub Releases 分发。
 
-## 📥 Install & Upgrade
+## 📥 安装与升级
 
-Download the APK from this repository's **Releases** page.
+到本仓库的 **Releases** 页面下载 APK。
 
-- **Package name**: `me.rerere.rikkahub.plus` — different from upstream's `me.rerere.rikkahub`, so **this fork and the official RikkaHub can be installed side by side**.
-- **Upgrading this fork**: just install over the existing app. The signature must match and the version code must not go backwards, or Android will refuse the install.
-- **Coming from another fork, or from the official build**: uninstall first. The signing key differs, so the install would fail otherwise.
-- Three builds are attached: `arm64-v8a`, `x86_64`, and `universal`. Most phones want `arm64-v8a`.
+- **包名**：`me.rerere.rikkahub.plus` —— 与上游的 `me.rerere.rikkahub` 不同，所以**本 fork 可以和官方 RikkaHub 共存**。
+- **升级本 fork**：直接覆盖安装即可。但签名必须一致、且 versionCode 不能倒退，否则系统会拒绝安装。
+- **从其它 fork 或官方版转过来**：需要先卸载。签名不同，不卸载装不上。
+- 提供三种构建：`arm64-v8a`、`x86_64` 和 `universal`，多数手机选 `arm64-v8a`。
 
 > [!WARNING]
-> Back up your app data before upgrading. Settings, conversations and API keys live in the app's private storage and are gone if you uninstall.
+> 升级前务必备份应用数据。设置、对话和 API Key 都在应用私有目录里，卸载即丢失。
 
-## 🔀 What's Different from Upstream
+## 🔀 与上游的区别
 
-### 👥 Group Mode
+### 👥 群组模式
 
-**A third mode alongside chat** — several AI members take turns speaking in one conversation, so you get multiple perspectives in a single thread.
+**与「聊天」并列的第三种模式** —— 多个 AI 组员在同一段对话里轮流发言，一次拿到多方视角。
 
-- A standalone **member library** — build a member once and reuse it across groups
-- **Turn-based replies** with strict ordering; an optional **deputy** can dispatch work to members by tag
-- **Quote and reply** in both directions; members can also ask you questions mid-run
-- Group-scoped **workspace** and per-group **context compression**
-- In-group **nicknames and avatars**, applied live to the whole history
+- 独立的**组员库** —— 建一次，多个群组复用
+- **顺序发言**（严格排队）；可设**副群主**按标签派活
+- **双向引用**；组员还能在流程中向你提问
+- 群组级**工作区**与群组级**上下文压缩**
+- 群内**昵称与头像**，实时作用于全部历史消息
 
-### 🗂 Memory
+### 🗂 记忆
 
-- **Memory groups** — share a single set of memories across several assistants, while keeping private and built-in global memory.
-- **Pick-and-choose memory migration** — when copying an assistant or switching memory scope, select individual memories and copy or move them.
+- **记忆分组** —— 让多个助手共享同一组记忆，同时保留私有记忆与内置全局记忆。
+- **记忆迁移多选** —— 复制助手或切换记忆归属时，可按条目勾选并选择复制或移动。
 
-### 🛠 Tools & Approval
+### 🛠 工具与审批
 
-- **Tool approval modes** — per-assistant control over whether tool calls always ask, only ask for risky ones, or run freely.
-- **Calendar delete tool** — delete calendar events created by mistake.
+- **工具审批模式** —— 按助手决定工具调用前是否确认：始终询问 / 仅高风险询问 / 无需确认。
+- **日历删除工具** —— 可删除建错的日历事件。
 
-### 🤖 Providers
+### 🤖 供应商
 
-- **DeepSeek Web provider (free)** — a built-in provider driven by a browser login session instead of an API key, with read-only tools and three layers of guardrails.
-- **SuiXiang search provider** — an additional built-in web search provider.
-- **DeepSeek thinking-mode fix** — always pass historical `reasoning_content` back when tools are used, fixing HTTP 400 errors.
+- **DeepSeek 网页版（免费）** —— 用网页登录态而非 API Key 驱动的内置供应商，只读工具 + 三层防护。
+- **随想搜索服务商** —— 新增一个内置的全网搜索服务商。
+- **DeepSeek 思考模式修复** —— 使用工具时强制回传历史 `reasoning_content`，修复 HTTP 400。
 
-### 🎨 UI
+### 🎨 界面
 
-- **Per-provider loading animations** — save a loading animation per provider, auto-matched by brand, with support for custom GIF / image.
-- **Liquid glass effect** — refraction and dispersion on the chat input bar (Android 13+), with an automatic fallback on older versions.
+- **加载动画个性化** —— 按供应商独立保存加载动画，按品牌自动匹配，支持自定义 GIF / 图片。
+- **液态玻璃效果** —— 聊天输入栏的折射与色散（Android 13+），低版本自动回退。
 
-### ⚙️ Miscellaneous
+### ⚙️ 其他
 
-- **Fork-aware update check** — update checks read this fork's GitHub Releases only; you download and install the APK yourself.
-- **About page & branding cleanup** — the app name is `RikkaHub Work`, sponsor / promo entries are removed, and exported content is watermark-free.
+- **更新源改造** —— 更新检查只读取本 fork 的 GitHub Releases，由用户自行下载安装。
+- **关于页与品牌本地化** —— 应用名为 `RikkaHub Work`，移除赞助与推广入口，导出内容无水印。
 
-## 🚧 In Development
+## 🚧 开发中
 
-The following are implemented or under design but **not yet released**. They will land in upcoming builds.
+以下功能已实现或处于设计阶段，但**尚未发布**，将在后续版本中推出。
 
-### 🔐 Credential-Isolated Browser
+### 🔐 凭据隔离浏览器
 
-A built-in browser built around one idea: **your login credentials must never reach the model provider.**
+围绕一个原则构建的内置浏览器：**你的登录凭据绝不进入模型厂商。**
 
-- **You** sign in, solve captchas, and perform risky actions — the AI only *sees* the page content.
-- 🔴 **No arbitrary JS.** The AI gets 8 fixed tools (`browser_read`, `browser_click`, `browser_type`, `browser_scroll`, `browser_open`, …) and a small whitelist of page functions. It never gets `document`, `fetch` or cookies.
-- 🔴 **High-risk actions are hard-refused** — payment, delete, authorize, publish, password fields. If the AI tries, the action fails and you are told.
-- ⭐ **On-device redaction** — tokens, card numbers, JWTs and password contents are replaced with `[redacted:…]` **before the page content leaves the process**.
-- **Request on demand** — when `scrape_web` or a skill cannot fetch a page (login wall, captcha, JS-rendered), the AI can *ask* to open the browser. The request goes through the normal **tool-approval** flow; approving it opens the page so you can sign in.
-- **Floating panel** — a collapsible mini bar, so you can still see the AI's output while browsing.
-- **Desktop / mobile switcher** — a two-way segmented control in the toolbar. Switching never re-creates the WebView, so you stay signed in.
-- 🚫 **Chat mode only** — the browser is **not** available in group mode: no entry point, no tools.
-- ⛔ Not planned: headless mode (cannot pass captcha), full DOM access, arbitrary JS execution, screenshots.
+- **由你**完成登录、过验证码和危险操作 —— AI 只能*看到*页面内容。
+- 🔴 **不提供 `eval_js`。** AI 只能调用一小组白名单 JS 函数（`readText`、`click`、`typeInto`…），且只能传普通参数。
+- 🔴 **高危元素硬性拒绝** —— 支付、删除、授权、发布、密码框。AI 一旦尝试，操作会失败并告知用户。
+- ⭐ **本地过滤** —— Token、卡号、JWT 和密码框内容在**离开进程之前**就被替换为 `[已过滤:…]`。
+- **按需唤起** —— 当 `scrape_web` 或技能抓不到页面时（需要登录 / 人机验证 / JS 渲染），AI 可以**主动请求**打开浏览器。该请求走正常的**工具审批**流程，批准后自动打开页面让你登录。
+- **悬浮窗** —— 可折叠的迷你条，浏览网页时仍能看到 AI 的输出。
+- **电脑模式 / 手机模式切换器** —— 工具栏上的两档分段控件。切换**绝不重建 WebView**，登录态不会丢。
+- 🚫 **仅聊天模式可用** —— 群组模式下**完全不提供**浏览器：没有入口，也没有工具。
+- ⛔ 不做：无头模式（过不了人机验证）、完整 DOM 访问、任意 JS 执行、截图。
 
-### 🧠 Group Memory Migration (chat ⇄ group)
+### 🧠 群组记忆迁移（聊天 ⇄ 群组）
 
-Move memories between chat assistants and groups, **in both directions**, with per-item selection.
+在聊天助手与群组之间**双向**迁移记忆，支持按条目勾选。
 
-- **Into a group** — import from any assistant (private / global / any memory group) on the group memory page.
-- **Into an assistant** — import from any group conversation on the assistant memory page.
-- Pick individual entries and choose **copy** or **move**.
+- **导入到群组** —— 在群组记忆页，从任意助手（私有 / 全局 / 任意记忆分组）导入。
+- **导入到助手** —— 在助手记忆页，从任意群聊会话导入。
+- 可逐条勾选，并选择**复制**或**移动**。
 
-### 🫀 Pulse Mode *(design stage)*
+### 🫀 脉搏模式 *（设计阶段）*
 
-A third mode next to chat and group: the assistant **runs on its own** and only reaches out when something matters. Scheduled tasks, periodic self-checks, and an optional awareness layer (notifications / SMS / email).
+与「聊天」「群组」并列的第三种模式：助手**自己运转**，有事才来找你。包含计划任务、周期性自检，以及可选的感知层（通知 / 短信 / 邮件）。
 
-### 🧠 Memory System Upgrade *(design stage)*
+### 🧠 记忆系统升级 *（设计阶段）*
 
-Let memories *grow*: categories, reinforcement counts, and promotion of well-established entries into permanent guidelines.
+让记忆能够*成长*：分类、强化计数，以及把经过反复验证的条目晋升为长期准则。
 
-## ✨ Features
+## ✨ 功能特色
 
-> Inherited from upstream. See [What's Different from Upstream](#-whats-different-from-upstream) for what this fork adds.
+> 以下为上游原有功能。本 fork 追加的部分见上方的「与上游的区别」。
 
-- 🎨 Material You Design and 🌙 Dark mode
-- 📦 Workspace: a proot-based Linux agent environment
-- 🔄 Multiple AI Provider Support: custom API / URL / models (all OpenAI, Google, Anthropic compatible api)
-- 🖼️ Multimodal input support (Image, Text Documentation, PDF, Docx)
-- 🖥️ Web access for multi-platform use
-- 🛠️ MCP support
-- 📝 Markdown Rendering (with code highlighting, Latex formulas, tables, Mermaid)
-- 🪾 Message Branching
-- 🔍 Search capabilities (Exa, Tavily, Zhipu, LinkUp, Brave, Perplexity, etc.)
-- 🧩 Prompt variables (model name, time, etc.)
-- 🤳 QR code export and import for providers
-- 🤖 Agent customization
-- 🧠 ChatGPT-like memory feature
-- 📝 AI Translation
-- 🌐 Custom HTTP request headers and request bodies
-- 💌 Silly Tavern character card import
+- 🎨 现代化安卓APP设计（Material You / 预测性返回）和 🌙 暗色模式
+- 📦 工作区：基于 proot 的 Linux 智能体环境
+- 🔄 多种类型的供应商支持，自定义 API / URL / 模型（目前支持 OpenAI、Google、Anthropic）
+- 🖼️ 多模态输入支持（图片、文本文档、PDF、Docx）
+- 🖥️ Web多端访问支持
+- 🛠️ MCP 支持
+- 📝 Markdown 渲染（支持代码高亮、数学公式、表格、Mermaid）
+- 🪾 消息分支
+- 🔍 搜索功能（Exa、Tavily、Zhipu、LinkUp、Brave、Perplexity、..）
+- 🧩 Prompt 变量（模型名称、时间等）
+- 🤳 二维码导出和导入提供商
+- 🤖 智能体自定义
+- 🧠 类ChatGPT记忆功能
+- 📝 AI翻译
+- 🌐 自定义HTTP请求头和请求体
+- 💌 Silly Tavern 角色卡导入
 
-## 🛠 Contributing
+## 🛠 贡献
 
-This project is developed using [Android Studio](https://developer.android.com/studio).
+本项目使用 [Android Studio](https://developer.android.com/studio) 开发。
 
-Technology stack documentation:
+技术栈文档：
 
-- [Kotlin](https://kotlinlang.org/) (Development language)
-- [Koin](https://insert-koin.io/) (Dependency Injection)
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) (UI framework)
-- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore) (Preference data
-  storage)
-- [Room](https://developer.android.com/training/data-storage/room) (Database)
-- [Coil](https://coil-kt.github.io/coil/) (Image loading)
-- [Material You](https://m3.material.io/) (UI design)
-- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (Navigation)
-- [Okhttp](https://square.github.io/okhttp/) (HTTP client)
-- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) (JSON serialization)
+- [Kotlin](https://kotlinlang.org/) (开发语言)
+- [Koin](https://insert-koin.io/) (依赖注入)
+- [Jetpack Compose](https://developer.android.com/jetpack/compose) (UI 框架)
+- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore?hl=zh-cn#preferences-datastore) (
+  偏好数据存储)
+- [Room](https://developer.android.com/training/data-storage/room) (数据库)
+- [Coil](https://coil-kt.github.io/coil/) (图片加载)
+- [Material You](https://m3.material.io/) (UI 设计)
+- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (导航)
+- [Okhttp](https://square.github.io/okhttp/) (HTTP 客户端)
+- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) (Json序列化)
 
 > [!TIP]
-> You need a `google-services.json` file at `app` folder to build the app.
+> 你需要在 `app` 文件夹下添加 `google-services.json` 文件才能构建应用。
 
 > [!IMPORTANT]
-> The following PRs will be rejected:
-> 1. Translation related changes, such as adding new languages or updating existing translations
-> 2. Large-scale refactoring and changes generated by AI
+> 以下PR将被拒绝：
+> 1. 添加新语言，因为添加新语言会增加后续本地化的工作量
+> 2. AI生成的大规模重构和更改
 
-## 🙏 Credits
+## 🙏 致谢
 
-All credit for the foundation of this project goes to [RikkaHub](https://github.com/rikkahub/rikkahub) and its contributors. This fork would not exist without their work.
+本项目的基础全部来自 [RikkaHub](https://github.com/rikkahub/rikkahub) 及其贡献者，没有他们的工作就不会有这个 fork。
 
-If you like this project, please give **upstream** a star too ⭐
+如果喜欢这个项目，也请给**上游**点个 Star ⭐
 
-## 📄 License
+## 📄 许可证
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0), inherited from RikkaHub.
+本项目基于 [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0) 开源，继承自 RikkaHub。
