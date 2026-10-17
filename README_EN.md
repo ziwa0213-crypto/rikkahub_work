@@ -37,7 +37,7 @@ Download the APK from this repository's **Releases** page.
 
 ### 👥 Group Mode
 
-**A third mode alongside chat** — several AI members take turns speaking in one conversation, so you get multiple perspectives in a single thread.
+**A second mode alongside chat** — several AI members take turns speaking in one conversation, so you get multiple perspectives in a single thread.
 
 - A standalone **member library** — build a member once and reuse it across groups
 - **Turn-based replies** with strict ordering; an optional **deputy** can dispatch work to members by tag
