@@ -2,14 +2,14 @@
   <img src="docs/icon.png" alt="App 图标" width="100" />
   <h1>RikkaHub Work</h1>
 
-RikkaHub Work 是 RikkaHub 的个人 fork —— 一个原生 Android LLM 聊天客户端，支持在不同供应商之间切换对话。🤖💬
+一个基于 RikkaHub 的原生 Android LLM 聊天客户端，支持切换不同的供应商进行对话 🤖💬
 
 [English](README_EN.md) | 简体中文
 </div>
 
 <div align="center">
-  <img src="docs/img/chat.png" alt="Chat Interface" width="150" />
-  <img src="docs/img/desktop.png" alt="Models Picker" width="450" />
+  <img src="docs/img/chat.png" alt="聊天界面" width="150" />
+  <img src="docs/img/desktop.png" alt="模型选择" width="450" />
 </div>
 
 ## 📌 关于本 fork
@@ -33,131 +33,128 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 > [!WARNING]
 > 升级前务必备份应用数据。设置、对话和 API Key 都在应用私有目录里，卸载即丢失。
 
-## 🔀 与上游的区别
-
-### 👥 群组模式
-
-**与「聊天」并列的第二种模式** —— 多个 AI 组员在同一段对话里轮流发言，一次拿到多方视角。
-
-- 独立的**组员库** —— 建一次，多个群组复用
-- **顺序发言**（严格排队）；可设**副群主**按标签派活
-- **双向引用**；组员还能在流程中向你提问
-- 群组级**工作区**与群组级**上下文压缩**
-- 群内**昵称与头像**，实时作用于全部历史消息
+## ✨ 本 fork 增加的功能
 
 ### 🗂 记忆
 
-- **记忆分组** —— 让多个助手共享同一组记忆，同时保留私有记忆与内置全局记忆。
-- **记忆迁移多选** —— 复制助手或切换记忆归属时，可按条目勾选并选择复制或移动。
+- **记忆分组** —— 让多个助手共享同一组记忆，同时保留私有记忆与内置全局记忆。删除分组时，组内记忆回落到私有范围，不会直接删除内容。
+- **记忆迁移多选** —— 复制助手、或切换助手的记忆归属时，可以逐条勾选要带走哪些记忆，并在「复制 / 移动」之间选择。移动共享记忆前会提示影响范围。
+- **聊天 ⇄ 群聊双向导入** —— 群聊当前会话可以从任意助手私有、全局或记忆分组导入记忆；助手也可以按「群名 · 会话标题」从群聊导入。默认复制，来源列表按真实作用域去重。
 
 ### 🛠 工具与审批
 
-- **工具审批模式** —— 按助手决定工具调用前是否确认：始终询问 / 仅高风险询问 / 无需确认。
-- **日历删除工具** —— 可删除建错的日历事件。
+- **三档工具审批** —— 每个助手独立保存：**需要询问**（每次确认）、**部分询问**（仅高风险确认，默认）、**完全允许**（不确认）。风险按 L0~L3 分级，未登记工具默认按最高风险处理。
+- **日历删除** —— 新增 `calendar_delete`，删除建错的日程；删除操作始终需要确认。
+- **内置浏览器（凭据隔离）** —— 遇到需要登录、验证码或动态渲染的页面时，由 AI 请求打开浏览器，**用户亲自登录**，AI 只读取本机过滤后的内容。详见下节。
+- **图表工具** —— `chart_display` 支持折线图、柱状图、散点图，只读、不额外审批。
 
-### 🤖 供应商
+### 🌐 内置浏览器（F013）
 
-- **DeepSeek 网页版（免费）** —— 用网页登录态而非 API Key 驱动的内置供应商，只读工具 + 三层防护。
-- **随想搜索服务商** —— 新增一个内置的全网搜索服务商。
-- **DeepSeek 思考模式修复** —— 使用工具时强制回传历史 `reasoning_content`，修复 HTTP 400。
+- 固定 **8 个工具**：打开页面、当前网址、获取文本、列举可操作项、点击、输入、滚动、声明完成。**不提供**任意 JavaScript、原始 DOM、Cookie、无头模式、截图或 OCR。
+- **三层防护**：页面文本在返回给 AI 前，于本机过滤疑似 API Key、JWT、长令牌和通过 Luhn 校验的卡号；支付、删除、授权、发布、转账、密码框和文件操作**硬拒**，无法通过审批绕过；过滤默认开启，关闭需要二次确认。
+- 点击/输入使用一次性元素 ID，页面变化后旧 ID 直接拒绝。
+- 浏览器底部有可展开的**迷你对话面板**，绑定原会话，支持流式回复、工具审批、停止与错误卡片。
+- 支持**手机 / 电脑**两种显示模式，切换时在同一个 WebView 上重新加载，不清除登录状态。
+- 群组模式下不提供浏览器。
+
+### 👥 群组模式（F012）
+
+- 抽屉顶部可在**聊天 / 群组**之间切换，两种模式各自保留列表、草稿和配置。
+- **独立组员库**：名称、头像、模型、提示词、流式输出、标签、数值参数（温度 / Top P / 上下文条数 / 最大 Token），支持长按拖拽排序。
+- **群组配置**：群名、头像、标签、组员增删与优先级、MCP、本地工具、扩展（提示词注入 / 世界书 / 技能）、群组记忆、自定义请求、背景（图片 / 渐变 / 透明度）、压缩设置、群级思考等级。
+- **群聊生成**：按顺序串行发言；支持多会话、完整群复制、副群主分派、@点名、消息双向引用。
+- **群内昵称与头像**：按群隔离，历史气泡实时解析，不重写历史。
+- **群聊压缩**：手动压缩 + 分层摘要 + 可编辑提示词 + 默认开启的自动提醒（需用户确认后才消耗 Token）。
+- **工作区归属**：工作区可按「聊天 / 群组 / 未归属」过滤，新建时可设置归属；群组使用独立工作区。
+
+### 🔌 供应商与搜索
+
+- **DeepSeek 网页版（免费）** —— 用网页登录态而不是 API Key 驱动对话。内置只读工具白名单、请求串行闸门与可调节流，切断文件写入、Shell、代码执行、技能和 MCP 等能力，降低账号风控风险。
+- **搜索服务商**：在上游基础上新增
+  - **随想搜索**（`/v1/web_search`，固定 0.06 元/次，失败不扣费）
+  - **DeepSeek 官方搜索与抓取**（`/v1/tools/search` + `/v1/tools/fetch`，0.005 元/次，长摘要专供模型阅读）
+  - **AnySearch**（可匿名使用；带 Key 免费 1000 次/天，同时提供正文抓取）
+- **思考模式推理回传修复** —— DeepSeek 思考模式在工具调用后继续生成时，自动完整回传历史 `reasoning_content`，修复 HTTP 400 中断。
 
 ### 🎨 界面
 
-- **加载动画个性化** —— 按供应商独立保存加载动画，按品牌自动匹配，支持自定义 GIF / 图片。
-- **液态玻璃效果** —— 聊天输入栏的折射与色散（Android 13+），低版本自动回退。
+- **按供应商的加载动画** —— 每个供应商可独立选择：按品牌自动匹配、内置预设、自定义 GIF / 图片。内置 OpenAI 旋转、Claude 星芒、Gemini sparkle、DeepSeek 脉冲与通用呼吸动画。
+- **液态玻璃** —— Android 13+ 在聊天输入栏使用真实折射与色散；低版本或渲染异常自动回退到模糊玻璃，不会崩溃。
+- **品牌与关于页** —— 应用名统一为 `RikkaHub Work`；关于页只保留本仓库链接；移除赞助、QQ / Discord 入口与导出水印。
+- **群组界面** —— 群组聊天页透明顶栏、群组抽屉日期分组与置顶、组员与群组拖拽排序。
 
-### ⚙️ 其他
+### 🔄 更新与稳定性
 
-- **更新源改造** —— 更新检查只读取本 fork 的 GitHub Releases，由用户自行下载安装。
-- **关于页与品牌本地化** —— 应用名为 `RikkaHub Work`，移除赞助与推广入口，导出内容无水印。
+- **fork 自有更新检查** —— 只读取本仓库的 GitHub Releases；发现新版本后跳转发布页，由用户自行下载安装。
+- **后台挂起修复** —— 生成期间持有 `PARTIAL_WAKE_LOCK`，并加入 20 分钟硬截止（每 5 秒用包含休眠的时钟检测）；请求日志改用活动耗时，并单独标注设备休眠时长，不再把冻结时间算成网络耗时。
+- 生成超时和「因设备休眠中断」都有明确提示，先落错误卡片再取消任务。
 
-## 🚧 开发中
+## 📦 上游继承的功能
 
-以下功能已实现或处于设计阶段，但**尚未发布**，将在后续版本中推出。
+> 以下能力来自上游，本 fork 原样保留。
 
-### 🔐 凭据隔离浏览器
-
-围绕一个原则构建的内置浏览器：**你的登录凭据绝不进入模型厂商。**
-
-- **由你**完成登录、过验证码和危险操作 —— AI 只能*看到*页面内容。
-- 🔴 **不提供 `eval_js`。** AI 只能调用一小组白名单 JS 函数（`readText`、`click`、`typeInto`…），且只能传普通参数。
-- 🔴 **高危元素硬性拒绝** —— 支付、删除、授权、发布、密码框。AI 一旦尝试，操作会失败并告知用户。
-- ⭐ **本地过滤** —— Token、卡号、JWT 和密码框内容在**离开进程之前**就被替换为 `[已过滤:…]`。
-- **按需唤起** —— 当 `scrape_web` 或技能抓不到页面时（需要登录 / 人机验证 / JS 渲染），AI 可以**主动请求**打开浏览器。该请求走正常的**工具审批**流程，批准后自动打开页面让你登录。
-- **悬浮窗** —— 可折叠的迷你条，浏览网页时仍能看到 AI 的输出。
-- **电脑模式 / 手机模式切换器** —— 工具栏上的两档分段控件。切换**绝不重建 WebView**，登录态不会丢。
-- 🚫 **仅聊天模式可用** —— 群组模式下**完全不提供**浏览器：没有入口，也没有工具。
-- ⛔ 不做：无头模式（过不了人机验证）、完整 DOM 访问、任意 JS 执行、截图。
-
-### 🧠 群组记忆迁移（聊天 ⇄ 群组）
-
-在聊天助手与群组之间**双向**迁移记忆，支持按条目勾选。
-
-- **导入到群组** —— 在群组记忆页，从任意助手（私有 / 全局 / 任意记忆分组）导入。
-- **导入到助手** —— 在助手记忆页，从任意群聊会话导入。
-- 可逐条勾选，并选择**复制**或**移动**。
-
-### 🫀 脉搏模式 *（设计阶段）*
-
-与「聊天」「群组」并列的第三种模式：助手**自己运转**，有事才来找你。包含计划任务、周期性自检，以及可选的感知层（通知 / 短信 / 邮件）。
-
-### 🧠 记忆系统升级 *（设计阶段）*
-
-让记忆能够*成长*：分类、强化计数，以及把经过反复验证的条目晋升为长期准则。
-
-## ✨ 功能特色
-
-> 以下为上游原有功能。本 fork 追加的部分见上方的「与上游的区别」。
-
-- 🎨 现代化安卓APP设计（Material You / 预测性返回）和 🌙 暗色模式
+- 🎨 Material You 设计语言与 🌙 深色模式
 - 📦 工作区：基于 proot 的 Linux 智能体环境
-- 🔄 多种类型的供应商支持，自定义 API / URL / 模型（目前支持 OpenAI、Google、Anthropic）
-- 🖼️ 多模态输入支持（图片、文本文档、PDF、Docx）
-- 🖥️ Web多端访问支持
+- 🔄 多供应商支持：自定义 API / URL / 模型（所有 OpenAI、Google、Anthropic 兼容接口）
+- 🖼️ 多模态输入（图片、文本文档、PDF、Docx）
+- 🖥️ Web 访问，多平台使用
 - 🛠️ MCP 支持
-- 📝 Markdown 渲染（支持代码高亮、数学公式、表格、Mermaid）
+- 📝 Markdown 渲染（代码高亮、LaTeX 公式、表格、Mermaid）
 - 🪾 消息分支
-- 🔍 搜索功能（Exa、Tavily、Zhipu、LinkUp、Brave、Perplexity、..）
-- 🧩 Prompt 变量（模型名称、时间等）
-- 🤳 二维码导出和导入提供商
-- 🤖 智能体自定义
-- 🧠 类ChatGPT记忆功能
-- 📝 AI翻译
-- 🌐 自定义HTTP请求头和请求体
-- 💌 Silly Tavern 角色卡导入
+- 🔍 搜索能力（Exa、Tavily、智谱、LinkUp、Brave、Perplexity 等）
+- 🧩 提示词变量（模型名、时间等）
+- 🤳 供应商二维码导出与导入
+- 🤖 智能体定制
+- 🧠 类 ChatGPT 记忆
+- 📝 AI 翻译
+- 🌐 自定义 HTTP 请求头与请求体
+- 💌 SillyTavern 角色卡导入
 
-## 🛠 贡献
+## 🧭 版本与包名
 
-本项目使用 [Android Studio](https://developer.android.com/studio) 开发。
+| 项目 | 值 |
+|---|---|
+| Release 包名 | `me.rerere.rikkahub.plus` |
+| Debug 包名 | `me.rerere.rikkahub.debug` |
+| 版本号 | `{上游版本}-work.{n}` |
+| 当前发布 | `2.5.6-work.3`（versionCode 196） |
+| 工作区中的下一版 | `2.5.6-work.4`（versionCode 197，尚未发布） |
+| 许可证 | AGPL-3.0 |
 
-技术栈文档：
+## 🛠 构建
 
-- [Kotlin](https://kotlinlang.org/) (开发语言)
-- [Koin](https://insert-koin.io/) (依赖注入)
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) (UI 框架)
-- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore?hl=zh-cn#preferences-datastore) (
-  偏好数据存储)
-- [Room](https://developer.android.com/training/data-storage/room) (数据库)
-- [Coil](https://coil-kt.github.io/coil/) (图片加载)
-- [Material You](https://m3.material.io/) (UI 设计)
-- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (导航)
-- [Okhttp](https://square.github.io/okhttp/) (HTTP 客户端)
-- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) (Json序列化)
+使用 [Android Studio](https://developer.android.com/studio) 构建。技术栈：
+
+- [Kotlin](https://kotlinlang.org/)（开发语言）
+- [Koin](https://insert-koin.io/)（依赖注入）
+- [Jetpack Compose](https://developer.android.com/jetpack/compose)（UI 框架）
+- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore)（偏好设置）
+- [Room](https://developer.android.com/training/data-storage/room)（数据库）
+- [Coil](https://coil-kt.github.io/coil/)（图片加载）
+- [Material You](https://m3.material.io/)（UI 设计）
+- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3)（导航）
+- [OkHttp](https://square.github.io/okhttp/)（HTTP 客户端）
+- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)（JSON 序列化）
 
 > [!TIP]
-> 你需要在 `app` 文件夹下添加 `google-services.json` 文件才能构建应用。
+> 构建前需要在 `app` 目录放置 `google-services.json`。
 
 > [!IMPORTANT]
-> 以下PR将被拒绝：
-> 1. 添加新语言，因为添加新语言会增加后续本地化的工作量
-> 2. AI生成的大规模重构和更改
+> 本 fork 不接受上游的翻译类 PR；语言只保留 English、简体中文、繁體中文。
 
 ## 🙏 致谢
 
-本项目的基础全部来自 [RikkaHub](https://github.com/rikkahub/rikkahub) 及其贡献者，没有他们的工作就不会有这个 fork。
+本项目的基础工作全部归功于 [RikkaHub](https://github.com/rikkahub/rikkahub) 及其贡献者。没有上游的工作，就不会有这个 fork。
 
-如果喜欢这个项目，也请给**上游**点个 Star ⭐
+用到的第三方组件：
+
+- [AndroidLiquidGlassView](https://github.com/QmDeve/AndroidLiquidGlassView)（MIT，© Donny Yale / QmDeve）
+- [Mozilla Readability](https://github.com/mozilla/readability)（Apache-2.0，用于正文提取）
+- [Haze](https://github.com/chrisbanes/haze)（Apache-2.0，玻璃模糊回退）
+
+如果这个项目对你有帮助，也请给**上游**点个 Star ⭐
 
 ## 📄 许可证
 
-本项目基于 [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0) 开源，继承自 RikkaHub。
+本 fork 以 **AGPL-3.0** 授权，原始版权归 RikkaHub 作者所有。
+完整许可证见仓库根目录 [LICENSE](./LICENSE)。
