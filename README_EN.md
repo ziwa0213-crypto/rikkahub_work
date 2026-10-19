@@ -2,7 +2,7 @@
   <img src="docs/icon.png" alt="App Icon" width="100" />
   <h1>RikkaHub Work</h1>
 
-RikkaHub Work is a personal fork of RikkaHub — a native Android LLM chat client that supports switching between different providers for conversations. 🤖💬
+A fork of RikkaHub — a native Android LLM chat client that supports switching between different providers for conversations. 🤖💬
 
 [简体中文](README.md) | English
 </div>
@@ -33,89 +33,73 @@ Download the APK from this repository's **Releases** page.
 > [!WARNING]
 > Back up your app data before upgrading. Settings, conversations and API keys live in the app's private storage and are gone if you uninstall.
 
-## 🔀 What's Different from Upstream
-
-### 👥 Group Mode
-
-**A second mode alongside chat** — several AI members take turns speaking in one conversation, so you get multiple perspectives in a single thread.
-
-- A standalone **member library** — build a member once and reuse it across groups
-- **Turn-based replies** with strict ordering; an optional **deputy** can dispatch work to members by tag
-- **Quote and reply** in both directions; members can also ask you questions mid-run
-- Group-scoped **workspace** and per-group **context compression**
-- In-group **nicknames and avatars**, applied live to the whole history
+## ✨ What This Fork Adds
 
 ### 🗂 Memory
 
-- **Memory groups** — share a single set of memories across several assistants, while keeping private and built-in global memory.
-- **Pick-and-choose memory migration** — when copying an assistant or switching memory scope, select individual memories and copy or move them.
+- **Memory groups** — share a single set of memories across several assistants while keeping private and built-in global memory. Deleting a group moves its memories back to private scope instead of deleting them.
+- **Pick-and-choose migration** — when copying an assistant or switching its memory scope, select individual memories and choose copy or move. Moving shared memories warns about the impact first.
+- **Chat ⇄ group import** — a group conversation can import memories from any assistant's private scope, global memory or a memory group; an assistant can import from a group by "group name · conversation title". Copy is the default, and the source list is de-duplicated by real scope.
 
 ### 🛠 Tools & Approval
 
-- **Tool approval modes** — per-assistant control over whether tool calls always ask, only ask for risky ones, or run freely.
-- **Calendar delete tool** — delete calendar events created by mistake.
+- **Three approval modes** — per assistant: **Ask every time**, **Ask for risky calls** (default), and **Allow all**. Risk is tiered L0–L3, and unregistered tools default to the highest tier.
+- **Calendar delete** — `calendar_delete` removes events created by mistake; deletion always asks for confirmation.
+- **Credential-isolated built-in browser** — when a page needs a login, a CAPTCHA or JavaScript rendering, the AI can request the browser, **you sign in yourself**, and the AI only reads content filtered on-device. See below.
+- **Chart tool** — `chart_display` renders line, bar and scatter charts; read-only, no extra approval.
 
-### 🤖 Providers
+### 🌐 Built-in Browser (F013)
 
-- **DeepSeek Web provider (free)** — a built-in provider driven by a browser login session instead of an API key, with read-only tools and three layers of guardrails.
-- **SuiXiang search provider** — an additional built-in web search provider.
-- **DeepSeek thinking-mode fix** — always pass historical `reasoning_content` back when tools are used, fixing HTTP 400 errors.
+- **Eight fixed tools**: open URL, current URL, get text, list actions, click, type, scroll, and done. **No** arbitrary JavaScript, raw DOM, cookies, headless mode, screenshots or OCR.
+- **Three layers of protection**: page text is filtered on-device before it reaches the AI (likely API keys, JWTs, long tokens, and Luhn-valid card numbers); payment, deletion, authorization, publishing, transfer, password and file controls are **hard-refused** and cannot be approved around; filtering is on by default and turning it off requires confirmation.
+- Click and type use single-use element IDs; after the page changes, stale IDs are rejected.
+- A collapsible **mini chat panel** at the bottom is bound to the originating conversation and supports streaming replies, tool approval, stop and error cards.
+- **Mobile / desktop display modes**; switching reloads the same WebView without clearing login state.
+- Group mode does not expose the browser.
+
+### 👥 Group Mode (F012)
+
+- Switch between **Chat / Group** at the top of the drawer; each mode keeps its own lists, drafts and settings.
+- **Standalone member library**: name, avatar, model, prompt, streaming, tags and numeric parameters (temperature / top-p / context messages / max tokens), with long-press drag reordering.
+- **Group configuration**: name, avatar, tags, member add/remove and priority, MCP, local tools, extensions (prompt injection / lorebooks / skills), group memory, custom requests, background (image / gradient / opacity), compression settings and a group-wide reasoning level.
+- **Group generation**: sequential speakers; multiple conversations, full group duplication, deputy dispatcher, @mentions and two-way message quotes.
+- **Per-group nicknames and avatars** — isolated per group, resolved live for existing bubbles without rewriting history.
+- **Group chat compression** — manual compression, layered summaries, editable prompts and an automatic reminder that only spends tokens after you confirm.
+- **Workspace ownership** — workspaces can be filtered by Chat / Group / Unassigned and assigned when created; groups use their own workspace.
+
+### 🔌 Providers & Search
+
+- **DeepSeek Web (free)** — drives conversations from a browser login session instead of an API key. Ships with a read-only tool allowlist, a serial request gate and configurable throttling; file writes, shell, code execution, skills and MCP are cut off to reduce account risk.
+- **Search providers** added on top of upstream:
+  - **SuiXiang** (`/v1/web_search`, flat ¥0.06 per search, failures are not charged)
+  - **DeepSeek official search & fetch** (`/v1/tools/search` + `/v1/tools/fetch`, ¥0.005 per request, with long summaries written for models)
+  - **AnySearch** (anonymous use supported; 1,000 free requests/day with a key, plus article extraction)
+- **Thinking-mode reasoning fix** — when DeepSeek thinking mode continues after a tool call, historical `reasoning_content` is passed back automatically, fixing HTTP 400 interruptions.
 
 ### 🎨 UI
 
-- **Per-provider loading animations** — save a loading animation per provider, auto-matched by brand, with support for custom GIF / image.
-- **Liquid glass effect** — refraction and dispersion on the chat input bar (Android 13+), with an automatic fallback on older versions.
+- **Per-provider loading animations** — each provider can use a brand-matched animation, a built-in preset, or a custom GIF / image. Built-ins cover OpenAI rotation, Claude starburst, Gemini sparkle, DeepSeek pulse and a generic breathe animation.
+- **Liquid glass** — real refraction and dispersion on the chat input bar on Android 13+, with an automatic fallback to blurred glass on older versions or render failures, so it never crashes.
+- **Branding & About page** — the app name is `RikkaHub Work`; the About page links only to this repository; sponsor, QQ / Discord entries and export watermarks are removed.
+- **Group UI** — transparent group chat top bar, date-grouped and pinned group drawer, drag ordering for members and groups.
 
-### ⚙️ Miscellaneous
+### 🔄 Updates & Stability
 
-- **Fork-aware update check** — update checks read this fork's GitHub Releases only; you download and install the APK yourself.
-- **About page & branding cleanup** — the app name is `RikkaHub Work`, sponsor / promo entries are removed, and exported content is watermark-free.
+- **Fork-aware update check** — update checks read this repository's GitHub Releases only; when a new version is found the app opens the release page and you download and install the APK yourself.
+- **Background hang fix** — generation holds a `PARTIAL_WAKE_LOCK` and has a 20-minute hard deadline checked every 5 seconds against a clock that includes sleep. Request logs use active time and report suspended time separately, so frozen time is no longer counted as network time.
+- Timeouts and "interrupted by device sleep" both surface a clear error card, which is recorded before the job is cancelled.
 
-## 🚧 In Development
+## 📦 Inherited from Upstream
 
-The following are implemented or under design but **not yet released**. They will land in upcoming builds.
-
-### 🔐 Credential-Isolated Browser
-
-A built-in browser built around one idea: **your login credentials must never reach the model provider.**
-
-- **You** sign in, solve captchas, and perform risky actions — the AI only *sees* the page content.
-- 🔴 **No `eval_js`.** The AI may only call a small whitelist of JS functions (`readText`, `click`, `typeInto`, …) with plain arguments.
-- 🔴 **High-risk elements are hard-refused** — payment, delete, authorize, publish, password fields. If the AI tries, the action fails and you are told.
-- ⭐ **Local redaction filter** — tokens, card numbers, JWTs and password fields are replaced with `[redacted:…]` **before the content leaves the process**.
-- **Request on demand** — when `scrape_web` or a skill cannot fetch a page (login wall, captcha, JS-rendered), the AI can *ask* to open the browser. The request goes through the normal **tool-approval** flow; approving it opens the page so you can sign in.
-- **Floating panel** — a collapsible mini bar, so you can still see the AI's output while browsing.
-- **Desktop / mobile switcher** — a two-way segmented control in the toolbar. Switching never re-creates the WebView, so you stay signed in.
-- 🚫 **Chat mode only** — the browser is **not** available in group mode: no entry point, no tools.
-- ⛔ Not planned: headless mode (cannot pass captcha), full DOM access, arbitrary JS execution, screenshots.
-
-### 🧠 Group Memory Migration (chat ⇄ group)
-
-Move memories between chat assistants and groups, **in both directions**, with per-item selection.
-
-- **Into a group** — import from any assistant (private / global / any memory group) on the group memory page.
-- **Into an assistant** — import from any group conversation on the assistant memory page.
-- Pick individual entries and choose **copy** or **move**.
-
-### 🫀 Pulse Mode *(design stage)*
-
-A third mode next to chat and group: the assistant **runs on its own** and only reaches out when something matters. Scheduled tasks, periodic self-checks, and an optional awareness layer (notifications / SMS / email).
-
-### 🧠 Memory System Upgrade *(design stage)*
-
-Let memories *grow*: categories, reinforcement counts, and promotion of well-established entries into permanent guidelines.
-
-## ✨ Features
-
-> Inherited from upstream. See [What's Different from Upstream](#-whats-different-from-upstream) for what this fork adds.
+> The following comes from upstream and is kept as is.
 
 - 🎨 Material You Design and 🌙 Dark mode
 - 📦 Workspace: a proot-based Linux agent environment
-- 🔄 Multiple AI Provider Support: custom API / URL / models (all OpenAI, Google, Anthropic compatible api)
+- 🔄 Multiple AI Provider Support: custom API / URL / models (all OpenAI, Google, Anthropic compatible APIs)
 - 🖼️ Multimodal input support (Image, Text Documentation, PDF, Docx)
 - 🖥️ Web access for multi-platform use
 - 🛠️ MCP support
-- 📝 Markdown Rendering (with code highlighting, Latex formulas, tables, Mermaid)
+- 📝 Markdown Rendering (with code highlighting, LaTeX formulas, tables, Mermaid)
 - 🪾 Message Branching
 - 🔍 Search capabilities (Exa, Tavily, Zhipu, LinkUp, Brave, Perplexity, etc.)
 - 🧩 Prompt variables (model name, time, etc.)
@@ -126,38 +110,52 @@ Let memories *grow*: categories, reinforcement counts, and promotion of well-est
 - 🌐 Custom HTTP request headers and request bodies
 - 💌 Silly Tavern character card import
 
-## 🛠 Contributing
+## 🧭 Versions & Package Names
 
-This project is developed using [Android Studio](https://developer.android.com/studio).
+| Item | Value |
+|---|---|
+| Release package | `me.rerere.rikkahub.plus` |
+| Debug package | `me.rerere.rikkahub.debug` |
+| Version format | `{upstream version}-work.{n}` |
+| Current release | `2.5.6-work.3` (versionCode 196) |
+| Next in the working tree | `2.5.6-work.4` (versionCode 197, not released yet) |
+| License | AGPL-3.0 |
 
-Technology stack documentation:
+## 🛠 Build
+
+Built with [Android Studio](https://developer.android.com/studio). Technology stack:
 
 - [Kotlin](https://kotlinlang.org/) (Development language)
 - [Koin](https://insert-koin.io/) (Dependency Injection)
 - [Jetpack Compose](https://developer.android.com/jetpack/compose) (UI framework)
-- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore) (Preference data
-  storage)
+- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore) (Preference data storage)
 - [Room](https://developer.android.com/training/data-storage/room) (Database)
 - [Coil](https://coil-kt.github.io/coil/) (Image loading)
 - [Material You](https://m3.material.io/) (UI design)
 - [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (Navigation)
-- [Okhttp](https://square.github.io/okhttp/) (HTTP client)
+- [OkHttp](https://square.github.io/okhttp/) (HTTP client)
 - [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) (JSON serialization)
 
 > [!TIP]
-> You need a `google-services.json` file at `app` folder to build the app.
+> You need a `google-services.json` file in the `app` folder to build the app.
 
 > [!IMPORTANT]
-> The following PRs will be rejected:
-> 1. Translation related changes, such as adding new languages or updating existing translations
-> 2. Large-scale refactoring and changes generated by AI
+> This fork does not accept upstream translation PRs; only English, 简体中文 and 繁體中文 are kept.
 
 ## 🙏 Credits
 
 All credit for the foundation of this project goes to [RikkaHub](https://github.com/rikkahub/rikkahub) and its contributors. This fork would not exist without their work.
 
+Third-party components:
+
+- [AndroidLiquidGlassView](https://github.com/QmDeve/AndroidLiquidGlassView) (MIT, © Donny Yale / QmDeve)
+- [Mozilla Readability](https://github.com/mozilla/readability) (Apache-2.0, article extraction)
+- [Haze](https://github.com/chrisbanes/haze) (Apache-2.0, glass blur fallback)
+
 If you like this project, please give **upstream** a star too ⭐
 
 ## 📄 License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0), inherited from RikkaHub.
+This fork is licensed under **AGPL-3.0**. Original copyright belongs to the RikkaHub authors.
+See [LICENSE](./LICENSE) for the full text.
+
