@@ -89,6 +89,37 @@ Download the APK from this repository's **Releases** page.
 - **Background hang fix** — generation holds a `PARTIAL_WAKE_LOCK` and has a 20-minute hard deadline checked every 5 seconds against a clock that includes sleep. Request logs use active time and report suspended time separately, so frozen time is no longer counted as network time.
 - Timeouts and "interrupted by device sleep" both surface a clear error card, which is recorded before the job is cancelled.
 
+## 🚧 In Progress
+
+Everything below is either **implemented but not released yet** or **has a concrete plan and is being worked on**. Only things with a real design are listed.
+
+### 🧭 Browser settings entry & per-tool switches
+
+Right now the browser can only be opened by the AI. The next version adds a way to open it yourself:
+
+- **Settings → Model & Services → Built-in browser**, starting at `about:blank` so you can sign in first and hand it to the AI afterwards — no more digging through assistant details.
+- A dedicated browser settings page: open browser / clear browsing data (cookies, local storage, cache) / **per-tool switches for all eight tools** / sensitive-content filter / mobile·desktop mode / two timeouts (per tool 10–600 s, per task 1–60 min).
+- A browser opened from Settings is a **standalone session**: no chat is created and the AI panel is not shown; the login state is kept and the AI can still take over later.
+
+### 🫀 Pulse mode (PULSE)
+
+A third mode next to Chat and Group, where the AI does not wait for you to speak:
+
+- **Heartbeat** — self-check on an interval; only reports when something is wrong, otherwise stays silent.
+- **Scheduled tasks** — run at the appointed time; a missed run is retried once.
+- **Watchers** — poll external state you care about and push only when it **changes**; no change means no model call.
+- **Memory promotion** — memories that keep coming up are promoted into the long-term prompt.
+- Keep-alive follows an "request + guide + degrade" three-layer design: foreground service, Alarm + WorkManager, and battery-optimization / autostart / exact-alarm guidance.
+
+### 🧰 More local tools
+
+Under evaluation: workspace file search (grep / find), device status, weather, opening system pages, sharing, contacts, recent media.
+Read-only, key-free tools that do not need a Linux environment come first.
+
+### 🧠 Memory improvements
+
+Memory categories, reinforcement counts and promotion (turning frequently used memories into long-term prompt content). Designed, awaiting scheduling.
+
 ## 📦 Inherited from Upstream
 
 > The following comes from upstream and is kept as is.
