@@ -6,4 +6,7 @@
   <string name="searxng_desc_2">search:\n  formats:\n    - html\n    - json</string>
   <string name="custom_js_desc">由 QuickJS 驱动的自定义搜索提供程序。实现 search(query, resultSize) 函数，并可选择实现 scrape(urls) 函数。使用 fetch(url, options?) 进行 HTTP 请求。</string>
   <string name="search_suixiang_web_description">随想搜索网关。配置 API Key 后可搜索全网。每次搜索固定收费 0.06 元（不乘分组倍率），搜索失败不扣费，使用所在分组的 KEY。首次搜索可能需要 15～60 秒，结果数越大越慢。</string>
+    <string name="search_deepseek_description">DeepSeek 官方搜索与抓取。配置 DeepSeek API Key 后可搜索网页并抓取正文。按成功请求计费 5 元 / 1000 次（约 0.005 元 / 次），无结果或失败不计费；账号级限速 5 次 / 秒。搜索结果自带适合模型阅读的长摘要；「抓取网页」使用 DeepSeek 的 Fetch 接口，返回 Markdown 正文。</string>
+    <string name="search_anysearch_description">AnySearch 搜索网关。返回结构化结果，中文与时效性表现好。\n· 一次搜索计为 1 次调用，与返回多少条结果无关。\n· 填写 API Key：免费 1,000 次/天，20 次/秒。\n· 不填 Key 也能用（匿名）：按 IP 限速、额度更低，且同样计入每日免费额度。\n· 申请 Key：anysearch.com/console/api-keys。\n· 每次最多返回 10 条结果，另支持通过 Extract 抓取网页正文。</string>
+    <string name="search_anysearch_website">访问官网</string>
 </resources>

@@ -1,0 +1,6 @@
+Mozilla Readability, derived from Arc90 Readability.
+Copyright (c) 2010 Arc90 Inc. See copyright notices in each source file.
+readability.js and readability-readerable.js are distributed under Apache-2.0.
+These two source assets are unchanged from the reference supplied by the maintainer.
+Upstream: https://github.com/mozilla/readability
+License: LICENSE-APACHE-2.0.txt

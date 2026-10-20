@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.service
 
 import android.app.Application
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
@@ -48,6 +49,7 @@ import me.rerere.ai.ui.canResumeToolExecution
 import me.rerere.ai.ui.finishPendingTools
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.common.android.Logging
+import me.rerere.common.android.RequestClockSnapshot
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
@@ -349,9 +351,21 @@ class ChatService(
                 generationId = generationId,
                 conversationId = conversationId,
             )
+            val watchdog = launchGenerationWatchdog(
+                clock = { RequestClockSnapshot(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis()) },
+                onDeadline = { timeout ->
+                    val message = context.getString(
+                        if (timeout.interruptedBySleep) R.string.error_generation_interrupted_by_sleep
+                        else R.string.error_generation_timeout,
+                        timeout.minutes,
+                    )
+                    addError(IllegalStateException(message), conversationId, title = message, autoDismiss = false)
+                },
+            )
             try {
                 block()
             } finally {
+                watchdog.cancel()
                 if (foregroundStarted) {
                     ChatGenerationForegroundService.release(context, generationId)
                 }
@@ -748,6 +762,7 @@ class ChatService(
                     assistant = assistant,
                     model = model,
                     workspaceCwd = conversation.workspaceCwd,
+                    conversationId = conversationId,
                 )
             } catch (error: InvalidMcpServerNamesException) {
                 sessionManager.get(conversationId)?.messageQueue?.pause()
@@ -932,7 +947,8 @@ class ChatService(
                 val memoryScope = MemoryRepository.scopeOfChatGroup(round.group.id, conversationId)
                 val tools = chatToolFactory.createTools(round.settings, assistant, model,
                     workspaceCwd = conversation.workspaceCwd, memoryScope = memoryScope,
-                    conversationScopeAssistantId = null)
+                    conversationScopeAssistantId = null, conversationId = conversationId)
+                    .filterNot { it.name.startsWith("browser_") }
                 val firstResponseIndex = if (resuming) conversation.currentMessages.lastIndex else conversation.currentMessages.size
                 val turnResponseIndex = round.responseStart(round.index) {
                     if (!resuming) firstResponseIndex else {

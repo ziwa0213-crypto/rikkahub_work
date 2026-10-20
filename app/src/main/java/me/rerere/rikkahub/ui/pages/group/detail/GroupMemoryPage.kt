@@ -19,8 +19,10 @@ import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Download01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.AssistantMemory
+import me.rerere.rikkahub.data.db.dao.MemoryDAO
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.*
@@ -46,6 +48,21 @@ fun GroupMemoryPage(groupId: String, conversationId: String, vm: GroupVM = remem
     var editing by remember(memoryScope) { mutableStateOf<AssistantMemory?>(null) }
     var deleting by remember(memoryScope) { mutableStateOf<AssistantMemory?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var showImport by remember(memoryScope) { mutableStateOf(false) }
+    val memoryDao: MemoryDAO = koinInject()
+    val globalLabel = stringResource(R.string.memory_group_global)
+    val groupLabel = stringResource(R.string.assistant_page_memory_group)
+    val assistantLabel = stringResource(R.string.memory_import_cat_assistant)
+    MemoryImportDialogs(
+        targetScope = memoryScope, targetLabel = group.name,
+        showSources = showImport, onDismissSources = { showImport = false },
+        loadSources = {
+            // The repository intentionally has no getAllMemories facade; use the existing DAO once.
+            val counts = memoryDao.getAllMemories().groupingBy { it.assistantId }.eachCount()
+            chatMemorySources(settings.assistants, settings.memoryGroups, counts, globalLabel, groupLabel, assistantLabel)
+        },
+        sharedCount = { source -> settings.assistants.count { MemoryRepository.scopeOf(it) == source } },
+    )
     Scaffold(
         topBar = {
             LargeFlexibleTopAppBar(
@@ -64,6 +81,9 @@ fun GroupMemoryPage(groupId: String, conversationId: String, vm: GroupVM = remem
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.assistant_page_manage_memory_title),
                     style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = { showImport = true }) {
+                    Icon(HugeIcons.Download01, stringResource(R.string.memory_import_from_chat))
+                }
                 IconButton(onClick = { editing = AssistantMemory(0, "") }) {
                     Icon(HugeIcons.Add01, stringResource(R.string.add))
                 }

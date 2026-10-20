@@ -93,6 +93,7 @@ import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantPromptPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantRequestPage
 import me.rerere.rikkahub.ui.pages.backup.BackupPage
+import me.rerere.rikkahub.ui.pages.browser.BrowserPage
 import me.rerere.rikkahub.ui.pages.chat.ChatPage
 import me.rerere.rikkahub.ui.pages.debug.DebugPage
 import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
@@ -126,6 +127,8 @@ import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
+import me.rerere.rikkahub.ui.pages.setting.SettingBrowserPage
+import me.rerere.rikkahub.ui.pages.setting.SettingBrowserCookiesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSpeechPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
@@ -253,6 +256,7 @@ class RouteActivity : ComponentActivity() {
                 when (event) {
                     is AppEvent.Speak -> tts.speak(event.text)
                     is AppEvent.OpenUsageAccessSettings -> this@RouteActivity.openUsageAccessSettings()
+                    is AppEvent.OpenBrowser -> Unit // 浏览器导航由下方拥有 backStack 的 collector 处理
                     is AppEvent.ChatGenerationUpdate -> Unit // 由 ChatNotificationManager 消费
                     is AppEvent.ChatGenerationEnded -> Unit // 由 ChatNotificationManager 消费
                 }
@@ -272,6 +276,21 @@ class RouteActivity : ComponentActivity() {
         )
 
         val backStack = rememberNavBackStack(startScreen)
+        LaunchedEffect(Unit) {
+            eventBus.events.collect { event ->
+                if (event is AppEvent.OpenBrowser) {
+                    val destination = Screen.Browser(
+                        conversationId = event.conversationId.toString(),
+                        url = event.url,
+                    )
+                    // Multiple tool calls may arrive before the first WebView attaches.
+                    // Never stack a second browser destination while one is pending/open.
+                    if (backStack.none { it is Screen.Browser }) {
+                        backStack.add(destination)
+                    }
+                }
+            }
+        }
         SideEffect {
             navStack = backStack
             while (pendingIntents.isNotEmpty()) {
@@ -416,6 +435,22 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.WebView> { key ->
                                 WebViewPage(key.url, key.contentId)
+                            }
+
+                            entry<Screen.Browser> { key ->
+                                BrowserPage(
+                                    conversationId = Uuid.parse(key.conversationId),
+                                    initialUrl = key.url,
+                                    standalone = key.standalone,
+                                )
+                            }
+
+                            entry<Screen.SettingBrowser> {
+                                SettingBrowserPage()
+                            }
+
+                            entry<Screen.SettingBrowserCookies> {
+                                SettingBrowserCookiesPage()
                             }
 
                             entry<Screen.SettingTheme> {
@@ -676,6 +711,15 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class WebView(val url: String = "", val contentId: String = "") : Screen
+
+    @Serializable
+    data class Browser(val conversationId: String, val url: String, val standalone: Boolean = false) : Screen
+
+    @Serializable
+    data object SettingBrowser : Screen
+
+    @Serializable
+    data object SettingBrowserCookies : Screen
 
     @Serializable
     data object SettingTheme : Screen

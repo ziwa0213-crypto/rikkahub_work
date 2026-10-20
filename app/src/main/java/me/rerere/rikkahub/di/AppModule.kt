@@ -5,6 +5,7 @@ import com.google.firebase.analytics.analytics
 import com.google.firebase.crashlytics.crashlytics
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.browser.BrowserController
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -28,8 +29,10 @@ val appModule = module {
     }
 
     single {
-        LocalTools(get(), get(), get(), get())
+        LocalTools(get(), get(), get(), get(), get())
     }
+
+    single { BrowserController(get()) }
 
     single {
         UpdateChecker(

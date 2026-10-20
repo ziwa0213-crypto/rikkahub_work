@@ -13,11 +13,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
@@ -30,6 +32,8 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.browser.BrowserController
+import me.rerere.rikkahub.browser.normalizeBrowserVisitedHost
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GROUP_COMPRESS_PROMPT
@@ -191,6 +195,15 @@ class SettingsStore(
         val BACKUP_REMINDER_CONFIG = stringPreferencesKey("backup_reminder_config")
         val LOADING_ANIMATION_HINT_DISMISSED = booleanPreferencesKey("loading_animation_hint_dismissed")
 
+        // Built-in browser settings. Filter state is kept in its own preference
+        // so it can be changed without rewriting the serialized Settings object.
+        val BROWSER_FILTER_ENABLED = booleanPreferencesKey("browser_filter_enabled")
+        val BROWSER_DESKTOP_MODE = booleanPreferencesKey("browser_desktop_mode")
+        val BROWSER_TOOLS_DISABLED = stringPreferencesKey("browser_tools_disabled")
+        val BROWSER_TOOL_TIMEOUT_MS = longPreferencesKey("browser_tool_timeout_ms")
+        val BROWSER_TASK_TIMEOUT_MS = longPreferencesKey("browser_task_timeout_ms")
+        val BROWSER_VISITED_HOSTS = stringPreferencesKey("browser_visited_hosts")
+
         // 统计
         val LAUNCH_COUNT = intPreferencesKey("launch_count")
 
@@ -265,6 +278,18 @@ class SettingsStore(
                 preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
                 preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
                 preferences[LOADING_ANIMATION_HINT_DISMISSED] = settings.loadingAnimationHintDismissed
+                preferences[BROWSER_DESKTOP_MODE] = settings.browserDesktopMode
+                preferences[BROWSER_TOOLS_DISABLED] = JsonInstant.encodeToString(settings.browserToolsDisabled)
+                preferences[BROWSER_TOOL_TIMEOUT_MS] = settings.browserToolTimeoutMs.coerceIn(
+                    BrowserController.MIN_TOOL_TIMEOUT_MS,
+                    BrowserController.MAX_TOOL_TIMEOUT_MS,
+                )
+                preferences[BROWSER_TASK_TIMEOUT_MS] = settings.browserTaskTimeoutMs.coerceIn(
+                    BrowserController.MIN_TASK_TIMEOUT_MS,
+                    BrowserController.MAX_TASK_TIMEOUT_MS,
+                )
+                // Visited hosts are updated through their own atomic preference key. Do not
+                // overwrite them here from a possibly stale in-memory Settings snapshot.
                 preferences[LAUNCH_COUNT] = settings.launchCount
             }
         }
@@ -371,6 +396,25 @@ class SettingsStore(
                     JsonInstant.decodeFromString(it)
                 } ?: BackupReminderConfig(),
                 loadingAnimationHintDismissed = preferences[LOADING_ANIMATION_HINT_DISMISSED] == true,
+                browserDesktopMode = preferences[BROWSER_DESKTOP_MODE] == true,
+                browserToolsDisabled = preferences[BROWSER_TOOLS_DISABLED]?.let { encoded ->
+                    runCatching { JsonInstant.decodeFromString<List<String>>(encoded) }.getOrDefault(emptyList())
+                } ?: emptyList(),
+                browserToolTimeoutMs = (preferences[BROWSER_TOOL_TIMEOUT_MS] ?: 30_000L).coerceIn(
+                    BrowserController.MIN_TOOL_TIMEOUT_MS,
+                    BrowserController.MAX_TOOL_TIMEOUT_MS,
+                ),
+                browserTaskTimeoutMs = (preferences[BROWSER_TASK_TIMEOUT_MS] ?: 300_000L).coerceIn(
+                    BrowserController.MIN_TASK_TIMEOUT_MS,
+                    BrowserController.MAX_TASK_TIMEOUT_MS,
+                ),
+                browserVisitedHosts = preferences[BROWSER_VISITED_HOSTS]?.let { encoded ->
+                    runCatching { JsonInstant.decodeFromString<List<String>>(encoded) }
+                        .getOrDefault(emptyList())
+                        .mapNotNull(::normalizeBrowserVisitedHost)
+                        .distinct()
+                        .take(200)
+                } ?: emptyList(),
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
                 uiMode = preferences[UI_MODE]?.let { value -> UiMode.entries.find { it.name == value } }
                     ?: UiMode.CHAT,
@@ -489,6 +533,54 @@ class SettingsStore(
     val settingsFlow = settingsFlowRaw
         .distinctUntilChanged()
         .toMutableStateFlow(scope, Settings.dummy())
+
+    val browserFilterEnabledFlow = dataStore.data
+        .map { preferences -> preferences[BROWSER_FILTER_ENABLED] != false }
+        .distinctUntilChanged()
+
+    suspend fun setBrowserFilterEnabled(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[BROWSER_FILTER_ENABLED] = enabled }
+    }
+
+    suspend fun setBrowserDesktopMode(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[BROWSER_DESKTOP_MODE] = enabled }
+    }
+
+    suspend fun setBrowserToolsDisabled(disabled: List<String>) {
+        dataStore.edit { preferences ->
+            preferences[BROWSER_TOOLS_DISABLED] = JsonInstant.encodeToString(disabled.distinct())
+        }
+    }
+
+    suspend fun setBrowserToolTimeoutMs(ms: Long) {
+        dataStore.edit { preferences ->
+            preferences[BROWSER_TOOL_TIMEOUT_MS] = ms.coerceIn(
+                BrowserController.MIN_TOOL_TIMEOUT_MS,
+                BrowserController.MAX_TOOL_TIMEOUT_MS,
+            )
+        }
+    }
+
+    suspend fun setBrowserTaskTimeoutMs(ms: Long) {
+        dataStore.edit { preferences ->
+            preferences[BROWSER_TASK_TIMEOUT_MS] = ms.coerceIn(
+                BrowserController.MIN_TASK_TIMEOUT_MS,
+                BrowserController.MAX_TASK_TIMEOUT_MS,
+            )
+        }
+    }
+
+    suspend fun recordBrowserVisitedHost(host: String) {
+        val normalized = normalizeBrowserVisitedHost(host) ?: return
+        dataStore.edit { preferences ->
+            val current = preferences[BROWSER_VISITED_HOSTS]
+                ?.let { runCatching { JsonInstant.decodeFromString<List<String>>(it) }.getOrDefault(emptyList()) }
+                .orEmpty()
+                .mapNotNull(::normalizeBrowserVisitedHost)
+            val updated = (listOf(normalized) + current.filterNot { it == normalized }).distinct().take(200)
+            preferences[BROWSER_VISITED_HOSTS] = JsonInstant.encodeToString(updated)
+        }
+    }
 
     suspend fun update(settings: Settings) {
         if(settings.init) {
@@ -651,6 +743,11 @@ data class Settings(
     val webServerLocalhostOnly: Boolean = false,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val loadingAnimationHintDismissed: Boolean = false,
+    val browserDesktopMode: Boolean = false,
+    val browserToolsDisabled: List<String> = emptyList(),
+    val browserToolTimeoutMs: Long = 30_000L,
+    val browserTaskTimeoutMs: Long = 300_000L,
+    val browserVisitedHosts: List<String> = emptyList(),
     val launchCount: Int = 0,
     val uiMode: UiMode = UiMode.CHAT,
     val groupMembers: List<GroupMember> = emptyList(),

@@ -1,19 +1,23 @@
 package me.rerere.rikkahub.data.ai
 
+import android.os.SystemClock
 import me.rerere.common.android.LogEntry
 import me.rerere.common.android.Logging
+import me.rerere.common.android.RequestClockSnapshot
 import okhttp3.Interceptor
 import okhttp3.Response
 import okio.Buffer
 
-class RequestLoggingInterceptor : Interceptor {
+class RequestLoggingInterceptor internal constructor(private val clock: () -> RequestClockSnapshot) : Interceptor {
+    constructor() : this({ RequestClockSnapshot(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis()) })
+
     override fun intercept(chain: Interceptor.Chain): Response {
         if (!Logging.isRequestLoggingEnabled()) {
             return chain.proceed(chain.request())
         }
 
         val request = chain.request()
-        val startTime = System.currentTimeMillis()
+        val started = clock()
 
         val requestHeaders = request.headers.toMap()
         val requestBody = request.body?.let { body ->
@@ -29,6 +33,7 @@ class RequestLoggingInterceptor : Interceptor {
             response = chain.proceed(request)
         } catch (e: Exception) {
             error = e.message
+            val finished = clock()
             Logging.logRequest(
                 LogEntry.RequestLog(
                     tag = "HTTP",
@@ -36,13 +41,15 @@ class RequestLoggingInterceptor : Interceptor {
                     method = request.method,
                     requestHeaders = requestHeaders,
                     requestBody = requestBody,
-                    error = error
+                    error = error,
+                    durationMs = finished.awakeSince(started),
+                    suspendedMs = finished.suspendedSince(started),
                 )
             )
             throw e
         }
 
-        val durationMs = System.currentTimeMillis() - startTime
+        val finished = clock()
         val responseHeaders = response.headers.toMap()
 
         Logging.logRequest(
@@ -54,7 +61,8 @@ class RequestLoggingInterceptor : Interceptor {
                 requestBody = requestBody,
                 responseCode = response.code,
                 responseHeaders = responseHeaders,
-                durationMs = durationMs,
+                durationMs = finished.awakeSince(started),
+                suspendedMs = finished.suspendedSince(started),
                 error = error
             )
         )

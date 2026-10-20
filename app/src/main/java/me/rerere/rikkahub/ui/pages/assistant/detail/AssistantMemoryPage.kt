@@ -5,6 +5,7 @@ import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.PencilEdit01
+import me.rerere.hugeicons.stroke.Download01
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,13 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.MemoryGroup
+import me.rerere.rikkahub.data.db.dao.MemoryDAO
+import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.ConversationRepository
+import me.rerere.rikkahub.ui.components.ui.MemoryImportDialogs
+import me.rerere.rikkahub.ui.components.ui.MemorySource
+import org.koin.compose.koinInject
+import kotlinx.coroutines.flow.first
 import me.rerere.rikkahub.data.repository.MemoryMigrationMode
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -80,6 +88,31 @@ fun AssistantMemoryPage(id: String) {
     val memoryGroupDeleteImpact by vm.memoryGroupDeleteImpact.collectAsStateWithLifecycle()
     val pendingMemoryMigration by vm.pendingMemoryMigration.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val targetScope = MemoryRepository.scopeOf(assistant)
+    var showImport by remember(targetScope) { mutableStateOf(false) }
+    val memoryDao: MemoryDAO = koinInject()
+    val conversations: ConversationRepository = koinInject()
+    val groupChatLabel = stringResource(R.string.memory_import_cat_group_chat)
+    val targetLabel = when {
+        assistant.useGlobalMemory -> stringResource(R.string.memory_group_global)
+        assistant.memoryGroupId != null -> settings.memoryGroups.find { it.id == assistant.memoryGroupId }?.name
+            ?: stringResource(R.string.memory_group_private)
+        else -> stringResource(R.string.memory_group_private)
+    }
+    MemoryImportDialogs(targetScope, targetLabel, showImport, { showImport = false }, loadSources = {
+        val counts = memoryDao.getAllMemories().groupingBy { it.assistantId }.eachCount()
+        val ids = settings.groups.flatMap { it.conversationIds }.distinct()
+        val titles = if (ids.isEmpty()) emptyMap() else conversations.getGroupConversations(ids).first().associate { it.id to it.title }
+        settings.groups.flatMap { group ->
+            group.conversationIds.mapNotNull { conversationId ->
+                // A deleted conversation must never be offered as a source.
+                val title = titles[conversationId] ?: return@mapNotNull null
+                val source = MemoryRepository.scopeOfChatGroup(group.id, conversationId)
+                val count = counts[source] ?: 0
+                if (count == 0) null else MemorySource(source, "${group.name} · ${title.ifBlank { groupChatLabel }}", groupChatLabel, count)
+            }
+        }
+    })
 
     Scaffold(
         topBar = {
@@ -114,6 +147,7 @@ fun AssistantMemoryPage(id: String) {
             onConfirmDeleteMemoryGroup = vm::confirmMemoryGroupDeletion,
             onDismissDeleteMemoryGroup = vm::dismissMemoryGroupDeletion,
             onDeleteMemory = { vm.deleteMemory(it) },
+            onRequestMemoryImport = { showImport = true },
             onAddMemory = { vm.addMemory(it) },
             onUpdateMemory = { vm.updateMemory(it) }
         )
@@ -140,6 +174,7 @@ private fun AssistantMemoryContent(
     onAddMemory: (AssistantMemory) -> Unit,
     onUpdateMemory: (AssistantMemory) -> Unit,
     onDeleteMemory: (AssistantMemory) -> Unit,
+    onRequestMemoryImport: () -> Unit,
 ) {
     val memoryDialogState = useEditState<AssistantMemory> {
         if (it.id == 0) {
@@ -435,16 +470,13 @@ private fun AssistantMemoryContent(
                     .align(Alignment.CenterStart)
             )
 
-            IconButton(
-                onClick = {
-                    memoryDialogState.open(AssistantMemory(0, ""))
-                },
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                Icon(
-                    imageVector = HugeIcons.Add01,
-                    contentDescription = null
-                )
+            Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                IconButton(onClick = onRequestMemoryImport) {
+                    Icon(HugeIcons.Download01, stringResource(R.string.memory_import_from_group))
+                }
+                IconButton(onClick = { memoryDialogState.open(AssistantMemory(0, "")) }) {
+                    Icon(HugeIcons.Add01, stringResource(R.string.add))
+                }
             }
         }
 

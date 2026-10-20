@@ -2,15 +2,18 @@ package me.rerere.rikkahub.data.ai.tools.local
 
 import android.content.Context
 import me.rerere.ai.core.Tool
+import me.rerere.rikkahub.browser.BrowserController
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.tts.provider.TTSManager
+import kotlin.uuid.Uuid
 
 class LocalTools(
     private val context: Context,
     private val eventBus: AppEventBus,
     private val ttsManager: TTSManager,
     private val settingsStore: SettingsStore,
+    private val browserController: BrowserController,
 ) {
     val javascriptTool by lazy { buildJavascriptTool() }
 
@@ -30,8 +33,7 @@ class LocalTools(
 
     val calendarDeleteTool by lazy { buildCalendarDeleteTool(context) }
     val chartDisplayTool by lazy { buildChartDisplayTool() }
-
-    fun getTools(options: List<LocalToolOption>): List<Tool> {
+    fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
@@ -58,6 +60,9 @@ class LocalTools(
         }
         if (options.contains(LocalToolOption.ChartDisplay)) {
             tools.add(chartDisplayTool)
+        }
+        if (options.contains(LocalToolOption.Browser)) {
+            tools.addAll(buildBrowserTools(browserController, eventBus, settingsStore, conversationId))
         }
         return tools
     }

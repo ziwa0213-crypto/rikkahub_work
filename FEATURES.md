@@ -1,5 +1,39 @@
 # RikkaHub 二次开发功能台账
 
+## [F013 补充五至七] 2.5.6-work.5 / 198（2026-10-20，本地交付批次）
+
+- 版本基于未公开的 work.4 开发包递增为 `2.5.6-work.5 / 198`；保留工作区中 F013/F014、DeepSeek/AnySearch 与后台修复全部增量。只构建三个签名 Release 与完整源码，不生成 Debug、不执行 commit/tag/push、不上传、不操作设备或真实账号。
+- 补充五：`SettingBrowserPage.kt` 新增浏览器工具、敏感过滤、默认显示模式和超时设置；`RouteActivity.kt` / `SettingPage.kt` 路由与入口；`PreferencesStore.kt` 用独立 Preferences 键持久化浏览器开关及超时，避免旧 Settings 快照覆盖站点列表；三语资源一致。
+- 补充六：`Settings.browserVisitedHosts` 是唯一新增序列化字段，默认空列表；host 归一化过滤 localhost/IP、合并 www、最多 200 条、5 秒同 host 写入节流。`BrowserDataCleaner.kt` 只读取 Cookie 名称，不暴露值；页面加载完成、浏览器离开、单站和全站清理都 flush。单站删除对 https/http、www、host-only/domain 及 HttpOnly Cookie 尝试设置过期，仍受 WebView 未暴露 Path/Domain 的限制。全站清理保留 host 历史及供应商凭证。
+- 补充七：`BrowserController.kt` 将初始缩放归零，并提供只修改 viewport/root 宽度的桌面脚本；`BrowserPage.kt` 仅桌面模式加载后和 300ms 后注入，模式切换重新 load 当前 URL。`BrowserMiniPanel.kt` 收起为 44dp 右下角球，错误保持原卡片并用状态点提醒；保留展开布局，standalone 不渲染面板。
+- 测试与实现落点：`BrowserSitesTest` 覆盖 host 去敏、站点归一化、Cookie 名称解析和节流；`BrowserContractTest` 覆盖 URL、UA、风险级别和固定脚本参数。补充五到七还包含 Android WebView/设备级行为，不能由 JVM 用例声称已验收。三语言资源仅 `values`、`values-zh`、`values-zh-rTW`。
+- 验证记录：`./gradlew test :app:compileReleaseKotlin --no-daemon --console=plain --max-workers=2` 通过，131 套件 / 870 项、0失败/错误/跳过；离线浏览器脚本夹具 8 项通过。`:app:assembleRelease` 成功且 Release Lint Vital 通过。实际 Android 界面、Cookie 写盘/清除、桌面站点布局及悬浮球遮挡尚待维护者验证。源码保持未提交；没有本批 commit SHA。若未来单独提交，可按文件增量回退，保留 work.4 功能和 Settings 默认值/旧数据兼容。
+- 交付目录：`artifacts/2.5.6-work.5/F013-browser-cookies-desktop-release-20261020/`。文件为 `RikkaHub.Work.2.5.6-work.5-{arm64-v8a,x86_64,universal}-release.apk` 和 `RikkaHub.Work.2.5.6-work.5-source.zip`。APK 大小依次 39,486,056 / 40,152,546 / 49,406,154 字节；包名 `me.rerere.rikkahub.plus`、versionCode 198、非 debuggable；三个包证书 SHA-256 均为 `671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`，ABI、三语、WASM 均核验。源码 ZIP 含 1924 文件及子模块、逐文件匹配工作区；源码 SHA-256 和 APK 校验值见同目录 `SHA256SUMS` / `SOURCE-VERIFICATION.json`。Debug APK 未重建且 SHA-256 未变化。源码包排除 `.git`、构建缓存、artifacts、本地配置与密钥。
+
+## [F013 / F014] 2.5.6-work.4 / 197（2026-10-15，本地开发）
+
+- 基准 `b2625af5d968b5691030b00407075eff9f79b365`，保留全部 work.3 功能；本批不提交、不打标签、不推送，不访问真实账号或设备。仅三架构 Release，尚未发布。
+- F013 新增 `browser/{BrowserController,BrowserJsBridge,CredentialFilter,BrowserHighRisk,ReadabilityRunner}.kt`、`data/ai/tools/local/BrowserTools.kt`、`ui/pages/browser/{BrowserPage,BrowserMiniPanel}.kt` 和两份 Readability 资产/许可证。固定脚本不暴露任意 JS；按对话隔离；过滤在工具返回和手动投喂边界执行；JS/Kotlin 双层高危拒绝；不接受审批覆盖硬拒。
+- 上游升级需重套：`RouteActivity` 的 Screen.Browser 与 backStack 后事件收集、`AppEvent.OpenBrowser`、`AppModule` 注入、`LocalToolOption`/`LocalTools` 装配、`ChatToolFactory` 的 conversationId 默认参数、`ToolRiskTiers` 的八条显式等级、`ChatService` 单聊传参与群组排除、`AssistantLocalToolContent(showBrowser)`、`GroupLocalToolPage(showBrowser=false)`、PreferencesStore 过滤偏好及带 false 默认值的 browserDesktopMode 读写、三份语言资源。既有 F004 OR/HITL 和 F009 只读守卫不变。
+- 浏览器专用 WebView 宿主复用 WebViewState，不修改官方 WebViewPage/WebViewContentCache，也不沿共享 WebView 的固定 URL 更新路径反复跳回初始地址。每次调用执行应用固定函数，不常驻公开 JS bridge；模式切换同实例 reload。迷你面板复用 ChatService、Markdown、思考/工具和错误卡片，渲染偏好仅局部覆盖，不写全局配置。
+- F014 新增 `ui/components/ui/MemorySourcePickerDialog.kt`，在同文件共用 UI 导入编排及去重 helper；修改 AssistantMemoryPage / GroupMemoryPage 的导入入口。数据层零改动。任务书示例的 repository.getAllMemories 实际不存在，直接注入既有 MemoryDAO 一次查询；反向来源标题用一次 getGroupConversations(ids).first() 获取，不做 N 次查询。
+- F014 上游重套：AssistantMemoryPage 的回调参数和并列导入按钮、三份资源；群页/新组件为 fork 独有。原 MemoryPickerDialog、MemoryGroupSelector、AssistantDetailVM、MemoryRepository、MemoryDAO、Room26 均保持不变。
+- 自动验证包含 CredentialFilter / BrowserHighRisk、URL/UA/八工具分级/脚本参数，以及记忆来源去重/空桶/会话级作用域测试。实际结果和手机待验清单随本批交付记录；不能把 JVM 或脚本夹具写成真实 WebView/供应商实测。
+- 提交定位：当前未提交，无本批 commit hash。后续取得独立提交后用 `git revert <F013或F014提交SHA>` 回退；当前按以上文件逐项反向应用工作区增量，不整文件 checkout/reset，不回退 work.3。为兼容已存设置，browserDesktopMode 新字段/default 建议保留并停用入口，不能因回退破坏既有字段。
+
+
+## [F013 搜索补充 / 后台修复] 2.5.6-work.4 / 197（2026-10-19，本地 Release 已构建，尚未发布）
+
+- 基于上方尚未交付的 F013/F014 增量追加；不提交/打标签/推送/上传，不访问真实服务商、账号、设备或模拟器。统一交付三架构签名 Release 和完整源码。
+- DeepSeek：SearchService.kt 追加 DeepSeekOptions（serial=deepseek）、getService 和 TYPES；新 DeepSeekSearchService.kt、DeepSeekSearchServiceTest.kt，设置编辑器和 app/search 三语资源。Search/Fetch 同类型，summary 优先，need_content=false，250ms 请求起始节流。
+- AnySearch：随后在上述三个注册点追加 AnySearchOptions（serial=anysearch）；新 AnySearchService.kt、AnySearchServiceTest.kt，设置编辑器和三语资源。匿名无 Authorization，带 Key 不降级，结果数 1～10，Extract 取正文。
+- 源码核实偏差：原 TYPES 实际为 20 项（含 Custom JS），不是任务书所写 19 项；保留原有 20 项并按 DeepSeek、AnySearch 顺序追加。AnySearch Description 属 search 模块，官网文案放该模块而非 app，避免反向依赖；英文描述改为无撇号的同义表述。新响应解析不保留可能带 Key 的原始异常；取消异常继续传播。
+- 后台改动文件：AndroidManifest.xml、ChatGenerationForegroundService.kt、ChatService.kt、RequestLoggingInterceptor.kt、LogPage.kt、common/android/Logging.kt；新增 service/GenerationWatchdog.kt、common/android/RequestTiming.kt 及对应测试。25 分钟非引用计数 WakeLock 随任务续租/释放；20 分钟 elapsedRealtime watchdog 仍是原 Job 子协程，先报错再取消；请求活动耗时/休眠时长分开记录。
+- 验证：全模块 test 成功（5分29秒），130 套件 / 865 项，0 失败/错误/跳过。新测试增加32项：DeepSeek10、AnySearch9、SearchTools2、watchdog4、日志4、时钟3；改动模块实际执行，未变报告可能 UP-TO-DATE。设备/真实搜索/锁屏与前台锁验收仍待维护者完成。
+- 交付：`:app:assembleRelease` 成功（19分35秒），Release Lint Vital 通过；三个 APK 已按 197/work.4、包名、非 debuggable、ABI、三语、WASM 及 work.3 证书核验。完整源码 ZIP 含 1918 个文件并逐文件匹配当前工作区；产物位于 `artifacts/2.5.6-work.4/F013-F014-search-background-release-20261019/`，尚未上传 GitHub。
+- 上游重套：SearchService 的两类及注册、SettingSearchDetailPage 的两编辑器、三语；共享生成入口 watchdog、前台服务锁生命周期、manifest、日志模型/拦截器/显示及对应新文件。保留 DEFAULT、原服务商与 await，GenerationLoop、provider、原 timeout、Room26 不改。
+- commit：当前未提交，无本批 SHA。独立提交后可 git revert 对应提交；现在仅逐项反向应用增量，不整文件 checkout/reset，不覆盖此前 F013/F014 或 work.3。新增持久化类型已保存后不得改 SerialName。
+
 ## 本次发布状态摘要（2026-10-14）
 
 | 项目 | 当前状态 |

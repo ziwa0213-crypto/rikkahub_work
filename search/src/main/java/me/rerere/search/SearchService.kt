@@ -62,6 +62,8 @@ interface SearchService<T : SearchServiceOptions> {
                 is SearchServiceOptions.RikkaHubOptions -> RikkaHubSearchService
                 is SearchServiceOptions.GrokOptions -> GrokSearchService
                 is SearchServiceOptions.SuiXiangOptions -> SuiXiangSearchService
+                is SearchServiceOptions.DeepSeekOptions -> DeepSeekSearchService
+                is SearchServiceOptions.AnySearchOptions -> AnySearchService
                 is SearchServiceOptions.TinyfishOptions -> TinyfishSearchService
                 is SearchServiceOptions.SerperOptions -> SerperSearchService
                 is SearchServiceOptions.CustomJsOptions -> CustomJsSearchService
@@ -171,6 +173,8 @@ sealed class SearchServiceOptions {
             SerperOptions::class to "Serper",
             CustomJsOptions::class to "Custom JS",
             SuiXiangOptions::class to "随想搜索",
+            DeepSeekOptions::class to "DeepSeek",
+            AnySearchOptions::class to "AnySearch",
         )
     }
 
@@ -313,6 +317,27 @@ sealed class SearchServiceOptions {
             const val DEFAULT_BASE_URL = "https://www.sui-xiang.net"
         }
     }
+
+    @Serializable
+    @SerialName("deepseek")
+    data class DeepSeekOptions(
+        override val id: Uuid = Uuid.random(),
+        val apiKey: String = "",
+        val baseUrl: String = DEFAULT_BASE_URL,
+        val maxResults: Int = 5,
+    ) : SearchServiceOptions() {
+        companion object {
+            const val DEFAULT_BASE_URL = "https://api.deepseek.com"
+        }
+    }
+
+    @Serializable
+    @SerialName("anysearch")
+    data class AnySearchOptions(
+        override val id: Uuid = Uuid.random(),
+        val apiKey: String = "",
+        val maxResults: Int = 10,
+    ) : SearchServiceOptions()
 
     @Serializable
     @SerialName("tinyfish")

@@ -220,6 +220,12 @@ private fun SearchServiceOptionsEditor(
         is SearchServiceOptions.SuiXiangOptions -> {
             SuiXiangOptions(options) { onUpdateOptions(it) }
         }
+        is SearchServiceOptions.DeepSeekOptions -> {
+            DeepSeekOptions(options) { onUpdateOptions(it) }
+        }
+        is SearchServiceOptions.AnySearchOptions -> {
+            AnySearchOptions(options) { onUpdateOptions(it) }
+        }
         is SearchServiceOptions.TinyfishOptions -> {
             TinyfishOptions(options) { onUpdateOptions(it) }
         }
@@ -1008,6 +1014,73 @@ private fun SuiXiangOptionsFields(
             onValueChange = onBaseUrlChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+        )
+    }
+}
+
+@Composable
+internal fun DeepSeekOptions(
+    options: SearchServiceOptions.DeepSeekOptions,
+    onUpdateOptions: (SearchServiceOptions.DeepSeekOptions) -> Unit,
+) {
+    FormItem(label = { Text(stringResource(R.string.search_deepseek_api_key)) }) {
+        OutlinedTextField(
+            value = options.apiKey,
+            onValueChange = { onUpdateOptions(options.copy(apiKey = it)) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+    }
+    FormItem(
+        label = { Text(stringResource(R.string.search_deepseek_max_results)) },
+        description = { Text(stringResource(R.string.search_deepseek_max_results_hint)) },
+    ) {
+        OutlinedTextField(
+            value = options.maxResults.coerceIn(1, 20).toString(),
+            onValueChange = { value -> value.toIntOrNull()?.let {
+                onUpdateOptions(options.copy(maxResults = it.coerceIn(1, 20)))
+            } },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+    }
+    FormItem(
+        label = { Text(stringResource(R.string.search_deepseek_base_url)) },
+        description = { Text(stringResource(R.string.search_deepseek_base_url_hint)) },
+    ) {
+        OutlinedTextField(
+            value = options.baseUrl,
+            onValueChange = { onUpdateOptions(options.copy(baseUrl = it)) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+    }
+}
+
+@Composable
+internal fun AnySearchOptions(
+    options: SearchServiceOptions.AnySearchOptions,
+    onUpdateOptions: (SearchServiceOptions.AnySearchOptions) -> Unit,
+) {
+    FormItem(
+        label = { Text(stringResource(R.string.search_anysearch_api_key)) },
+        description = { Text(stringResource(R.string.search_anysearch_api_key_hint)) },
+    ) {
+        OutlinedTextField(
+            value = options.apiKey,
+            onValueChange = { onUpdateOptions(options.copy(apiKey = it)) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+    }
+    FormItem(
+        label = { Text(stringResource(R.string.search_anysearch_max_results)) },
+        description = { Text(stringResource(R.string.search_anysearch_max_results_hint)) },
+    ) {
+        OutlinedTextField(
+            value = options.maxResults.coerceIn(1, 10).toString(),
+            onValueChange = { value -> value.toIntOrNull()?.let {
+                onUpdateOptions(options.copy(maxResults = it.coerceIn(1, 10)))
+            } },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
 }

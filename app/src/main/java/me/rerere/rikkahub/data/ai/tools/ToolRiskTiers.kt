@@ -53,6 +53,14 @@ private val TIERS: Map<String, (JsonElement) -> ToolTier> = mapOf(
             else -> ToolTier.L3_REWRITE
         }
     },
+    "browser_read" to { _ -> ToolTier.L0_READ },
+    "browser_state" to { _ -> ToolTier.L0_READ },
+    "browser_list_actions" to { _ -> ToolTier.L0_READ },
+    "browser_done" to { _ -> ToolTier.L0_READ },
+    "browser_scroll" to { _ -> ToolTier.L1_SELF },
+    "browser_open" to { _ -> ToolTier.L3_REWRITE },
+    "browser_click" to { _ -> ToolTier.L3_REWRITE },
+    "browser_type" to { _ -> ToolTier.L3_REWRITE },
 )
 
 fun tierOf(toolName: String, args: JsonElement): ToolTier = when {

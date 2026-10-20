@@ -187,7 +187,7 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 - **Release tag** = versionName 且**不带 `v`**（如 `2.5.5-work.1`）。
   🔴 **绝不能拿 versionCode 数字当 tag** —— 比较器把 `192` 解析成 core `[192]`，而 `2.5.5-work.1` 是 `[2,5,5]`，`192 > 2` → **永远误报有更新**。
 - 🔴 **tag 的核心号必须大于已装 versionName 的核心号**（例：已装 2.5.5 时，发 `2.5.4-work.5` 永不提示更新）。
-- 🔴 **versionCode 必须大于已发布的最大值**（当前已发到 **196** = `2.5.6-work.3`；下一正式版至少 **197**；本次同步已发布版本的源码，保持196不变）。
+- 🔴 **versionCode 必须大于已发布的最大值**（目前已发布到 **196** = `2.5.6-work.3`；`2.5.6-work.4 / 197` 为本地批次，未发布；当前本地目标为 `2.5.6-work.5 / 198`。若 work.5 正式发布，下一正式版至少为 **199**）。
 
 ---
 
@@ -208,13 +208,14 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 
 ## 五、当前状态
 
-> 最后更新：**2026-10-14**（当前开发状态；下方早期合并/发布记录保留作历史）
+> 最后更新：**2026-10-20**（当前开发状态；下方早期合并/发布记录保留作历史）
 
 - **上游基线**：**2.5.6**（2026-10-01 17:55 北京发布）；2.5.4 / 2.5.5 我们**未单独出包**，改为两版一次合并（见 `发布准备/上游合并指引·2.5.4+2.5.5.md`）
-- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复 / F008 加载动画个性化 / F009 DeepSeek Web / F010 记忆迁移多选 / F011 随想搜索。F012 一期及二期 A/B/C/D/C+1/E/F、共用 Rootfs 回退及群内昵称/头像已实现；2026-10-14 维护者已发布三个签名 Release。F012 手机交互与真实供应商验收仍由维护者执行，不能因发布标为全部通过。
+- **已交付功能**：F001 日历删除 / F002 记忆分组 / F003 更新源改造 / F004 工具审批模式 / F005 关于页精简与品牌本地化 / F006 液态玻璃 / F007 思考模式推理回传修复 / F008 加载动画个性化 / F009 DeepSeek Web / F010 记忆迁移多选 / F011 随想搜索。F012 一期及二期 A/B/C/D/C+1/E/F、共用 Rootfs 回退及群内昵称/头像已实现；2026-10-14 维护者已发布三个签名 Release。F013/F014、DeepSeek/AnySearch 搜索、后台生成超时与 F013 补充五至七已并入本地 work.5 批次；设备、真实站点和真实搜索验收仍由维护者执行，不能因编译或打包标为实测通过。
 - **F006 验证状态**：方案乙修复后，维护者提供的《本次推送清单·2.5.6-work.3》确认2026-10-12实机压测通过：A崩溃回归（进出聊天页/旋转/切换会话各20次）、C性能（帧率/发热/耗电）、D兜底（旧glass配置不崩、默认模糊）。原Phase 0原型复核项已归档；这是维护者反馈，本轮未操作设备，未提供可复用的帧率/功耗原始测量值。
 - **已发布版本**：`2.5.3-work.1`(188) → `.2`(189, 预发布) → `.3`(190) → `.4`(191) → `2.5.5-work.1`(192) → `2.5.5-work.2`(193) → `2.5.6-work.1`(194) → `2.5.6-work.2`(195) → **`2.5.6-work.3`(196)**（2026-10-14 10:11北京时间正式发布，GitHub API已核实非草稿、非预发布，三个资产名/大小/SHA-256与本地交付一致）
-  · 本地版本：**`2.5.6-work.3 / 196`**。本次源码提交以远端master `6b7f8ee7` 为父提交，保留其README更新，包含全部F012及DeepSeek双协议修正。维护者已授权补齐文档、提交、推送master与纠正同名标签；后续按远端master/tag及版本核验同步结果。本批不生成Debug或重新上传APK；下方分期和打包记录均为历史。
+  · `2.5.6-work.3 / 196` 源码同步记录（历史）：该源码提交以远端master `6b7f8ee7` 为父提交并保留README更新；当前已发布状态仍以此版本为准。
+- **当前本地待发布包**：`2.5.6-work.5 / 198`（work.4/197 未发布）。本地三个签名 Release APK 与 1924 文件源码 ZIP 已核验，位于 `artifacts/2.5.6-work.5/F013-browser-cookies-desktop-release-20261020/`；不生成 Debug、不提交、不打标签、不推送或上传 GitHub。公开发布状态仍为 `2.5.6-work.3 / 196`。
 - **当前推进**（2026-09-30）：
   1. ✅ **已合并上游 2.5.4 + 2.5.5**，并保留 F007、F005 删除项。后续语言按维护者决定仅英文/简中/繁中，阿拉伯语不保留。详情仍见：`发布准备/上游合并指引·2.5.4+2.5.5.md`
      - 真冲突仅 **12 个文件**，其中 3 个需人工判断：`ChatInput.kt` / `PreferencesStore.kt` / `libs.versions.toml`
@@ -497,3 +498,28 @@ Built with Jetpack Compose, Kotlin, and follows Material Design 3 principles.
 - 维护者已明确授权补齐发布/F006压测文档、提交完整源码、推送origin/master及将远端2.5.6-work.3标签重指向本次源码提交。保留远端README，不上传开发文档、凭据、keystore、缓存或artifacts，不重复上传APK，不启动F013。
 - 版本仍为2.5.6-work.3/196，已公开Release的三个APK哈希与本地一致；错误旧tag指向fedf4d44（195/work.2），纠正时用明确旧值的force-with-lease，只更新该标签。master只允许快进推送，最终tag须与master源码HEAD一致。
 - 提交前运行全模块JVM测试；功能代码及Room26 schema须与Release构建基准一致，允许台账及远端README变化。F006实机结论仅同步维护者反馈，不替其他功能填写手机验收通过。下一正式版versionCode至少197。
+
+## F013 / F014 当前约定（2026-10-15，覆盖旧打包范围）
+
+- 维护者要求 `2.5.6-work.4 / 197`，仅 ARM64、x86_64、Universal 三个签名 Release 与完整源码，不生成 Debug、不 commit/tag/push、不操作设备/真实账号。产物放 artifacts/2.5.6-work.4/ 的独立批次目录。
+- F013 主任务书与补充一执行；补充二及维护者澄清优先：browser_open=L3_REWRITE，只有它可拉起页面，其他未打开返 NO_BROWSER。助手工具开关追加第九项，GroupLocalToolPage 传 showBrowser=false，ChatService 群轮次排除 browser_ 前缀，不改 Group 数据模型。
+- 仅八个固定浏览器工具，无任意 JS/cookie/raw DOM/截图/无头；过滤必须在离开进程前，包括手动投喂、标题/URL/操作标签。密码/隐藏/脚本/表单值不提取，高危 JS+Kotlin 硬拒，无放行开关。只一个可见 WebView、按来源对话隔离，切模式同实例 reload，不清存储。启发式限制诚实提示。
+- F014 数据层零改动，复用原 F010 picker/migrateMemories，默认 COPY，空选择不迁移。群目标用两参 scopeOfChatGroup，来源按 scope 去重，一次 DAO.getAllMemories 统计；不改原 picker/selector/VM/DAO/Repository/Room26。
+- 仍仅三语、无新依赖、无离屏挖洞；新增单测和全模块 test，Release Lint Vital 与签名/版本/ABI 核验。设备登录态、审批/键盘与迁移交互由维护者测试，不能标为自动验证通过。完整改动与上游重套清单记 CHANGES/FEATURES，保留 Readability Apache-2.0 署名。
+
+## F013 搜索补充与后台修复（2026-10-19，当前批次）
+
+- 当前仍为 2.5.6-work.4 / 197；和 F013/F014 一起交付 ARM64、x86_64、Universal 签名 Release 与完整源码。目录 artifacts/2.5.6-work.4/F013-F014-search-background-release-20261019/。不生成 Debug，不 commit/tag/push/上传，不操作设备或真实账号/API。
+- 按 DeepSeek → AnySearch 顺序追加搜索类型、TYPES、getService 和设置编辑器；DEFAULT 仍是 Bing，原20项不重排。两者均为单个类型提供 search/scrape，Key 不进URL或错误，匿名 AnySearch 不带Authorization。新类型所有参数有默认值，serial deepseek/anysearch 不得改。
+- 后台只在共享生成漏斗/前台服务/请求日志修复：25分钟 PARTIAL_WAKE_LOCK 随任务续租、最后任务释放；原 Job 的子watchdog用elapsedRealtime作20分钟截止，先addError再cancel。keepAliveInBackground=false、GenerationLoop、provider与搜索timeout/await均不改。
+- 日志 durationMs 用uptimeMillis，suspendedMs默认0，两处显示复用三语休眠格式。全模块JVM测试130套件/865项全绿，不替代真实搜索、锁屏、厂商冻结、登录态、覆盖安装和设备交互验收。
+- 本地 Release 已构建完成：`:app:assembleRelease` 成功且 Release Lint Vital 通过；三个签名 APK 与 1918 文件源码 ZIP 已在上述 artifacts 目录完成校验。当前仍不提交、不打标签、不推送、不上传。
+
+## F013 补充五至七（2026-10-20，覆盖此前本地打包号）
+
+- 当前本地版本 `2.5.6-work.5 / 198`；`2.5.6-work.4 / 197` 未公开，合并其工作区增量。交付 ARM64、x86_64、Universal 签名 Release 与完整源码，目录 `artifacts/2.5.6-work.5/F013-browser-cookies-desktop-release-20261020/`；不生成 Debug，不提交/打标签/推送/上传，不操作设备、真实账号或外部搜索服务。
+- 补充五设置页提供浏览器工具开关、过滤、默认模式与超时；群组浏览器隔离/隐藏规则仍保留，审批风险级不变。
+- 补充六只在 Settings 增加带默认值的 `browserVisitedHosts`；仅记录归一化 host，最多 200 条并节流，禁止保留完整 URL。Cookie UI 不显示值；全量确认文案明确网页登录态和 DeepSeek 供应商凭证分离。WebView 无法枚举 Path/Domain，单站清除只承诺尽力而为；不得读取 WebView Cookie 数据库，也不改变 acceptCookie 配置。
+- 补充七桌面 viewport JS 仅改 viewport 元素及根元素宽度，桌面模式加载完成后运行并延迟 300ms 补一次，手机模式不注入；不改 CredentialFilter/请求权限。聊天面板折叠为 ≤48dp 右下角球，错误状态点提示，展开布局保留；standalone 不显示。
+- 全模块 `test` 与 Release Kotlin 编译已通过（131套件/870项，0失败/错误/跳过）；`:app:assembleRelease` 与 Release Lint Vital 也通过。本机未运行设备/真实站点验收，Cookie 重启持久性与单站实际删除、桌面布局及遮挡仍由维护者验证。资源只允许英文/简中/繁中，不新增依赖。
+- 三个签名 Release 与源码 ZIP 已在该目录完成校验；ZIP 含 1924 个文件（包含子模块），APK 为 `me.rerere.rikkahub.plus / 2.5.6-work.5 / 198`，SHA-256 清单与包体验证文件随包保存。Debug APK 未生成/修改。源码目前未提交、无本批 SHA；维持工作区变更。将来上游重套需关注 PreferencesStore 的独立站点记录键、BrowserDataCleaner 与 Cookies 页面、BrowserDesktopViewport、浏览器宿主生命周期和迷你面板布局。回退不能删除已持久化 Settings 字段或覆盖此前 F013/F014、搜索与后台修复。

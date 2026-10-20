@@ -54,6 +54,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+internal fun requestActiveDuration(durationMs: Long): String =
+    if (durationMs < 60_000L) "${durationMs}ms" else "${durationMs / 1000L}s"
+
+@Composable
+private fun requestDurationText(durationMs: Long, suspendedMs: Long): String {
+    val active = requestActiveDuration(durationMs)
+    if (suspendedMs < 5_000L) return active
+    val sleepSeconds = suspendedMs / 1000L
+    return stringResource(R.string.log_request_duration_with_sleep, active,
+        sleepSeconds / 3600L, sleepSeconds % 3600L / 60L, sleepSeconds % 60L)
+}
+
 @Composable
 fun LogPage() {
     var logs by remember { mutableStateOf(Logging.getRecentLogs()) }
@@ -234,7 +246,7 @@ private fun RequestLogCard(log: LogEntry.RequestLog, onClick: () -> Unit) {
                 }
                 log.durationMs?.let { duration ->
                     Text(
-                        text = "${duration}ms",
+                        text = requestDurationText(duration, log.suspendedMs),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -292,7 +304,7 @@ private fun RequestLogDetail(log: LogEntry.RequestLog) {
 
             log.durationMs?.let { duration ->
                 item {
-                    DetailSection("Duration", "${duration}ms")
+                    DetailSection("Duration", requestDurationText(duration, log.suspendedMs))
                 }
             }
 

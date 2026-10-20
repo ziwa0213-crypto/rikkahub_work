@@ -43,6 +43,7 @@ class ChatToolFactory(
         workspaceCwd: String? = null,
         memoryScope: String? = null,
         conversationScopeAssistantId: Uuid? = assistant.id,
+        conversationId: Uuid? = null,
     ): List<Tool> = buildList {
         if (assistant.enableMemory) {
             val memoryAssistantId = memoryScope ?: MemoryRepository.scopeOf(assistant)
@@ -64,7 +65,7 @@ class ChatToolFactory(
         if (shouldUseExternalWebSearch(assistant, model)) {
             addAll(createSearchTools(settings))
         }
-        addAll(localTools.getTools(assistant.localTools))
+        addAll(localTools.getTools(assistant.localTools, conversationId))
         if (assistant.enableRecentChatsReference) {
             addAll(createConversationTools(conversationRepository, conversationScopeAssistantId))
         }
