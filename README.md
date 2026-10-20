@@ -17,7 +17,7 @@
 RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 fork**，以自用为主，顺手分享。它跟随上游发版，并在此基础上追加了一批功能与修复。
 
 - **不是 RikkaHub 官方版本。** 本仓库的一切都建立在上游工作之上；本 fork 的问题请提到**本仓库**，与上游无关。
-- **版本号规则**：`{上游版本}-work.{n}`，例如 `2.5.6-work.3`。每次跟进新的上游版本时，`n` 归 1。
+- **版本号规则**：`{上游版本}-work.{n}`，例如 `2.5.6-work.5`。每次跟进新的上游版本时，`n` 归 1。
 - **语言**：仅保留 English、简体中文、繁體中文。
 - 构建产物通过本仓库的 GitHub Releases 分发。
 
@@ -55,6 +55,8 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 - 点击/输入使用一次性元素 ID，页面变化后旧 ID 直接拒绝。
 - 浏览器底部有可展开的**迷你对话面板**，绑定原会话，支持流式回复、工具审批、停止与错误卡片。
 - 支持**手机 / 电脑**两种显示模式，切换时在同一个 WebView 上重新加载，不清除登录状态。
+- **独立的设置入口** —— 设置 → 模型与服务 → 内置浏览器：直接打开到 `about:blank`，先登录再交给 AI；可一键清除浏览数据（cookies、本地存储、缓存）。
+- **逐项开关与超时** —— 8 个工具可单独启用或禁用；敏感内容过滤默认开启（关闭需二次确认）；手机 / 电脑模式；单工具超时（10 秒 ~ 10 分钟）与单任务超时（1 ~ 60 分钟）。
 - 群组模式下不提供浏览器。
 
 ### 👥 群组模式（F012）
@@ -93,14 +95,6 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 
 下面这些**已实现但尚未发布**，或**已有明确方案、正在实施**。只列有方案的东西，不做空头承诺。
 
-### 🧭 内置浏览器的设置入口与工具开关
-
-当前浏览器只能由 AI 请求唤起。下一版补上「用户自己打开」：
-
-- **设置 → 模型与服务 → 内置浏览器**，直接启动到 `about:blank`，先登录再交给 AI —— 不用再绕到助手详情页。
-- 独立的浏览器设置页：打开浏览器 / 清除浏览数据（cookies、本地存储、缓存）/ **8 个工具逐个开关** / 敏感内容过滤 / 手机·电脑模式 / 两个超时上限（单工具 10~600 秒、单任务 1~60 分钟）。
-- 从设置打开的浏览器是**独立会话**：不新建聊天、不显示 AI 面板；登录态保留，之后 AI 接管仍然可用。
-
 ### 🫀 脉搏模式（PULSE）
 
 第三个模式，与「聊天」「群组」并列。AI 不必等你开口：
@@ -108,17 +102,13 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 - **心跳** —— 按设定间隔自检，有事才来找你，无事保持静默。
 - **计划任务** —— 到点自动执行；错过的任务补跑一次。
 - **监视器** —— 定时检查你关心的外部状态，只在**发生变化**时推送，没有变化不调用模型。
-- **记忆晋升** —— 反复命中的记忆提升为长期提示词。
+- **记忆** —— 复用文件式记忆库（画像 / 偏好 / 主题）；脉搏**不做后台自动归纳**，只在你明确说「记住」或手动编辑文件时写入。
 - 保活按「申请 + 引导 + 降级」三层设计：前台服务、Alarm + WorkManager、电池优化 / 自启动 / 精确闹钟引导。
 
 ### 🧰 更多本地工具
 
 评估中：工作区文件检索（grep / find）、设备状态、天气、系统页面跳转、分享、联系人、最近媒体。
 优先做只读、免 Key、不依赖 Linux 环境的。
-
-### 🧠 记忆系统增强
-
-记忆分类、强化计数与晋升（把反复用到的记忆提升为长期提示词），方案已有、待立项。
 
 ## 📦 上游继承的功能
 
@@ -148,8 +138,8 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 | Release 包名 | `me.rerere.rikkahub.plus` |
 | Debug 包名 | `me.rerere.rikkahub.debug` |
 | 版本号 | `{上游版本}-work.{n}` |
-| 当前发布 | `2.5.6-work.3`（versionCode 196） |
-| 工作区中的下一版 | `2.5.6-work.4`（versionCode 197，尚未发布） |
+| 当前发布 | `2.5.6-work.5`（versionCode 198） |
+| 下一版 | `3.1.0-work.1`（versionCode 199，合并上游 3.1.0 后发布） |
 | 许可证 | AGPL-3.0 |
 
 ## 🛠 构建
@@ -158,12 +148,14 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 
 - [Kotlin](https://kotlinlang.org/)（开发语言）
 - [Koin](https://insert-koin.io/)（依赖注入）
-- [Jetpack Compose](https://developer.android.com/jetpack/compose)（UI 框架）
+- [Jetpack
+Compose](https://developer.android.com/jetpack/compose)（UI 框架）
 - [DataStore](https://developer.android.com/topic/libraries/architecture/datastore)（偏好设置）
 - [Room](https://developer.android.com/training/data-storage/room)（数据库）
 - [Coil](https://coil-kt.github.io/coil/)（图片加载）
 - [Material You](https://m3.material.io/)（UI 设计）
-- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3)（导航）
+- [Navigation
+3](https://developer.android.com/guide/navigation/navigation-3)（导航）
 - [OkHttp](https://square.github.io/okhttp/)（HTTP 客户端）
 - [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)（JSON 序列化）
 
