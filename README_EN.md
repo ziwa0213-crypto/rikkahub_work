@@ -17,7 +17,7 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 RikkaHub Work is a **personal fork** of [RikkaHub](https://github.com/rikkahub/rikkahub), kept mainly for my own use and shared as is. It follows upstream releases and adds a set of features and fixes on top of them.
 
 - **Not an official RikkaHub release.** Everything here is built on upstream work. Issues with this fork should be reported **in this repository**, not upstream.
-- **Versioning**: `{upstream version}-work.{n}`, e.g. `2.5.6-work.3`. `n` resets to `1` whenever a new upstream version is followed.
+- **Versioning**: `{upstream version}-work.{n}`, e.g. `2.5.6-work.5`. `n` resets to `1` whenever a new upstream version is followed.
 - **Languages**: English, 简体中文, 繁體中文 only.
 - Builds are distributed through this repository's GitHub Releases.
 
@@ -55,6 +55,8 @@ Download the APK from this repository's **Releases** page.
 - Click and type use single-use element IDs; after the page changes, stale IDs are rejected.
 - A collapsible **mini chat panel** at the bottom is bound to the originating conversation and supports streaming replies, tool approval, stop and error cards.
 - **Mobile / desktop display modes**; switching reloads the same WebView without clearing login state.
+- **Standalone entry** — Settings → Model & Services → Built-in browser opens at `about:blank` so you can sign in first; browsing data (cookies, local storage, cache) can be cleared in one tap.
+- **Per-tool switches and timeouts** — each of the eight tools can be enabled or disabled; the sensitive-content filter is on by default (turning it off needs a second confirmation); mobile / desktop mode; per-tool timeout (10 s – 10 min) and per-task timeout (1 – 60 min).
 - Group mode does not expose the browser.
 
 ### 👥 Group Mode (F012)
@@ -93,14 +95,6 @@ Download the APK from this repository's **Releases** page.
 
 Everything below is either **implemented but not released yet** or **has a concrete plan and is being worked on**. Only things with a real design are listed.
 
-### 🧭 Browser settings entry & per-tool switches
-
-Right now the browser can only be opened by the AI. The next version adds a way to open it yourself:
-
-- **Settings → Model & Services → Built-in browser**, starting at `about:blank` so you can sign in first and hand it to the AI afterwards — no more digging through assistant details.
-- A dedicated browser settings page: open browser / clear browsing data (cookies, local storage, cache) / **per-tool switches for all eight tools** / sensitive-content filter / mobile·desktop mode / two timeouts (per tool 10–600 s, per task 1–60 min).
-- A browser opened from Settings is a **standalone session**: no chat is created and the AI panel is not shown; the login state is kept and the AI can still take over later.
-
 ### 🫀 Pulse mode (PULSE)
 
 A third mode next to Chat and Group, where the AI does not wait for you to speak:
@@ -108,17 +102,13 @@ A third mode next to Chat and Group, where the AI does not wait for you to speak
 - **Heartbeat** — self-check on an interval; only reports when something is wrong, otherwise stays silent.
 - **Scheduled tasks** — run at the appointed time; a missed run is retried once.
 - **Watchers** — poll external state you care about and push only when it **changes**; no change means no model call.
-- **Memory promotion** — memories that keep coming up are promoted into the long-term prompt.
+- **Memory** — reuses the file-based memory library (profile / preferences / topics); Pulse does **not** consolidate in the background — writes happen only when you explicitly ask it to remember, or when you edit the files yourself.
 - Keep-alive follows an "request + guide + degrade" three-layer design: foreground service, Alarm + WorkManager, and battery-optimization / autostart / exact-alarm guidance.
 
 ### 🧰 More local tools
 
 Under evaluation: workspace file search (grep / find), device status, weather, opening system pages, sharing, contacts, recent media.
 Read-only, key-free tools that do not need a Linux environment come first.
-
-### 🧠 Memory improvements
-
-Memory categories, reinforcement counts and promotion (turning frequently used memories into long-term prompt content). Designed, awaiting scheduling.
 
 ## 📦 Inherited from Upstream
 
@@ -148,8 +138,8 @@ Memory categories, reinforcement counts and promotion (turning frequently used m
 | Release package | `me.rerere.rikkahub.plus` |
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version format | `{upstream version}-work.{n}` |
-| Current release | `2.5.6-work.3` (versionCode 196) |
-| Next in the working tree | `2.5.6-work.4` (versionCode 197, not released yet) |
+| Current release | `2.5.6-work.5` (versionCode 198) |
+| Next release | `3.1.0-work.1` (versionCode 199, after merging upstream 3.1.0) |
 | License | AGPL-3.0 |
 
 ## 🛠 Build
