@@ -54,6 +54,7 @@ fun BrowserPage(
     val visitThrottle = remember { BrowserVisitThrottle() }
     val toaster = LocalToaster.current
     val failure = stringResource(R.string.error_title_operation)
+    var panelExpanded by remember(conversationId) { mutableStateOf(false) }
     var editAddress by remember { mutableStateOf(standalone && initialUrl.isBlank()) }
     var address by remember { mutableStateOf(initialUrl) }
     var addressError by remember { mutableStateOf(false) }
@@ -123,7 +124,16 @@ fun BrowserPage(
                 controller, settingsStore, visitThrottle, scope,
             )
             if (!standalone) {
-                BrowserMiniPanel(conversationId, controller, settingsStore, Modifier.align(Alignment.BottomEnd))
+                BrowserMiniPanel(
+                    conversationId = conversationId,
+                    controller = controller,
+                    settingsStore = settingsStore,
+                    modifier = Modifier.align(
+                        if (panelExpanded) Alignment.BottomCenter else Alignment.CenterEnd,
+                    ),
+                    expanded = panelExpanded,
+                    onExpandedChange = { panelExpanded = it },
+                )
             }
         }
     }
