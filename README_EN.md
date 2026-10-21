@@ -7,6 +7,8 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 [简体中文](README.md) | English
 </div>
 
+> 🚧 **Merging upstream 3.1.0 in progress** — an architectural rewrite; see **[DEVELOPMENT.md](./DEVELOPMENT.md)** for progress.
+
 <div align="center">
   <img src="docs/img/chat.png" alt="Chat Interface" width="150" />
   <img src="docs/img/desktop.png" alt="Models Picker" width="450" />
@@ -91,25 +93,6 @@ Download the APK from this repository's **Releases** page.
 - **Background hang fix** — generation holds a `PARTIAL_WAKE_LOCK` and has a 20-minute hard deadline checked every 5 seconds against a clock that includes sleep. Request logs use active time and report suspended time separately, so frozen time is no longer counted as network time.
 - Timeouts and "interrupted by device sleep" both surface a clear error card, which is recorded before the job is cancelled.
 
-## 🚧 In Progress
-
-Everything below is either **implemented but not released yet** or **has a concrete plan and is being worked on**. Only things with a real design are listed.
-
-### 🫀 Pulse mode (PULSE)
-
-A third mode next to Chat and Group, where the AI does not wait for you to speak:
-
-- **Heartbeat** — self-check on an interval; only reports when something is wrong, otherwise stays silent.
-- **Scheduled tasks** — run at the appointed time; a missed run is retried once.
-- **Watchers** — poll external state you care about and push only when it **changes**; no change means no model call.
-- **Memory** — reuses the file-based memory library (profile / preferences / topics); Pulse does **not** consolidate in the background — writes happen only when you explicitly ask it to remember, or when you edit the files yourself.
-- Keep-alive follows an "request + guide + degrade" three-layer design: foreground service, Alarm + WorkManager, and battery-optimization / autostart / exact-alarm guidance.
-
-### 🧰 More local tools
-
-Under evaluation: workspace file search (grep / find), device status, weather, opening system pages, sharing, contacts, recent media.
-Read-only, key-free tools that do not need a Linux environment come first.
-
 ## 📦 Inherited from Upstream
 
 > The following comes from upstream and is kept as is.
@@ -139,7 +122,6 @@ Read-only, key-free tools that do not need a Linux environment come first.
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version format | `{upstream version}-work.{n}` |
 | Current release | `2.5.6-work.5` (versionCode 198) |
-| Next release | `3.1.0-work.1` (versionCode 199, after merging upstream 3.1.0) |
 | License | AGPL-3.0 |
 
 ## 🛠 Build
