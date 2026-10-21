@@ -7,6 +7,8 @@
 [English](README_EN.md) | 简体中文
 </div>
 
+> 🚧 **正在合并上游 3.1.0** —— 这是一次架构级重写，开发进度见 **[DEVELOPMENT.md](./DEVELOPMENT.md)**。
+
 <div align="center">
   <img src="docs/img/chat.png" alt="聊天界面" width="150" />
   <img src="docs/img/desktop.png" alt="模型选择" width="450" />
@@ -91,25 +93,6 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 - **后台挂起修复** —— 生成期间持有 `PARTIAL_WAKE_LOCK`，并加入 20 分钟硬截止（每 5 秒用包含休眠的时钟检测）；请求日志改用活动耗时，并单独标注设备休眠时长，不再把冻结时间算成网络耗时。
 - 生成超时和「因设备休眠中断」都有明确提示，先落错误卡片再取消任务。
 
-## 🚧 开发中
-
-下面这些**已实现但尚未发布**，或**已有明确方案、正在实施**。只列有方案的东西，不做空头承诺。
-
-### 🫀 脉搏模式（PULSE）
-
-第三个模式，与「聊天」「群组」并列。AI 不必等你开口：
-
-- **心跳** —— 按设定间隔自检，有事才来找你，无事保持静默。
-- **计划任务** —— 到点自动执行；错过的任务补跑一次。
-- **监视器** —— 定时检查你关心的外部状态，只在**发生变化**时推送，没有变化不调用模型。
-- **记忆** —— 复用文件式记忆库（画像 / 偏好 / 主题）；脉搏**不做后台自动归纳**，只在你明确说「记住」或手动编辑文件时写入。
-- 保活按「申请 + 引导 + 降级」三层设计：前台服务、Alarm + WorkManager、电池优化 / 自启动 / 精确闹钟引导。
-
-### 🧰 更多本地工具
-
-评估中：工作区文件检索（grep / find）、设备状态、天气、系统页面跳转、分享、联系人、最近媒体。
-优先做只读、免 Key、不依赖 Linux 环境的。
-
 ## 📦 上游继承的功能
 
 > 以下能力来自上游，本 fork 原样保留。
@@ -139,7 +122,6 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 | Debug 包名 | `me.rerere.rikkahub.debug` |
 | 版本号 | `{上游版本}-work.{n}` |
 | 当前发布 | `2.5.6-work.5`（versionCode 198） |
-| 下一版 | `3.1.0-work.1`（versionCode 199，合并上游 3.1.0 后发布） |
 | 许可证 | AGPL-3.0 |
 
 ## 🛠 构建
@@ -148,14 +130,12 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 
 - [Kotlin](https://kotlinlang.org/)（开发语言）
 - [Koin](https://insert-koin.io/)（依赖注入）
-- [Jetpack
-Compose](https://developer.android.com/jetpack/compose)（UI 框架）
+- [Jetpack Compose](https://developer.android.com/jetpack/compose)（UI 框架）
 - [DataStore](https://developer.android.com/topic/libraries/architecture/datastore)（偏好设置）
 - [Room](https://developer.android.com/training/data-storage/room)（数据库）
 - [Coil](https://coil-kt.github.io/coil/)（图片加载）
 - [Material You](https://m3.material.io/)（UI 设计）
-- [Navigation
-3](https://developer.android.com/guide/navigation/navigation-3)（导航）
+- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3)（导航）
 - [OkHttp](https://square.github.io/okhttp/)（HTTP 客户端）
 - [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)（JSON 序列化）
 
