@@ -13,6 +13,9 @@ but several fork features are being re-integrated before the next release.
 
 No build is published while this work is in progress.
 
+**Planned next**: Pulse mode — a third mode alongside Chat and Group where the assistant
+checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead of waiting for input.
+
 ---
 
 ## 当前目标
@@ -37,6 +40,7 @@ No build is published while this work is in progress.
 | 3 | 群组功能回归 | ⏳ 未开始 | 17 个页面按新接口重写后接回 |
 | 3 | 浏览器 / 审批 / 加载动画入口 | ⏳ 未开始 | 逻辑已在，UI 入口随上游页面重写而缺失 |
 | 4 | 收尾 | ⏳ 未开始 | 三语言、测试恢复、Release |
+| — | 🫀 **脉搏模式（PULSE）** | 📋 **规划中** | 设计完成，任务书就绪，排在本轮之后；详见下方「规划中」 |
 
 ---
 
@@ -77,6 +81,29 @@ No build is published while this work is in progress.
 | 做梦 | Markdown 文件，模型后台整理出来的知识 | 后台整理器 |
 
 两套共用同一个作用域（私有 / 记忆分组 / 全局 / 群聊），旧数据通过迁移拆回「记忆」。
+
+---
+
+## 规划中（未开始）
+
+### 🫀 脉搏模式（PULSE）
+
+第三个模式，与「聊天」「群组」并列。AI 不必等你开口：
+
+- **心跳** —— 按设定间隔自检，有事才来找你，无事保持静默。
+- **计划任务** —— 到点自动执行；错过的任务补跑一次。
+- **监视器** —— 定时检查你关心的外部状态，只在**发生变化**时推送，没有变化不调用模型。
+- **记忆** —— 复用文件式记忆库（画像 / 偏好 / 主题）；脉搏不做后台自动归纳，只在你明确说「记住」或手动编辑文件时写入。
+- **保活** —— 按「申请 + 引导 + 降级」三层设计：前台服务、Alarm + WorkManager、电池优化 / 自启动 / 精确闹钟引导。
+
+> **状态**：设计已完成，任务书 14 个包已就绪，排在本次合并与记忆双板块之后。
+
+### 🧰 更多本地工具
+
+评估中：工作区文件检索（grep / find）、设备状态、天气、系统页面跳转、分享、联系人、最近媒体。
+优先做只读、免 Key、不依赖 Linux 环境的。
+
+> **状态**：评估中，未立项。
 
 ---
 
