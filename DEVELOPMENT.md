@@ -1,6 +1,6 @@
 # 开发进度 / Development Status
 
-> 最后更新：**2026-10-21**
+> 最后更新：**2026-10-23**
 > 本文件记录**正在开发中的工作**。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
 
 ---
@@ -8,22 +8,22 @@
 ## English Summary
 
 This fork is being rebased onto upstream **3.1.0** — an architectural rewrite (300 files modified,
-247 added, 81 removed upstream). The merge compiles cleanly and produces a runnable debug build,
-but several fork features are being re-integrated before the next release.
+247 added, 81 removed upstream). The merge compiles cleanly and the database migration is verified
+on a real device, but several fork features are still being re-integrated.
 
 No build is published while this work is in progress.
 
-**Planned next**: Pulse mode — a third mode alongside Chat and Group where the assistant
-checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead of waiting for input.
+**Next**: finish the stage-2 fixes, re-integrate Group mode / browser / approval entries (stage 3),
+then rewrite the workspace Linux environment (F017). Pulse mode comes after that.
 
 ---
 
 ## 当前目标
 
-**合并上游 3.1.0**（含 3.0.0 的累计更新）。
+**合并上游 3.1.0**（含 3.0.0 的累计更新），并把 fork 的 14 项功能逐一接回来。
 
-上游这一轮把记忆、媒体生成、设置页、抽屉结构全部重写了，与我们 fork 的 14 项功能碰撞 98 个文件。
-不是升个版本号能解决的事，所以拆成四个阶段推进。
+上游这一轮把记忆、媒体生成、设置页、抽屉结构全部重写了，与本 fork 的改动碰撞 98 个文件。
+所以拆成四个阶段推进，**阶段全部完成并通过实机验收之前不发布任何构建**。
 
 ---
 
@@ -34,13 +34,15 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 | 0 | 合并冲突 | ✅ 完成 | 91 处冲突全部解决 |
 | 0 | 主程序编译 | ✅ 完成 | 编译错误从 918 条降到 0 |
 | 0 | Debug 构建 | ✅ 完成 | 可运行，未发布 |
-| 1 | 数据迁移验证 | ✅ 完成 | 数据库 26→31 迁移通过，老数据保留 |
-| 2a | 液态玻璃两档回归 | 🔨 实施中 | 恢复自有实现：玻璃（Android 13+ 真实折射）/ 模糊（低版本自动回退） |
-| 2b | 记忆双板块 | 🔨 实施中 | 记忆页拆三块：`记忆`（逐条）/ `做梦`（自动整理）/ `设置` |
-| 3 | 群组功能回归 | ⏳ 未开始 | 17 个页面按新接口重写后接回 |
-| 3 | 浏览器 / 审批 / 加载动画入口 | ⏳ 未开始 | 逻辑已在，UI 入口随上游页面重写而缺失 |
-| 4 | 收尾 | ⏳ 未开始 | 三语言、测试恢复、Release |
-| — | 🫀 **脉搏模式（PULSE）** | 📋 **规划中** | 设计完成，任务书就绪，排在本轮之后；详见下方「规划中」 |
+| 1 | 数据迁移 | ✅ 完成 | 26→31、31→32 两段迁移已在实机验证，老数据保留 |
+| 2a | 液态玻璃两档 | ✅ 已交付 | 代码完成，实机发现「始终回退为模糊」的缺陷，修复中 |
+| 2b | 记忆双板块 | ✅ 已交付 | 三 Tab 与迁移完成，实机基本正常，多选删除修复中 |
+| 2c | 阶段二实测修复 | 🔨 进行中 | 4 个实测问题，见下节 |
+| 3 | 群组功能回归 | ⏳ 未开始 | 17 个页面按 3.1 新接口重写后接回 |
+| 3 | 入口与样式 | ⏳ 未开始 | 浏览器、审批三档、加载动画、记忆分组等入口；图标与列表样式对齐新设计 |
+| 4 | 收尾 | ⏳ 未开始 | 三语言检查、测试恢复、Release |
+| — | 🐧 **工作区 Linux 改造（F017）** | 📋 **已排期** | 排在本次合并之后、脉搏模式之前；见下方专节 |
+| — | 🫀 **脉搏模式（PULSE）** | 📋 规划中 | 设计完成，排在 F017 之后 |
 
 ---
 
@@ -49,31 +51,33 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 **合并层面**
 
 - 上游的 `:ui`、`:mediagen` 两个新模块接入，废弃的 `:videogen`、旧玻璃模块移除
-- 数据库迁移链 26→31 全部就位（媒体创作 3 张表、文件式记忆 2 张表、用量记录、翻译历史）
-- 我们的 14 项 fork 改动逐项核对：`F007` 推理回传、`ask_user` HITL、后台 watchdog、`F009` 只读拦截都在
+- 数据库迁移链 26→31→32 全部就位（媒体创作 3 张表、文件式记忆 2 张表、用量记录、翻译历史、行式记忆表）
+- fork 的 14 项改动逐项核对：`F007` 推理回传、`ask_user` HITL、后台 watchdog、`F009` 只读拦截都在
 
 **功能层面**
 
 - 媒体创作（图片 / 视频）模块编译进包
-- 文件式记忆（`memory_file`）数据层可用
+- 文件式记忆（`memory_file`）+ 行式记忆（`MemoryEntity`）双轨数据层可用
 - 上游新增的图表工具、对话级设置、AI 翻译入口
 
 ---
 
-## 正在做的两件事
+## 阶段二交付了什么
 
-**液态玻璃回到两档**
+### 液态玻璃回到两档
 
-上游 3.0 把输入栏玻璃换成了 haze 的 `glass` 效果，我们决定放弃它，恢复自己的实现：
+上游 3.0 把输入栏玻璃换成了 haze 的 `glass` 效果，本 fork 放弃它，恢复自己的实现：
 
 | 档 | Android 13+ | Android 12 及以下 |
 |---|---|---|
 | 玻璃 | 真实折射 + 色散 | 自动退回模糊（无提示） |
 | 模糊 | 模糊 | 模糊 |
 
-**记忆拆成两块**
+旧版本的「玻璃」配置会自动归一化为新结构，不会崩、不会丢设置。
 
-上游把记忆改成了「文件库 + 后台自动整理」，一条条的记忆没了。我们改成两套并存：
+### 记忆拆成两块
+
+上游把记忆改成了「文件库 + 后台自动整理」，一条条的记忆没了。本 fork 改成两套并存：
 
 | 板块 | 内容 | 谁写 |
 |---|---|---|
@@ -81,12 +85,74 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 | 做梦 | Markdown 文件，模型后台整理出来的知识 | 后台整理器 |
 
 两套共用同一个作用域（私有 / 记忆分组 / 全局 / 群聊），旧数据通过迁移拆回「记忆」。
+两条写入路径不交叉：`memory_tool` 只写行式，整理器只写文件式；整理器会读行式用于判重。
 
 ---
 
-## 规划中（未开始）
+## 阶段二实测：正在修的四个问题
 
-### 🫀 脉搏模式（PULSE）
+2026-10-23 在一台 Android 16 设备上覆盖安装实测，数据迁移与记忆主体通过，其余四项待修：
+
+| 问题 | 现象 | 原因 |
+|---|---|---|
+| 液态玻璃不生效 | 两档没有区别，始终是模糊 | 旧配置迁移时置了「兼容」标志，渲染判断读到了它，而界面没有开关可关 |
+| 记忆无法多选删除 | 长按一条记忆没有反应 | 多选与批量删除没有接上 |
+| DeepSeek 网页版登录页空白 | 点「打开登录页」白屏/黑屏 | 内嵌 WebView 没有错误回调，加载失败时不报错只给白屏 |
+| DeepSeek 网页版无法发消息 | 报 `JsonNull is not a JsonObject` | 登录失效时服务端返回 `data: null`，解析把它当成对象 |
+
+前两项属界面层，后两项是同一条链（登录失败 → 没有凭证 → 服务端返回空数据 → 解析崩溃），会一起修。
+
+---
+
+## 下一步
+
+1. **收尾阶段二**：修完上面四项，重新实机验证玻璃两档、记忆批量删除、网页版登录与发消息。
+2. **阶段三**：把群组模式整批接回（17 个页面按 3.1 新接口重写），补齐浏览器 / 审批三档 / 加载动画 / 记忆分组的入口，统一图标与列表样式。
+3. **发布 `3.1.0-work.1`**：阶段三完成 + 设备验收通过（启动不崩、老数据完整）两条都满足才发。
+4. **F017 工作区改造**（见下节）。
+5. **脉搏模式**（见下节）。
+
+---
+
+## 已排期：工作区 Linux 环境改造（F017）
+
+### 现状
+
+工作区的 Linux 环境**不是「安装」出来的**：下载一个 Ubuntu Base 压缩包 → 解压 → 写六个配置文件（DNS、hosts、hostname、locale、group、临时目录）→ 用 proot 启动。
+
+这带来三个问题：
+
+- **装完不能立刻用**：不自带 `curl`、`git`，连 `python3` 也没有；装完即显示「就绪」，实际要模型现装
+- **`apt` 可能直接失败**：没有处理 proot 下 `setresuid` 被挡、`dpkg` 逐文件 `fsync` 过慢这两个已知问题
+- **下载没有校验**：只判断 HTTP 是否成功，不核对内容；默认地址还写死了 arm64
+
+### 改造后
+
+| 档 | 发行版 | 体积 | 安全维护到 |
+|---|---|---|---|
+| 标准（默认） | Ubuntu 26.04 LTS | ~35 MB | 2031 |
+| 兼容 | Ubuntu 24.04 LTS | ~30 MB | 2029 |
+| 极轻量 | Alpine 3.22 | ~4 MB | 2027 |
+
+- **装完基础工具才算就绪**：bash、ca-certificates、curl、wget、git 等随环境一起装好
+- **下载做 SHA-256 校验**，按设备 ABI 自动选 arm64 / x86_64，多个镜像自动回退
+- **可以填自定义地址，也可以从本地文件安装**；本地安装会先说明风险并要求手动输入确认文字
+- **架构不对、带桌面环境、文件数过多的包会在安装前就被拒绝**，不会出现「装完才发现不能用」
+
+接口上为「更多发行版 / 更多来源」留了扩展点，但**本版本只启用上述三档**，不接入网络索引。
+
+### 明确不做
+
+| 不做 | 原因 |
+|---|---|
+| 桌面环境（GNOME / KDE / XFCE 等） | proot 的每次系统调用都要拦截，图形界面会卡到不可用；且没有显卡直通与显示服务 |
+| 同一工作区并存多份 rootfs | 磁盘翻倍，收益有限；切换发行版 = 重装（`/workspace` 里的文件不受影响） |
+| 自动升级系统包 | 需要后台任务并会未经同意改动环境；改为在界面上提示手动执行 |
+| 32 位系统 | 只内置 arm64 与 x86_64 的加载器 |
+
+---
+
+## 规划中：脉搏模式（PULSE）
 
 第三个模式，与「聊天」「群组」并列。AI 不必等你开口：
 
@@ -96,7 +162,7 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 - **记忆** —— 复用文件式记忆库（画像 / 偏好 / 主题）；脉搏不做后台自动归纳，只在你明确说「记住」或手动编辑文件时写入。
 - **保活** —— 按「申请 + 引导 + 降级」三层设计：前台服务、Alarm + WorkManager、电池优化 / 自启动 / 精确闹钟引导。
 
-> **状态**：设计已完成，任务书 14 个包已就绪，排在本次合并与记忆双板块之后。
+> **状态**：设计完成，任务书已就绪，排在 F017 之后。
 
 ### 🧰 更多本地工具
 
@@ -107,6 +173,16 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 
 ---
 
+## 为什么暂时没有新版本
+
+- **功能不完整不发布**：群组、浏览器、审批三档的入口还没接回，现在发出去等于功能倒退。
+- **不发预发布占位**：不用 Pre-release 记录进度，避免更新检查误报。
+- **数据只升不降**：数据库已经升到 32，回退到旧版本读取会失败，只能清数据，所以宁可晚发。
+
+`master` 上始终是最后一个完整版本（`2.5.6-work.5`），开发工作不影响它。
+
+---
+
 ## 完成后会有的变化
 
 - 🧠 记忆双板块（逐条 + 知识库）
@@ -114,6 +190,8 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 - 📝 AI 翻译入口移到抽屉，图表工具、对话级设置
 - 💎 液态玻璃两档
 - 👥 群组、内置浏览器、工具审批重新接回
+- 🐧 工作区可装三种 Linux，装完即用
+- 🫀 脉搏模式
 
 ---
 
@@ -123,5 +201,6 @@ checks in on its own (heartbeat, scheduled tasks, change-only watchers) instead 
 |---|---|
 | `2.5.6-work.5`（198） | 浏览器悬浮球、Cookies 管理、群内昵称头像 |
 | `2.5.6-work.4` | 思考模式推理回传修复 |
-| `2.5.6-work.2` | 随想搜索供应商 |
+| `2.5.6-work.3` | 群组功能二期、群内昵称与头像、DeepSeek 续答修复 |
+| `2.5.6-work.2` | 随想搜索供应商、记忆迁移多选 |
 | `2.5.6-work.1` | DeepSeek 网页版 + 合并上游 2.5.4/2.5.5 |
