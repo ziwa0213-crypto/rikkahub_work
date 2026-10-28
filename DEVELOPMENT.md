@@ -15,9 +15,13 @@ problem, whose root cause turned out to be a leftover UI-mode field rather than 
 Stage 3 — bringing Group mode and the missing entries back — is under way, split into five steps by
 dependency. The first step (member library) is ready to land.
 
+Upstream **3.1.1** shipped on 24 October. Rather than publishing twice, stage 3 lands on the current
+3.1.0 base, then 3.1.1 is merged in, and a single build is released as **`3.1.1-work.1`**.
+
 No build is published while this work is in progress.
 
-Next: finish stage 3, then rewrite the workspace Linux environment (F017). Pulse mode comes after that.
+Next: finish stage 3, merge 3.1.1, then rewrite the workspace Linux environment (F017). Pulse mode
+comes after that.
 
 ---
 
@@ -29,6 +33,10 @@ Next: finish stage 3, then rewrite the workspace Linux environment (F017). Pulse
 四个阶段推进，**四个阶段全部完成并通过实机验收之前，不发布任何构建**。
 
 阶段一、二已完成；阶段三（把群组与缺失入口接回）正在进行，按依赖拆成五步，见 §2.1。
+
+上游在 10 月 24 日又发了 **3.1.1**（不是补丁：165 个文件修改、180 新增、131 删除）。为避免发两次版，
+计划是：**阶段三在当前 3.1.0 基线上做完 → 合并 3.1.1 → 一次发布 `3.1.1-work.1`**。3.1.1 的三处硬骨头
+（数据库 schema 撞车、上游删掉了分词词典与 PDF 内核、构建改成双渠道变体）见 §5.6。
 
 ---
 
@@ -162,7 +170,7 @@ Next: finish stage 3, then rewrite the workspace Linux environment (F017). Pulse
 | 玻璃需要 Android 13 及以上 | 低于此版本自动用模糊；不报错，也不抬高安装门槛 |
 | 玻璃模式下底部导航栏区域是纯色 | 设了背景图或渐变时可能与之不搭，属当前取舍 |
 | 调试版与正式版可共存 | 包名不同（`.debug` / `.plus`），互不影响，各自独立升级 |
-| 数据库只升不降 | 已迁到 32，装回旧版本读不了数据，只能清数据 |
+| 数据库只升不降 | 已迁到 32，装回旧版本读不了数据，只能清数据（合并 3.1.1 后会到 33） |
 
 ### 5.5 阶段三① 的实施前置（🔧 进行中）
 
@@ -175,15 +183,27 @@ Next: finish stage 3, then rewrite the workspace Linux environment (F017). Pulse
 
 补齐之后才能搬文件 —— 否则编译不过。这是实施顺序问题，不是设计变更。
 
+### 5.6 合并 3.1.1 要处理的三件事（📋 已排期）
+
+| # | 问题 | 说明 |
+|---|---|---|
+| 1 | **数据库 schema 撞车** | 上游 3.1.1 也用版本 32，但只有 14 张表（无行式记忆，`workspaces` 带 SSH 字段）；我们用 32 有 15 张表（多行式记忆 + 归属/共享字段）。版本号相同而结构不同 → 必须把我们的迁到 **33**，并把上游那部分变更并进去。 |
+| 2 | **上游删了三样我们还在用的东西** | jieba 分词词典（FTS 换了方案）、整个 muPDF（PDF 改成自研解析）、Play Store 检测（我们本来就没用）。前两项要跟着换，`document` 模块整块取上游。 |
+| 3 | **构建改成了双渠道** | 上游把分发改成 `github` / `play` 两个 flavor，`assembleRelease` 变成 `assembleGithubRelease`。出包流程要跟着改。 |
+
+顺带：3.1.1 新增德语，按三语方针对齐时删掉；SSH 远程工作区带一个新的终端模块（Apache-2.0），
+会增大包体，但与工作区抽象深度耦合，拆分成本高于跟随。
+
 ---
 
 ## 6. 下一步
 
 1. **落地阶段三①** —— 先补记忆作用域方法，再放回组员库相关文件，接依赖注入与一条路由。装包后验：设置 → 通用 → 组员，能搜索、新建、编辑、复制、删除、拖拽排序。
 2. **阶段三②~⑤** —— 配置页 → 群聊 → 记忆迁移选择器 → 样式与交互。
-3. **发布 `3.1.0-work.1`** —— 阶段三完成，且设备验收通过（启动不崩、老数据完整、主要入口都能进）。
-4. **F017 工作区改造**（见 §7）。
-5. **脉搏模式**（见 §8）。
+3. **合并上游 3.1.1** —— 阶段三完成后立即做，重点：数据库 32→33、三个被删依赖的替代、构建变体。
+4. **发布 `3.1.1-work.1`** —— 合并完成且设备验收通过（启动不崩、老数据能读、主要入口都能进）才发。
+5. **F017 工作区改造**（见 §7）—— 上游 3.1.1 已把工作区抽象成可替换后端，三档环境应做在这层之上。
+6. **脉搏模式**（见 §8）。
 
 > 阶段三⑤ 里的「样式与交互」会顺带把设置页里几处图标风格不统一的地方对齐。
 
