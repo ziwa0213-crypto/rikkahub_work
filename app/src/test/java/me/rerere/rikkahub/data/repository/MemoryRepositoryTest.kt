@@ -1,280 +1,250 @@
 package me.rerere.rikkahub.data.repository
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
-import me.rerere.rikkahub.data.db.dao.MemoryDAO
-import me.rerere.rikkahub.data.db.entity.MemoryEntity
-import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.utils.JsonInstant
+import kotlinx.coroutines.runBlocking
+import me.rerere.rikkahub.data.db.entity.MemoryFileEntity
+import me.rerere.rikkahub.data.model.MemoryFile
+import me.rerere.rikkahub.data.model.groupByDirectory
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Before
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.uuid.Uuid
 
 class MemoryRepositoryTest {
-    private lateinit var dao: FakeMemoryDao
-    private lateinit var repository: MemoryRepository
+    private val dao = FakeMemoryDAO()
+    private val repository = MemoryRepository(dao)
+    private val assistant = "assistant"
 
-    @Before
-    fun setUp() {
-        dao = FakeMemoryDao()
-        repository = MemoryRepository(dao)
+    private suspend fun create(path: String, content: String): MemoryFile {
+        val result = repository.writeFile(assistant, path, content, MemoryRepository.NEW_FILE_VERSION)
+        return (result as MemoryWriteResult.Success).file!!
     }
 
     @Test
-    fun `private memory uses assistant id`() {
-        val assistant = Assistant()
+    fun `creating a file that already exists returns the current content`() = runBlocking {
+        val file = create("/topics/food.md", "- [stated] Likes noodles\n")
 
-        assertEquals(assistant.id.toString(), MemoryRepository.scopeOf(assistant))
+        val result = repository.writeFile(assistant, "/topics/food.md", "other", MemoryRepository.NEW_FILE_VERSION)
+
+        assertEquals(MemoryWriteResult.Conflict(file), result)
+        assertEquals(file.content, repository.getFile(assistant, "/topics/food.md")?.content)
     }
 
     @Test
-    fun `group memory uses stable uuid namespace`() {
-        val groupId = Uuid.random()
-        val assistant = Assistant(memoryGroupId = groupId)
+    fun `writing with a stale version is rejected and a fresh version succeeds`() = runBlocking {
+        val first = create("/profile.md", "- [stated] Lives in Shenzhen\n")
+        val second = (repository.appendToFile(assistant, "/profile.md", "- [stated] Works as a designer", first.version)
+            as MemoryWriteResult.Success).file!!
 
-        assertEquals("g:$groupId", MemoryRepository.scopeOf(assistant))
-        assertEquals("g:$groupId", MemoryRepository.scopeOf(groupId))
+        val stale = repository.appendToFile(assistant, "/profile.md", "- [stated] Stale", first.version)
+        assertEquals(MemoryWriteResult.Conflict(second), stale)
+
+        val fresh = repository.writeFile(assistant, "/profile.md", "rewritten", second.version)
+        assertEquals("rewritten", (fresh as MemoryWriteResult.Success).file?.content)
     }
 
     @Test
-    fun `global memory takes priority over group`() {
-        val assistant = Assistant(
-            useGlobalMemory = true,
-            memoryGroupId = Uuid.random(),
+    fun `editing a missing file reports that it does not exist`() = runBlocking {
+        val result = repository.appendToFile(assistant, "/topics/none.md", "line", "abc")
+
+        assertEquals(MemoryWriteResult.Conflict(null), result)
+    }
+
+    @Test
+    fun `append adds a line break when the file does not end with one`() = runBlocking {
+        val file = create("/topics/food.md", "- first")
+
+        val result = repository.appendToFile(assistant, "/topics/food.md", "- second\n", file.version)
+
+        assertEquals("- first\n- second\n", (result as MemoryWriteResult.Success).file?.content)
+    }
+
+    @Test
+    fun `replacing a whole line with nothing removes the line`() = runBlocking {
+        val file = create("/topics/food.md", "- keep one\n- forget me\n- keep two\n")
+
+        val result = repository.replaceInFile(assistant, "/topics/food.md", "- forget me", "", file.version)
+
+        assertEquals("- keep one\n- keep two\n", (result as MemoryWriteResult.Success).file?.content)
+    }
+
+    @Test
+    fun `replacing part of a line keeps the rest of the line`() = runBlocking {
+        val file = create("/topics/work.md", "- [stated] On the search team\n")
+
+        val result = repository.replaceInFile(
+            assistant,
+            "/topics/work.md",
+            "On the search team",
+            "On the infra team (previously on search)",
+            file.version,
         )
 
-        assertEquals(MemoryRepository.GLOBAL_MEMORY_ID, MemoryRepository.scopeOf(assistant))
+        assertEquals(
+            "- [stated] On the infra team (previously on search)\n",
+            (result as MemoryWriteResult.Success).file?.content,
+        )
     }
 
     @Test
-    fun `chat group uses a namespace distinct from all existing scopes`() {
-        val id = Uuid.random()
-        val scope = MemoryRepository.scopeOfChatGroup(id)
-        assertEquals("grp:$id", scope)
-        assertFalse(scope == MemoryRepository.scopeOf(id))
-        assertFalse(scope == MemoryRepository.scopeOf(Assistant(id = id)))
-        assertFalse(scope == MemoryRepository.GLOBAL_MEMORY_ID)
+    fun `replace is rejected when old_str matches nothing or several places`() = runBlocking {
+        val file = create("/topics/food.md", "- tea\n- tea\n")
+
+        val several = repository.replaceInFile(assistant, "/topics/food.md", "- tea", "- coffee", file.version)
+        val none = repository.replaceInFile(assistant, "/topics/food.md", "- milk", "- coffee", file.version)
+
+        assertTrue(several is MemoryWriteResult.Rejected)
+        assertTrue(none is MemoryWriteResult.Rejected)
+        assertEquals(file.content, repository.getFile(assistant, "/topics/food.md")?.content)
     }
 
     @Test
-    fun `chat group memory writes and deletes do not affect other scopes`() = kotlinx.coroutines.runBlocking {
-        val id = Uuid.random()
-        val chatScope = MemoryRepository.scopeOfChatGroup(id)
-        val otherScope = MemoryRepository.scopeOfChatGroup(Uuid.random())
-        repository.addMemory(id.toString(), "assistant")
-        repository.addMemory(MemoryRepository.scopeOf(id), "memory group")
-        repository.addMemory(otherScope, "other chat group")
-        val memory = repository.addMemory(chatScope, "chat group")
-        repository.updateContent(memory.id, "edited")
-        assertEquals(listOf("edited"), repository.getMemoriesOfAssistant(chatScope).map { it.content })
-        repository.deleteMemory(memory.id)
-        assertEquals(emptyList<String>(), dao.contents(chatScope))
-        assertEquals(listOf("assistant"), dao.contents(id.toString()))
-        assertEquals(listOf("memory group"), dao.contents(MemoryRepository.scopeOf(id)))
-        assertEquals(listOf("other chat group"), dao.contents(otherScope))
+    fun `delete checks the version and removes the file`() = runBlocking {
+        val file = create("/people/mom.md", "- [stated] Lives in Chengdu\n")
+
+        assertEquals(MemoryWriteResult.Conflict(file), repository.deleteFile(assistant, "/people/mom.md", "stale"))
+        assertEquals(MemoryWriteResult.Success(null), repository.deleteFile(assistant, "/people/mom.md", file.version))
+        assertNull(repository.getFile(assistant, "/people/mom.md"))
     }
 
     @Test
-    fun `legacy assistant json defaults to private memory`() {
-        val assistant = JsonInstant.decodeFromString<Assistant>("{}")
+    fun `oversized content and invalid paths are rejected`() = runBlocking {
+        val tooLarge = repository.writeFile(assistant, "/topics/big.md", "a".repeat(MemoryFile.MAX_BYTES + 1))
+        val notMarkdown = repository.writeFile(assistant, "/topics/food.txt", "content")
+        val traversal = repository.writeFile(assistant, "/topics/../profile.md", "content")
 
-        assertFalse(assistant.useGlobalMemory)
-        assertNull(assistant.memoryGroupId)
-        assertEquals(assistant.id.toString(), MemoryRepository.scopeOf(assistant))
+        assertTrue(tooLarge is MemoryWriteResult.Rejected)
+        assertTrue(notMarkdown is MemoryWriteResult.Rejected)
+        assertTrue(traversal is MemoryWriteResult.Rejected)
+        assertTrue(repository.getFiles(assistant).isEmpty())
     }
 
     @Test
-    fun `copy migrates only selected memories and keeps source`() = kotlinx.coroutines.runBlocking {
-        dao.seed(
-            MemoryEntity(id = 1, assistantId = "source", content = "m1"),
-            MemoryEntity(id = 2, assistantId = "source", content = "m2"),
+    fun `an oversized file can shrink but not grow`() = runBlocking {
+        // 迁移直接写库，不经过大小检查
+        val lines = List(MemoryFile.MAX_BYTES / 1000 + 10) { "- [stated] Fact $it ${"x".repeat(1000)}\n" }
+        dao.upsertFile(MemoryFileEntity(assistant, "/profile.md", lines.joinToString(""), updatedAt = 0))
+        val file = repository.getFile(assistant, "/profile.md")!!
+
+        val append = repository.appendToFile(assistant, "/profile.md", "- [stated] More", file.version)
+        assertTrue(append is MemoryWriteResult.Rejected)
+
+        val trimmed = lines.drop(1).joinToString("")
+        val removed = repository.replaceInFile(assistant, "/profile.md", lines.first().trimEnd(), "", file.version)
+        assertEquals(trimmed, (removed as MemoryWriteResult.Success).file?.content)
+        assertTrue(trimmed.toByteArray().size > MemoryFile.MAX_BYTES)
+
+        // 用户在编辑页删掉一部分后保存，同样走 writeFile
+        val edited = lines.drop(2).joinToString("")
+        val saved = repository.writeFile(assistant, "/profile.md", edited)
+        assertEquals(edited, (saved as MemoryWriteResult.Success).file?.content)
+    }
+
+    @Test
+    fun `paths without a leading slash are normalized`() = runBlocking {
+        create("topics/food.md", "content")
+
+        assertEquals(listOf("/topics/food.md"), repository.getFiles(assistant).map { it.path })
+        assertEquals("content", repository.getFile(assistant, "topics/food.md")?.content)
+    }
+
+    @Test
+    fun `memory stores are isolated and can be copied`() = runBlocking {
+        create("/profile.md", "- [stated] Name is Lin\n")
+
+        assertTrue(repository.getFiles("other").isEmpty())
+        repository.copyFiles(assistant, "other")
+        assertEquals("- [stated] Name is Lin\n", repository.getFile("other", "/profile.md")?.content)
+
+        repository.deleteFilesOfAssistant(assistant)
+        assertTrue(repository.getFiles(assistant).isEmpty())
+        assertEquals(1, repository.getFiles("other").size)
+    }
+
+    @Test
+    fun `description and aliases come from the frontmatter`() = runBlocking {
+        val file = create(
+            "/people/mom.md",
+            """
+                ---
+                name: mom
+                description: The user's mother and her move to Chengdu
+                aliases: [妈妈, mother]
+                ---
+
+                - [stated] Lives in Chengdu
+            """.trimIndent(),
         )
 
-        repository.migrateMemories(
-            fromScope = "source",
-            toScope = "target",
-            memoryIds = setOf(2),
-            mode = MemoryMigrationMode.COPY,
-        )
-
-        assertEquals(listOf("m1", "m2"), dao.contents("source"))
-        assertEquals(listOf("m2"), dao.contents("target"))
+        assertEquals("The user's mother and her move to Chengdu", file.description)
+        assertEquals(listOf("妈妈", "mother"), file.aliases)
     }
 
     @Test
-    fun `move migrates selected memories and removes original rows`() = kotlinx.coroutines.runBlocking {
-        dao.seed(
-            MemoryEntity(id = 1, assistantId = "source", content = "m1"),
-            MemoryEntity(id = 2, assistantId = "source", content = "m2"),
-        )
+    fun `files are grouped by directory with profile and preferences first`() = runBlocking {
+        listOf(
+            "/people/mom.md",
+            "/topics/food.md",
+            "/work/notes.md",
+            "/preferences.md",
+            "/areas/house-hunt.md",
+            "/profile.md",
+            "/topics/books.md",
+        ).forEach { create(it, "content") }
 
-        repository.migrateMemories(
-            fromScope = "source",
-            toScope = "target",
-            memoryIds = setOf(1),
-            mode = MemoryMigrationMode.MOVE,
-        )
+        val groups = repository.getFiles(assistant).groupByDirectory()
 
-        assertEquals(listOf("m2"), dao.contents("source"))
-        assertEquals(listOf("m1"), dao.contents("target"))
+        assertEquals(
+            listOf(
+                "/" to listOf("profile", "preferences"),
+                "/topics" to listOf("books", "food"),
+                "/areas" to listOf("house-hunt"),
+                "/people" to listOf("mom"),
+                "/work" to listOf("notes"),
+            ),
+            groups.map { (directory, files) -> directory to files.map { it.name } },
+        )
     }
 
     @Test
-    fun `empty selection and same scope do not change memories`() = kotlinx.coroutines.runBlocking {
-        dao.seed(MemoryEntity(id = 1, assistantId = "source", content = "m1"))
-
-        repository.migrateMemories(
-            fromScope = "source",
-            toScope = "target",
-            memoryIds = emptySet(),
-            mode = MemoryMigrationMode.MOVE,
-        )
-        repository.migrateMemories(
-            fromScope = "source",
-            toScope = "source",
-            memoryIds = setOf(1),
-            mode = MemoryMigrationMode.MOVE,
-        )
-
-        assertEquals(listOf("m1"), dao.contents("source"))
-        assertEquals(emptyList<String>(), dao.contents("target"))
+    fun `titles are derived from the file name`() = runBlocking {
+        assertEquals("Frontend Tooling", create("/topics/frontend-tooling.md", "content").title)
+        assertEquals("Profile", create("/profile.md", "content").title)
+        assertEquals("妈妈", create("/people/妈妈.md", "content").title)
     }
 
     @Test
-    fun `ids from another bucket are ignored`() = kotlinx.coroutines.runBlocking {
-        dao.seed(
-            MemoryEntity(id = 1, assistantId = "source", content = "m1"),
-            MemoryEntity(id = 2, assistantId = "other", content = "m2"),
-        )
+    fun `a title in the frontmatter takes precedence over the file name`() = runBlocking {
+        val food = create("/topics/food.md", "---\nname: food\ntitle: 饮食\n---\n\n- [stated] Likes noodles\n")
+        assertEquals("饮食", food.title)
+        assertEquals("Books", create("/topics/books.md", "---\nname: books\ntitle: \"\"\n---\n").title)
+    }
 
-        repository.migrateMemories(
-            fromScope = "source",
-            toScope = "target",
-            memoryIds = setOf(1, 2),
-            mode = MemoryMigrationMode.MOVE,
+    @Test
+    fun `the stated marker is hidden from the displayed body`() = runBlocking {
+        val file = create(
+            "/topics/work.md",
+            """
+                ---
+                name: work
+                ---
+
+                ## Work
+
+                - [stated] On the infra team (previously on search)
+                - [Stated] Works with [[alex]]
+                - A line without the marker
+            """.trimIndent(),
         )
 
-        assertEquals(emptyList<String>(), dao.contents("source"))
-        assertEquals(listOf("m1"), dao.contents("target"))
-        assertEquals(listOf("m2"), dao.contents("other"))
-    }
+        assertEquals(
+            """
+                ## Work
 
-    @Test
-    fun `conversation scopes isolate groups conversations and ordinary memories`() = kotlinx.coroutines.runBlocking {
-        val group = Uuid.random()
-        val a = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
-        val b = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
-        val c = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
-        listOf(a, b, c, MemoryRepository.GLOBAL_MEMORY_ID).forEach { repository.addMemory(it, it) }
-        val memory = repository.getMemoriesOfAssistant(a).single()
-        repository.updateContentInScope(a, memory.id, "edited")
-        assertEquals(listOf("edited"), dao.contents(a))
-        listOf(b, c, MemoryRepository.GLOBAL_MEMORY_ID).forEach { assertEquals(listOf(it), dao.contents(it)) }
-        repository.deleteMemoriesOfAssistant(a)
-        assertEquals(emptyList<String>(), dao.contents(a))
-        assertEquals(listOf(b), dao.contents(b))
-    }
-
-    @Test
-    fun `legacy group migration preserves ids merges target and is idempotent`() = kotlinx.coroutines.runBlocking {
-        val group = Uuid.random()
-        val old = MemoryRepository.scopeOfChatGroup(group)
-        val target = MemoryRepository.scopeOfChatGroup(group, Uuid.random())
-        val legacy = repository.addMemory(old, "legacy")
-        repository.addMemory(target, "existing")
-        repository.moveScope(old, target)
-        repository.moveScope(old, target)
-        assertEquals(emptyList<String>(), dao.contents(old))
-        assertEquals(listOf("legacy", "existing"), dao.contents(target))
-        assertEquals(target, dao.getMemoryById(legacy.id)?.assistantId)
-        assertEquals(legacy, repository.getMemoriesOfAssistant(target).first())
-    }
-
-    @Test
-    fun `guessed ids cannot edit or delete another conversation memory`() = kotlinx.coroutines.runBlocking {
-        val own = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
-        val other = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
-        val memory = repository.addMemory(other, "keep")
-        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
-            kotlinx.coroutines.runBlocking { repository.updateContentInScope(own, memory.id, "bad") }
-        }
-        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
-            kotlinx.coroutines.runBlocking { repository.deleteMemoryInScope(own, memory.id) }
-        }
-        assertEquals(listOf("keep"), dao.contents(other))
-        repository.deleteMemoryInScope(other, memory.id)
-        assertEquals(emptyList<String>(), dao.contents(other))
-    }
-
-    @Test
-    fun `duplicated group memories use new rows and remain independent after edits and deletion`() = kotlinx.coroutines.runBlocking {
-        val source = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
-        val target = MemoryRepository.scopeOfChatGroup(Uuid.random(), Uuid.random())
-        val first = repository.addMemory(source, "first")
-        val second = repository.addMemory(source, "second")
-        repository.copyMemories(source, target)
-        val copies = repository.getMemoriesOfAssistant(target)
-        assertEquals(listOf("first", "second"), copies.map { it.content })
-        assertFalse(copies.any { it.id == first.id || it.id == second.id })
-        repository.updateContentInScope(target, copies.first().id, "copy edit")
-        assertEquals(listOf("first", "second"), dao.contents(source))
-        repository.deleteMemoriesOfAssistant(source)
-        assertEquals(listOf("copy edit", "second"), dao.contents(target))
-        repository.deleteMemoriesOfAssistant(target)
-        assertEquals(emptyList<String>(), dao.contents(target))
-    }
-
-    private class FakeMemoryDao : MemoryDAO {
-        private val rows = mutableListOf<MemoryEntity>()
-        private var nextId = 1
-
-        fun seed(vararg memories: MemoryEntity) {
-            rows += memories
-            nextId = maxOf(nextId, (memories.maxOfOrNull { it.id } ?: 0) + 1)
-        }
-
-        fun contents(scope: String): List<String> = rows
-            .filter { it.assistantId == scope }
-            .map { it.content }
-
-        override fun getMemoriesOfAssistantFlow(assistantId: String): Flow<List<MemoryEntity>> = emptyFlow()
-
-        override suspend fun getMemoriesOfAssistant(assistantId: String): List<MemoryEntity> =
-            rows.filter { it.assistantId == assistantId }
-
-        override fun getAllMemoriesFlow(): Flow<List<MemoryEntity>> = emptyFlow()
-
-        override suspend fun getAllMemories(): List<MemoryEntity> = rows.toList()
-
-        override suspend fun getMemoryById(id: Int): MemoryEntity? = rows.find { it.id == id }
-
-        override suspend fun insertMemory(memory: MemoryEntity): Long {
-            val id = if (memory.id == 0) nextId++ else memory.id
-            rows += memory.copy(id = id)
-            return id.toLong()
-        }
-
-        override suspend fun insertMemories(memories: List<MemoryEntity>) {
-            memories.forEach { insertMemory(it) }
-        }
-
-        override suspend fun updateMemory(memory: MemoryEntity) {
-            rows.replaceAll { if (it.id == memory.id) memory else it }
-        }
-
-        override suspend fun deleteMemory(id: Int) {
-            rows.removeAll { it.id == id }
-        }
-
-        override suspend fun deleteMemoriesByIds(ids: List<Int>) {
-            rows.removeAll { it.id in ids }
-        }
-
-        override suspend fun deleteMemoriesOfAssistant(assistantId: String) {
-            rows.removeAll { it.assistantId == assistantId }
-        }
+                - On the infra team (previously on search)
+                - Works with [[alex]]
+                - A line without the marker
+            """.trimIndent(),
+            file.displayBody.trim(),
+        )
     }
 }

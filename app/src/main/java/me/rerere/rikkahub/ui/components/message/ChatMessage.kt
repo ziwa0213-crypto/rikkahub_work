@@ -1,6 +1,5 @@
 package me.rerere.rikkahub.ui.components.message
 
-import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -14,6 +13,8 @@ import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellati
 import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,18 +23,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.contentColorFor
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -54,8 +57,12 @@ import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.abs
 import me.rerere.rikkahub.data.model.groupQuote
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -63,15 +70,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
-import androidx.core.content.FileProvider
-import androidx.core.net.toFile
-import androidx.core.net.toUri
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.serialization.json.jsonArray
@@ -101,20 +105,21 @@ import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.richtext.buildMarkdownPreviewHtml
-import me.rerere.rikkahub.ui.components.webview.WebViewContentCache
 import me.rerere.rikkahub.ui.components.ui.ChainOfThought
-import me.rerere.rikkahub.ui.components.charts.ChartCard
-import me.rerere.rikkahub.ui.components.charts.ChartSpec
 import me.rerere.rikkahub.ui.components.ui.Favicon
+import me.rerere.rikkahub.ui.components.ui.FaviconRow
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.context.LocalWorkspaceId
 import me.rerere.rikkahub.ui.theme.LocalChatFontFamily
 import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
-import me.rerere.rikkahub.ui.theme.extendColors
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.urlDecode
+import me.rerere.ui.charts.ChartCard
+import me.rerere.ui.charts.ChartSpec
+import me.rerere.ui.webview.WebViewContentCache
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -143,6 +148,15 @@ fun ChatMessage(
     onMention: (String) -> Unit = {},
 ) {
     val message = node.messages[node.selectIndex]
+    if (message.isContextCheckpoint) {
+        ChatMessageContextCheckpoint(
+            message = message,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            modifier = modifier,
+        )
+        return
+    }
     val settings = LocalSettings.current.displaySetting
     val chatFontFamily = LocalChatFontFamily.current ?: rememberChatFontFamily(settings)
     val textStyle = LocalTextStyle.current.copy(
@@ -269,10 +283,13 @@ fun ChatMessage(
             message.parts.isEmptyUIMessage().not()
         }
 
+        val motionScheme = MaterialTheme.motionScheme
         AnimatedVisibility(
             visible = showActions,
-            enter = slideInVertically { it / 2 } + fadeIn(),
-            exit = slideOutVertically { it / 2 } + fadeOut()
+            enter = slideInVertically(motionScheme.defaultSpatialSpec()) { it / 2 } +
+                fadeIn(motionScheme.defaultEffectsSpec()),
+            exit = slideOutVertically(motionScheme.fastSpatialSpec()) { it / 2 } +
+                fadeOut(motionScheme.fastEffectsSpec())
         ) {
             Column(
                 modifier = Modifier.animateContentSize()
@@ -361,8 +378,6 @@ private fun MessagePartsBlock(
     onUserMessageClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-
     // 消息输出HapticFeedback
     val hapticFeedback = LocalHapticFeedback.current
     val settings = LocalSettings.current
@@ -433,6 +448,7 @@ private fun MessagePartsBlock(
                                     ChatMessageToolStep(
                                         tool = step.tool,
                                         loading = loading && !step.tool.isExecuted,
+                                        assistant = assistant,
                                         onToolApproval = onToolApproval,
                                         onToolAnswer = onToolAnswer,
                                         requestingMemberName = annotations.filterIsInstance<UIMessageAnnotation.GroupSender>()
@@ -464,11 +480,14 @@ private fun MessagePartsBlock(
                     is UIMessagePart.Text -> {
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
-                                Surface(
-                                    modifier = Modifier.animateContentSize(),
-                                    shape = RoundedCornerShape(16.dp),
+                                ChatMessageBubble(
+                                    role = role,
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = settings.displaySetting.bubbleOpacity),
                                     onClick = { onUserMessageClick?.invoke() },
+                                    // 用户气泡不占满整行，和助手的回复错开
+                                    modifier = Modifier
+                                        .padding(start = 24.dp)
+                                        .animateContentSize(),
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
@@ -488,6 +507,7 @@ private fun MessagePartsBlock(
                                         modifier = Modifier.animateContentSize(),
                                         shape = RoundedCornerShape(16.dp),
                                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                                        modifier = Modifier.animateContentSize(),
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                             if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
@@ -530,60 +550,17 @@ private fun MessagePartsBlock(
                     }
 
                     is UIMessagePart.Video -> {
-                        Surface(
-                            tonalElevation = 2.dp,
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW)
-                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                intent.data = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    part.url.toUri().toFile()
-                                )
-                                val chooserIndent = Intent.createChooser(intent, null)
-                                context.startActivity(chooserIndent)
-                            },
-                            modifier = Modifier,
-                            shape = RoundedCornerShape(8.dp),
-                        ) {
-                            Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                                Icon(HugeIcons.Video01, null)
-                            }
-                        }
+                        ChatMessageMediaTile(
+                            icon = HugeIcons.Video01,
+                            onClick = { context.openLocalFile(part.url) },
+                        )
                     }
 
                     is UIMessagePart.Audio -> {
-                        Surface(
-                            tonalElevation = 2.dp,
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW)
-                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                intent.data = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    part.url.toUri().toFile()
-                                )
-                                val chooserIndent = Intent.createChooser(intent, null)
-                                context.startActivity(chooserIndent)
-                            },
-                            modifier = Modifier,
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            ProvideTextStyle(MaterialTheme.typography.labelSmall) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = HugeIcons.MusicNote03,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
+                        ChatMessageMediaTile(
+                            icon = HugeIcons.MusicNote03,
+                            onClick = { context.openLocalFile(part.url) },
+                        )
                     }
 
                     is UIMessagePart.Image -> {
@@ -593,7 +570,7 @@ private fun MessagePartsBlock(
                             Box(
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .clip(MaterialTheme.shapes.medium)
+                                    .clip(MaterialTheme.shapes.large)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .shimmer(isLoading = true)
                             )
@@ -602,71 +579,44 @@ private fun MessagePartsBlock(
                                 model = part.url,
                                 contentDescription = null,
                                 modifier = Modifier
-                                    .clip(MaterialTheme.shapes.medium)
+                                    .clip(MaterialTheme.shapes.large)
                                     .height(72.dp)
                             )
                         }
                     }
 
                     is UIMessagePart.Document -> {
-                        Surface(
-                            tonalElevation = 2.dp,
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW)
-                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                intent.data = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    part.url.toUri().toFile()
-                                )
-                                val chooserIndent = Intent.createChooser(intent, null)
-                                context.startActivity(chooserIndent)
-                            },
-                            modifier = Modifier,
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.tertiaryContainer
-                        ) {
-                            ProvideTextStyle(MaterialTheme.typography.labelSmall) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    when (part.mime) {
-                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> {
-                                            Icon(
-                                                painter = painterResource(R.drawable.docx),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        "application/pdf" -> {
-                                            Icon(
-                                                painter = painterResource(R.drawable.pdf),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        else -> {
-                                            Icon(
-                                                imageVector = HugeIcons.File02,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+                        ChatMessageFileChip(
+                            text = part.fileName,
+                            onClick = { context.openLocalFile(part.url) },
+                            icon = {
+                                when (part.mime) {
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> {
+                                        Icon(
+                                            painter = painterResource(R.drawable.docx),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
 
-                                    Text(
-                                        text = part.fileName,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.widthIn(max = 200.dp)
-                                    )
+                                    "application/pdf" -> {
+                                        Icon(
+                                            painter = painterResource(R.drawable.pdf),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    else -> {
+                                        Icon(
+                                            imageVector = HugeIcons.File02,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
-                            }
-                        }
+                            },
+                        )
                     }
 
                     else -> {
@@ -678,30 +628,99 @@ private fun MessagePartsBlock(
     }
 
     // Annotations (always rendered at the end)
-    val citations = annotations.filterIsInstance<UIMessageAnnotation.UrlCitation>()
-    if (citations.isNotEmpty()) {
-        Column(
-            modifier = Modifier.animateContentSize(),
-        ) {
-            var expand by remember { mutableStateOf(false) }
-            if (expand) {
+    if (annotations.isNotEmpty()) {
+        ChatMessageCitations(annotations = annotations)
+    }
+}
+
+private val BubbleCorner = 24.dp
+private val BubbleTailCorner = 6.dp
+private val BubblePressedCorner = 12.dp
+
+/**
+ * 消息气泡：大圆角，靠头像一侧的顶角收紧；可点击时按下其余圆角也跟着收紧
+ */
+@Composable
+private fun ChatMessageBubble(
+    role: MessageRole,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressProgress by animatePressProgress(interactionSource)
+    val corner = lerp(BubbleCorner, BubblePressedCorner, pressProgress)
+    val shape = if (role == MessageRole.USER) {
+        RoundedCornerShape(topStart = corner, topEnd = BubbleTailCorner, bottomEnd = corner, bottomStart = corner)
+    } else {
+        RoundedCornerShape(topStart = BubbleTailCorner, topEnd = corner, bottomEnd = corner, bottomStart = corner)
+    }
+    val contentColor = contentColorFor(color)
+    Box(
+        modifier = modifier
+            .clipDrawing(shape)
+            .background(color)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(interactionSource = interactionSource, indication = ripple(), onClick = onClick)
+                } else {
+                    Modifier
+                },
+            )
+            // MarkdownBlock 自带 4dp 的水平内边距
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides contentColor) { content() }
+    }
+}
+
+/**
+ * 只裁剪绘制内容，不像 [clip] 那样把形状设成图层轮廓。
+ *
+ * 四个角半径不同时图层轮廓是 Path，Compose 判断触摸点是否落在轮廓内时用 Path 求交，
+ * 坐标超过 8192px 后 float 精度不够，求交结果为空，长消息下半部分（例如展开的长代码块）就收不到触摸了。
+ */
+private fun Modifier.clipDrawing(shape: Shape): Modifier = drawWithCache {
+    val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+    onDrawWithContent {
+        clipPath(path) { this@onDrawWithContent.drawContent() }
+    }
+}
+
+@Composable
+private fun ChatMessageCitations(annotations: List<UIMessageAnnotation>) {
+    var expand by remember { mutableStateOf(false) }
+    val urls = remember(annotations) {
+        annotations.map { annotation ->
+            when (annotation) {
+                is UIMessageAnnotation.UrlCitation -> annotation.url
+            }
+        }
+    }
+    Column(
+        modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        ChatMessageFileChip(
+            text = stringResource(R.string.citations_count, annotations.size),
+            onClick = { expand = !expand },
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            icon = { FaviconRow(urls = urls, size = 18.dp) },
+        )
+        if (expand) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
                 ProvideTextStyle(
                     MaterialTheme.typography.labelMedium.copy(
-                        color = MaterialTheme.extendColors.gray8.copy(alpha = 0.65f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Column(
-                        modifier = Modifier
-                            .drawWithContent {
-                                drawContent()
-                                drawRoundRect(
-                                    color = contentColor.copy(alpha = 0.2f),
-                                    size = Size(width = 10f, height = size.height),
-                                )
-                            }
-                            .padding(start = 16.dp)
-                            .padding(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         citations.fastForEachIndexed { index, annotation ->
                             when (annotation) {
@@ -724,13 +743,6 @@ private fun MessagePartsBlock(
                         }
                     }
                 }
-            }
-            TextButton(
-                onClick = {
-                    expand = !expand
-                }
-            ) {
-                Text(stringResource(R.string.citations_count, citations.size))
             }
         }
     }

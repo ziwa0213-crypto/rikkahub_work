@@ -8,11 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +36,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import java.text.NumberFormat
 import kotlin.math.roundToInt
+import me.rerere.ui.components.OutlinedNumberInput
 
 @Composable
 fun CompressContextDialog(
@@ -155,12 +154,19 @@ fun CompressContextDialog(
                         maxLines = 4,
                     )
 
-                    // Warning text
-                    Text(
-                        text = stringResource(R.string.chat_page_compress_warning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedNumberInput(
+                            value = keepRecentMessages,
+                            onValueChange = { keepRecentMessages = it.coerceAtLeast(0) },
+                            label = stringResource(R.string.chat_page_compress_keep_recent),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            text = stringResource(R.string.chat_page_compress_keep_recent_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         },
@@ -174,7 +180,7 @@ fun CompressContextDialog(
                 }
             } else {
                 TextButton(onClick = {
-                    currentJob = onConfirm(additionalPrompt, selectedTokens, keepRecentMessages)
+                    currentJob = onConfirm(additionalPrompt, keepRecentMessages)
                 }) {
                     Text(stringResource(R.string.confirm))
                 }
