@@ -24,6 +24,11 @@ import me.rerere.rikkahub.ui.theme.PresetThemes
 import me.rerere.search.SearchCommonOptions
 import me.rerere.search.SearchServiceOptions
 import me.rerere.tts.provider.TTSProviderSetting
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GROUP_COMPRESS_PROMPT
+import me.rerere.rikkahub.data.model.Group
+import me.rerere.rikkahub.data.model.GroupMember
+import me.rerere.rikkahub.data.model.MemoryGroup
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -80,12 +85,30 @@ data class Settings(
     val webServerLocalhostOnly: Boolean = false,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val sponsorAlertDismissedAt: Int = 0,
+    val compressModelId: Uuid = Uuid.random(),
+    val compressPrompt: String = DEFAULT_COMPRESS_PROMPT,
+    val groupCompressPrompt: String = DEFAULT_GROUP_COMPRESS_PROMPT,
+    val memoryGroups: List<MemoryGroup> = emptyList(),
+    val loadingAnimationHintDismissed: Boolean = false,
+    val browserDesktopMode: Boolean = false,
+    val browserToolsDisabled: List<String> = emptyList(),
+    val browserToolTimeoutMs: Long = 30_000L,
+    val browserTaskTimeoutMs: Long = 300_000L,
+    val browserVisitedHosts: List<String> = emptyList(),
+    val launchCount: Int = 0,
+    val uiMode: UiMode = UiMode.CHAT,
+    val groupMembers: List<GroupMember> = emptyList(),
+    val groups: List<Group> = emptyList(),
+    val groupTags: List<Tag> = emptyList(),
 ) {
     companion object {
         // 构造一个用于初始化的settings, 但它不能用于保存，防止使用初始值存储
         fun dummy() = Settings(init = true)
     }
 }
+
+@Serializable
+enum class UiMode { CHAT, GROUP }
 
 @Serializable
 data class NetworkSetting(
@@ -113,9 +136,14 @@ enum class ChatFontFamily {
 
 @Serializable
 enum class BackgroundEffectType {
+    // Native qmdeve glass on API 33+, with a blur fallback on older devices.
+    @SerialName("liquid")
+    LIQUID,
+
     @SerialName("blur")
     BLUR,
 
+    // Legacy value retained for decoding; treated as LIQUID, never offered separately.
     @SerialName("glass")
     GLASS,
 }
@@ -171,6 +199,8 @@ data class DisplaySetting(
     val enableVolumeKeyScroll: Boolean = false,
     val volumeKeyScrollRatio: Float = 1.0f,
     val conversationSortOrder: ConversationSortOrder = ConversationSortOrder.UPDATE_TIME,
+    val useAppIconStyleLoadingIndicator: Boolean = true,
+    val liquidCompatMode: Boolean = false,
 )
 
 @Serializable
@@ -197,3 +227,15 @@ data class BackupReminderConfig(
     val intervalDays: Int = 7,
     val lastBackupTime: Long = 0L,
 )
+
+internal fun DisplaySetting.normalizeLegacyBackgroundEffect(): DisplaySetting {
+    return if (backgroundEffectType == BackgroundEffectType.GLASS) {
+        copy(
+            backgroundEffectType = BackgroundEffectType.LIQUID,
+            liquidCompatMode = false,
+        )
+    } else {
+        this
+    }
+}
+

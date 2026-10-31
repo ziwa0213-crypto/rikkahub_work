@@ -17,6 +17,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -64,6 +66,8 @@ class ChatVM(
 ) : ViewModel() {
     private val _conversationId: Uuid = Uuid.parse(id)
     val conversation: StateFlow<Conversation> = chatService.getConversationFlow(_conversationId)
+    private val _conversationLoaded = MutableStateFlow(false)
+    val conversationLoaded: StateFlow<Boolean> = _conversationLoaded.asStateFlow()
     var chatListInitialized by mutableStateOf(false) // 聊天列表是否已经滚动到底部
 
     // 聊天输入状态 - 保存在 ViewModel 中避免 TransactionTooLargeException
@@ -93,7 +97,11 @@ class ChatVM(
 
         // 初始化对话
         viewModelScope.launch {
-            chatService.initializeConversation(_conversationId)
+            try {
+                chatService.initializeConversation(_conversationId)
+            } finally {
+                _conversationLoaded.value = true
+            }
         }
 
         // 记住对话ID, 方便下次启动恢复

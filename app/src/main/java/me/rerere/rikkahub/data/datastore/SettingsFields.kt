@@ -145,6 +145,23 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         // 备份提醒
         json(BACKUP_REMINDER_CONFIG, Settings::backupReminderConfig) { copy(backupReminderConfig = it) },
 
+        // Fork settings use the same read/write/merge machinery as upstream.
+        uuid(COMPRESS_MODEL, Settings::compressModelId) { copy(compressModelId = it) },
+        plain(COMPRESS_PROMPT, Settings::compressPrompt) { copy(compressPrompt = it) },
+        plain(GROUP_COMPRESS_PROMPT, Settings::groupCompressPrompt) { copy(groupCompressPrompt = it) },
+        json(MEMORY_GROUPS, Settings::memoryGroups) { copy(memoryGroups = it) },
+        plain(LOADING_ANIMATION_HINT_DISMISSED, Settings::loadingAnimationHintDismissed) { copy(loadingAnimationHintDismissed = it) },
+        plain(BROWSER_DESKTOP_MODE, Settings::browserDesktopMode) { copy(browserDesktopMode = it) },
+        json(BROWSER_TOOLS_DISABLED, Settings::browserToolsDisabled) { copy(browserToolsDisabled = it) },
+        plain(BROWSER_TOOL_TIMEOUT_MS, Settings::browserToolTimeoutMs) { copy(browserToolTimeoutMs = it) },
+        plain(BROWSER_TASK_TIMEOUT_MS, Settings::browserTaskTimeoutMs) { copy(browserTaskTimeoutMs = it) },
+        json(BROWSER_VISITED_HOSTS, Settings::browserVisitedHosts) { copy(browserVisitedHosts = it) },
+        json(GROUP_MEMBERS, Settings::groupMembers) { copy(groupMembers = it) },
+        json(GROUPS, Settings::groups) { copy(groups = it) },
+        json(GROUP_TAGS, Settings::groupTags) { copy(groupTags = it) },
+        SettingsField(UI_MODE, Settings::uiMode, { copy(uiMode = it) },
+            encode = { it.name }, decode = { value -> UiMode.entries.find { it.name == value } ?: UiMode.CHAT }),
+
         // 赞助提醒
         plain(SPONSOR_ALERT_DISMISSED_AT, Settings::sponsorAlertDismissedAt) { copy(sponsorAlertDismissedAt = it) },
     )
@@ -159,11 +176,13 @@ private val MISSING_KEY_DEFAULTS = Settings(
     chatModelId = DEFAULT_AUTO_MODEL_ID,
     fastModelId = DEFAULT_AUTO_MODEL_ID,
     translateModeId = DEFAULT_AUTO_MODEL_ID,
+    compressModelId = DEFAULT_AUTO_MODEL_ID,
 )
 
 /** 解码出的是盘上的原始值，还没有经过 [normalized]。 */
 internal fun Preferences.toSettings(): Settings =
     SETTINGS_FIELDS.fold(MISSING_KEY_DEFAULTS) { settings, field -> field.read(this, settings) }
+        .copy(launchCount = this[SettingsStore.LAUNCH_COUNT] ?: 0)
 
 /**
  * 把 [settings] 写进 Preferences。

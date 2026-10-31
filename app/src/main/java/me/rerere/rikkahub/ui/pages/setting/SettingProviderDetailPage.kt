@@ -54,7 +54,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -116,6 +115,7 @@ import me.rerere.rikkahub.ui.components.ai.ProviderQuotaText
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.switchItem
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceButtons
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceLabel
 import me.rerere.rikkahub.ui.components.ui.ConnectedMultiChoiceButtons
@@ -1441,12 +1441,12 @@ private fun BuiltInToolsSettings(
                 val toggle = { enabled: Boolean ->
                     onUpdateTools(if (enabled) tools + tool else tools - tool)
                 }
-                item(
-                    onClick = { toggle(!checked) },
+                switchItem(
+                    checked = checked,
+                    onCheckedChange = toggle,
                     colors = itemColors,
-                    supportingContent = { Text(description) },
-                    trailingContent = { Switch(checked = checked, onCheckedChange = toggle) },
                     headlineContent = { Text(title) },
+                    supportingContent = { Text(description) },
                 )
             }
         }

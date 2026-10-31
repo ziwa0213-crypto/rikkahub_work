@@ -11,6 +11,7 @@ import me.rerere.rikkahub.data.datastore.migration.migrateProvidersQuotaQuery
 import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PreferenceStoreV5MigrationTest {
@@ -50,7 +51,7 @@ class PreferenceStoreV5MigrationTest {
     }
 
     @Test
-    fun `balance option on other types is dropped`() {
+    fun `legacy balance option is retained without enabling unsupported quota queries`() {
         val json = """[
             {"type":"google","balanceOption":{"enabled":true,"apiPath":"/credits","resultPath":"x"}},
             {"type":"claude","balanceOption":{"enabled":true,"apiPath":"/credits","resultPath":"x"}}
@@ -58,7 +59,7 @@ class PreferenceStoreV5MigrationTest {
 
         val raw = JsonInstant.parseToJsonElement(migrateProvidersQuotaQuery(json)).jsonArray.map { it.jsonObject }
         raw.forEach {
-            assertFalse("balanceOption" in it)
+            assertTrue("balanceOption" in it)
             assertFalse("quotaQuery" in it)
         }
         val (google, claude) = migrate(json)
@@ -101,7 +102,7 @@ class PreferenceStoreV5MigrationTest {
         )
 
         val provider = JsonInstant.parseToJsonElement(migrated).jsonObject["providers"] as JsonArray
-        assertFalse("balanceOption" in provider.single().jsonObject)
+        assertTrue("balanceOption" in provider.single().jsonObject)
         assertEquals(
             "{{baseUrl}}/credits",
             JsonInstant.decodeFromJsonElement(ProviderSetting.serializer(), provider.single())

@@ -105,6 +105,7 @@ internal fun FilesPicker(
     state: ChatInputState,
     mcpManager: McpManager,
     onCompressContext: (additionalPrompt: String, keepRecentMessages: Int) -> Job,
+    onGroupCompressContext: ((additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int) -> Job)? = null,
     onUpdateAssistant: (Assistant) -> Unit,
     onUpdateWorkspaceCwd: (String?) -> Unit,
     showCompressDialog: Boolean,
@@ -127,18 +128,27 @@ internal fun FilesPicker(
     groupAllowCwd: Boolean = true,
     onUpdateGroupWorkspace: (Uuid?) -> Unit = {},
     onUpdateGroupCwd: (String?) -> Unit = {},
+    groupMcpServerIds: Set<Uuid>? = null,
+    onUpdateGroupMcpServers: (Set<Uuid>) -> Unit = {},
+    groupModeInjectionIds: Set<Uuid>? = null,
+    onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
+    groupLorebookIds: Set<Uuid>? = null,
+    onUpdateGroupLorebookIds: (Set<Uuid>) -> Unit = {},
+    groupEnabledSkills: Set<String>? = null,
+    onUpdateGroupEnabledSkills: (Set<String>) -> Unit = {},
 ) {
     val settings = LocalSettings.current
     val provider = chatModel?.findProvider(providers = settings.providers)
     val navController = LocalNavController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
-    val workspaceAssistant = if (groupMode) assistant.copy(workspaceId = groupWorkspaceId) else assistant
+    val selectedWorkspaceId = if (groupMode) groupWorkspaceId else assistant.workspaceId
+    val selectedMcpServerIds = if (groupMode) groupMcpServerIds.orEmpty() else assistant.mcpServers
 
-    val boundWorkspace = remember(workspaces, assistant.workspaceId) {
-        workspaces.find { it.id == assistant.workspaceId?.toString() }
+    val boundWorkspace = remember(workspaces, selectedWorkspaceId) {
+        workspaces.find { it.id == selectedWorkspaceId?.toString() }
     }
-    val showCwd = boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name
+    val showCwd = groupAllowCwd && boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name
     var showCwdSheet by remember { mutableStateOf(false) }
 
     var page by remember { mutableStateOf(FilesPickerPage.MAIN) }
@@ -166,6 +176,8 @@ internal fun FilesPicker(
                 mcpManager = mcpManager,
                 onUpdateAssistant = onUpdateAssistant,
                 onBack = { page = FilesPickerPage.MAIN },
+                selectedServerIds = if (groupMode) selectedMcpServerIds else null,
+                onUpdateMcpServers = if (groupMode) onUpdateGroupMcpServers else null,
             )
 
             FilesPickerPage.EXTENSIONS -> ExtensionPickerPage(
@@ -174,6 +186,13 @@ internal fun FilesPicker(
                 onUpdateAssistant = onUpdateAssistant,
                 onBack = { page = FilesPickerPage.MAIN },
                 onDismissAll = onDismiss,
+                groupMode = groupMode,
+                groupModeInjectionIds = if (groupMode) groupModeInjectionIds.orEmpty() else null,
+                onUpdateGroupModeInjectionIds = onUpdateGroupModeInjectionIds,
+                groupLorebookIds = if (groupMode) groupLorebookIds.orEmpty() else null,
+                onUpdateGroupLorebookIds = onUpdateGroupLorebookIds,
+                groupEnabledSkills = if (groupMode) groupEnabledSkills.orEmpty() else null,
+                onUpdateGroupEnabledSkills = onUpdateGroupEnabledSkills,
             )
 
             FilesPickerPage.MAIN -> Column(
@@ -203,7 +222,7 @@ internal fun FilesPicker(
                 val showWorkspace = workspaces.isNotEmpty()
                 val showMcp = settings.mcpServers.isNotEmpty()
                 // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
-                val showCompress = assistant.contextMessageLimit <= 0
+                val showCompress = groupMode || assistant.contextMessageLimit <= 0
                 val itemCount = 1 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showCompress).count { it }
                 var itemIndex = 0
                 Column(
@@ -212,9 +231,14 @@ internal fun FilesPicker(
                     if (showWorkspace) {
                         WorkspacePickerListItem(
                             assistant = assistant,
+                            workspaceId = selectedWorkspaceId,
                             workspaces = workspaces,
                             shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
                             onUpdateAssistant = onUpdateAssistant,
+                            onUpdateWorkspace = { workspaceId ->
+                                if (groupMode) onUpdateGroupWorkspace(workspaceId)
+                                else onUpdateAssistant(assistant.copy(workspaceId = workspaceId))
+                            },
                             onNavigateToDetail = { id ->
                                 onDismiss()
                                 navController.navigate(Screen.WorkspaceDetail(id))
@@ -225,8 +249,9 @@ internal fun FilesPicker(
                             },
                             onNavigateToManage = {
                                 onDismiss()
-                                navController.navigate(Screen.Workspaces)
+                                navController.navigate(Screen.Workspaces())
                             },
+                            ownerScope = if (groupMode) WorkspaceOwnerScope.GROUP else WorkspaceOwnerScope.CHAT,
                         )
 
                         // Workspace CWD
@@ -260,16 +285,22 @@ internal fun FilesPicker(
                             servers = settings.mcpServers,
                             mcpManager = mcpManager,
                             shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
+                            selectedServerIds = selectedMcpServerIds,
                             onClick = { page = FilesPickerPage.MCP },
                         )
                     }
 
                     // Extensions (Quick Messages + Prompt Injections + Skills)
-                    val activeCount =
+                    val activeCount = if (groupMode) {
+                        groupModeInjectionIds.orEmpty().size +
+                            groupLorebookIds.orEmpty().size +
+                            groupEnabledSkills.orEmpty().size
+                    } else {
                         assistant.quickMessageIds.size +
                             assistant.modeInjectionIds.size +
                             assistant.lorebookIds.size +
                             assistant.enabledSkills.size
+                    }
                     SegmentedListItem(
                         onClick = { page = FilesPickerPage.EXTENSIONS },
                         shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
@@ -300,10 +331,10 @@ internal fun FilesPicker(
                                 )
                             },
                             trailingContent = {
-                                val contextTokens = remember(conversation.messageNodes) {
+                                val contextTokens = groupContextUsage?.currentTokens ?: remember(conversation.messageNodes) {
                                     conversation.lastContextTokens()
                                 }
-                                val contextLength = chatModel?.contextLength?.takeIf { it > 0 }
+                                val contextLength = groupContextUsage?.maxTokens ?: chatModel?.contextLength?.takeIf { it > 0 }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -343,7 +374,7 @@ internal fun FilesPicker(
             workspaceId = boundWorkspace.id,
             currentCwd = conversation.workspaceCwd,
             onSelectCwd = { newCwd ->
-                onUpdateWorkspaceCwd(newCwd)
+                if (groupMode) onUpdateGroupCwd(newCwd) else onUpdateWorkspaceCwd(newCwd)
             },
             onDismiss = { showCwdSheet = false },
         )
@@ -354,7 +385,20 @@ internal fun FilesPicker(
         CompressContextDialog(onDismiss = {
             onShowCompressDialogChange(false)
             onDismiss()
-        }, onConfirm = onCompressContext)
+        }, onConfirm = { prompt, target, keep ->
+            if (groupMode) {
+                onGroupCompressContext?.invoke(prompt, target, keep)
+                    ?: onCompressContext(prompt, keep)
+            } else {
+                onCompressContext(prompt, keep)
+            }
+        },
+            autoCompressThreshold = if (groupMode) groupCompressThreshold else null,
+            onAutoCompressThresholdChange = if (groupMode) onGroupCompressThresholdChange else null,
+            estimatedMaxTokens = if (groupMode) groupContextUsage?.maxTokens else null,
+            initialTargetTokens = if (groupMode) groupCompressTargetTokens else 2000,
+            initialKeepRecentMessages = if (groupMode) groupCompressKeepRecent else 32,
+        )
     }
 }
 
@@ -363,15 +407,17 @@ private fun WorkspacePickerListItem(
     assistant: Assistant,
     workspaces: List<WorkspaceEntity>,
     shapes: ListItemShapes,
-    onUpdateAssistant: (Assistant) -> Unit,
+    workspaceId: Uuid? = assistant.workspaceId,
+    onUpdateAssistant: (Assistant) -> Unit = {},
+    onUpdateWorkspace: ((Uuid?) -> Unit)? = null,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToTerminal: (String) -> Unit,
     onNavigateToManage: () -> Unit,
     ownerScope: WorkspaceOwnerScope = WorkspaceOwnerScope.CHAT,
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    val boundWorkspace = remember(workspaces, assistant.workspaceId) {
-        workspaces.find { it.id == assistant.workspaceId?.toString() }
+    val boundWorkspace = remember(workspaces, workspaceId) {
+        workspaces.find { it.id == workspaceId?.toString() }
     }
 
     SegmentedListItem(
@@ -420,12 +466,14 @@ private fun WorkspacePickerListItem(
         WorkspaceSelectSheet(
             scope = ownerScope,
             assistant = assistant,
+            workspaceId = workspaceId,
             workspaces = workspaces,
-            onSelect = { workspaceId ->
-                val newId = workspaceId?.let { Uuid.parse(it) }
-                if (newId != assistant.workspaceId) {
+            onSelect = { selectedWorkspaceId ->
+                val newId = selectedWorkspaceId?.let { Uuid.parse(it) }
+                if (newId != workspaceId) {
                     // 会话的工作目录随工作区一并重置
-                    onUpdateAssistant(assistant.copy(workspaceId = newId))
+                    if (onUpdateWorkspace != null) onUpdateWorkspace(newId)
+                    else onUpdateAssistant(assistant.copy(workspaceId = newId))
                 }
                 showSheet = false
             },
@@ -446,6 +494,13 @@ private fun ExtensionPickerPage(
     onUpdateAssistant: (Assistant) -> Unit,
     onBack: () -> Unit,
     onDismissAll: () -> Unit,
+    groupMode: Boolean = false,
+    groupModeInjectionIds: Set<Uuid>? = null,
+    onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
+    groupLorebookIds: Set<Uuid>? = null,
+    onUpdateGroupLorebookIds: (Set<Uuid>) -> Unit = {},
+    groupEnabledSkills: Set<String>? = null,
+    onUpdateGroupEnabledSkills: (Set<String>) -> Unit = {},
 ) {
     val navController = LocalNavController.current
 
@@ -467,6 +522,11 @@ private fun ExtensionPickerPage(
             assistant = assistant,
             settings = settings,
             onUpdate = onUpdateAssistant,
+            includeQuickMessages = !groupMode,
+            groupMode = groupMode,
+            onUpdateModeInjectionIds = onUpdateGroupModeInjectionIds,
+            onUpdateLorebookIds = onUpdateGroupLorebookIds,
+            onUpdateEnabledSkills = onUpdateGroupEnabledSkills,
             modifier = Modifier.weight(1f),
             onNavigateToQuickMessages = {
                 onDismissAll()

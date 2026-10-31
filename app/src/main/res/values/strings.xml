@@ -282,6 +282,7 @@
   <string name="chat_page_compress_context">Compress History</string>
   <string name="chat_page_compress_context_desc">Compress the conversation into a summary to save tokens</string>
   <string name="chat_page_compress_context_title">Compress Conversation History</string>
+  <string name="chat_page_compress_target_tokens">Target tokens</string>
   <string name="chat_page_compressing">Compressing...</string>
   <string name="chat_page_conversation_system_prompt">Conversation System Prompt</string>
   <string name="chat_page_conversation_system_prompt_clear">Clear</string>
@@ -836,6 +837,8 @@
   <string name="setting_page_about_desc">About this app</string>
   <string name="setting_page_assistant">Assistant</string>
   <string name="setting_page_assistant_desc">Set up personalized assistants (agents)</string>
+  <string name="setting_page_group_members_desc">Manage members that can be added to groups</string>
+  <string name="setting_page_groups_desc">Create and configure groups</string>
   <string name="setting_page_built_in_tools">Built-in Tools</string>
   <string name="setting_page_built_in_tools_desc">Select built-in tools supported by the model. These tools are directly provided by the API without requiring app support. Currently, this feature is only supported by the official Gemini API.</string>
   <string name="setting_page_built_in_tools_image_generation">Image Generation</string>
@@ -1429,7 +1432,10 @@
   <string name="setting_display_page_background_effect_desc">Enable a blur, liquid, or compatibility effect on the chat input bar</string>
   <string name="setting_display_page_background_effect_type">Background effect type</string>
   <string name="setting_display_page_background_effect_blur">Blur</string>
-  <string name="setting_display_page_background_effect_liquid">Liquid</string>
+  <string name="setting_display_page_background_effect_liquid">Glass</string>
+  <string name="setting_display_page_background_effect_status_active">Glass effect is active</string>
+  <string name="setting_display_page_background_effect_status_failed">Glass rendering failed, using blur instead. Restart the app to retry.</string>
+  <string name="setting_display_page_background_effect_status_low_api">Requires Android 13 or later, using blur instead</string>
   <string name="setting_display_page_background_effect_compat">Compatibility</string>
   <string name="setting_display_page_background_effect_glass">Glass</string>
   <string name="skills_page_search_placeholder">Search skills</string>
@@ -1443,7 +1449,15 @@
   <string name="deepseek_web_login_title">DeepSeek Web login</string>
   <string name="deepseek_web_login_hint">Log in at chat.deepseek.com. The app captures only the request credentials needed for this provider.</string>
   <string name="deepseek_web_login_captured">Login credentials captured. You can close this window.</string>
+  <string name="deepseek_web_login_loading">Loading DeepSeek login page…</string>
+  <string name="deepseek_web_login_load_failed">Unable to load login page (error %1$d: %2$s)</string>
+  <string name="deepseek_web_login_proxy_hint">WebView does not use the app’s proxy. Try a system-level proxy or a direct connection.</string>
+  <string name="deepseek_web_login_retry">Retry</string>
+  <string name="deepseek_web_login_unknown_error">Unknown error</string>
   <string name="deepseek_web_login_browser">Open login</string>
+  <string name="deepseek_web_login_open_browser">Open in browser</string>
+  <string name="deepseek_web_login_manual_hint">Page stays blank? Open it in your browser (Via recommended), sign in, then paste the token below.</string>
+  <string name="deepseek_web_login_diag">Diagnostics: %1$s</string>
   <string name="deepseek_web_logout">Log out and clear cookies</string>
   <string name="deepseek_web_manual_title">Manual credentials</string>
   <string name="deepseek_web_token">Token</string>
@@ -1612,7 +1626,7 @@
   <string name="assistant_page_local_tools_browser_title">Built-in Browser</string>
   <string name="assistant_page_local_tools_browser_desc">Let the AI read pages you have signed in to; sensitive content is filtered on-device before sending</string>
   <string name="browser_page_title">Browser</string>
-  <string name="browser_group_actions">Browser</string>
+  <string name="browser_group_actions">Actions</string>
   <string name="browser_open_action">Open browser</string>
   <string name="browser_open_action_desc">Starts the browser at about:blank — sign in once before letting the AI take over.</string>
   <string name="browser_clear_data">Clear browsing data</string>
@@ -1903,6 +1917,10 @@
   <string name="assistant_page_memory_empty">No memories yet</string>
   <string name="assistant_page_memory_empty_hint">The assistant will remember what you tell it as you chat. You can also tap + to add one</string>
   <string name="assistant_page_memory_empty_disabled_hint">Memory is off for this assistant. Turn it on to let it remember what you tell it</string>
+  <string name="assistant_page_itemized_memory_empty_hint">Ask the assistant in chat to remember something, or add a fact below.</string>
+  <string name="assistant_page_memory_input_hint">Add a fact to remember</string>
+  <string name="assistant_page_memory_selected_count">%1$d selected</string>
+  <string name="assistant_page_memory_delete_selected_confirm">Delete %1$d selected memory item(s)? This action cannot be undone.</string>
   <string name="memory_file_page_path_conflict">A memory already exists at this path</string>
   <string name="memory_file_page_new">New memory</string>
   <string name="memory_file_page_missing">This memory no longer exists</string>

@@ -34,16 +34,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dokar.sonner.ToastType
+import me.rerere.ui.toast.ToastType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Cookie
+import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Internet
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.browser.BrowserDataCleaner
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
+import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
@@ -115,6 +120,7 @@ fun SettingBrowserCookiesPage(settingsStore: SettingsStore = koinInject()) {
                     title = { Text(stringResource(R.string.browser_cookies_manual_hint)) },
                 ) {
                     item(
+                        leadingContent = { CardGroupIcon(HugeIcons.Cookie) },
                         headlineContent = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -163,6 +169,7 @@ fun SettingBrowserCookiesPage(settingsStore: SettingsStore = koinInject()) {
                         hosts.forEach { host ->
                             item(
                                 onClick = { selectedSite = host },
+                                leadingContent = { CardGroupIcon(HugeIcons.Internet) },
                                 headlineContent = { Text(host, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 supportingContent = {
                                 Text(stringResource(R.string.browser_cookies_site_detail_hint))
@@ -187,6 +194,7 @@ fun SettingBrowserCookiesPage(settingsStore: SettingsStore = koinInject()) {
                 CardGroup(modifier = Modifier.padding(horizontal = 8.dp)) {
                     item(
                         onClick = { showClearAllConfirmation = true },
+                        leadingContent = { CardGroupIcon(HugeIcons.Delete01) },
                         headlineContent = { Text(stringResource(R.string.browser_cookies_remove_all)) },
                         supportingContent = { Text(stringResource(R.string.browser_clear_data_desc)) },
                     )

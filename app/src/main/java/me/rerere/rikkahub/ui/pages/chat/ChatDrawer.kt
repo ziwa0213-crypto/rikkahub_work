@@ -1,13 +1,6 @@
 package me.rerere.rikkahub.ui.pages.chat
 
 import androidx.activity.ComponentActivity
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,23 +77,15 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.ConversationSortOrder
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Folder
 import me.rerere.rikkahub.data.model.Group
+import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.ui.components.ai.AssistantPicker
 import me.rerere.rikkahub.ui.components.group.ModeSwitcher
-import me.rerere.rikkahub.data.datastore.UiMode
-import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
-import me.rerere.rikkahub.ui.pages.group.selectedGroup
-import me.rerere.rikkahub.ui.pages.group.components.GroupConversationList
-import me.rerere.rikkahub.ui.pages.group.components.GroupPicker
-import me.rerere.rikkahub.ui.pages.group.components.NewGroupDialog
-import me.rerere.rikkahub.ui.pages.group.components.GroupRenameDialog
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
-import me.rerere.hugeicons.stroke.UserGroup03
-import me.rerere.hugeicons.stroke.UserAi
 import me.rerere.rikkahub.ui.components.ui.BackupReminderCard
 import me.rerere.rikkahub.ui.components.ui.Greeting
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
@@ -114,6 +99,11 @@ import me.rerere.rikkahub.ui.hooks.readBooleanPreference
 import me.rerere.rikkahub.ui.hooks.rememberIsPlayStoreVersion
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
+import me.rerere.rikkahub.ui.pages.group.GroupVM
+import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
+import me.rerere.rikkahub.ui.pages.group.selectedGroup
+import me.rerere.rikkahub.ui.pages.group.components.GroupConversationList
+import me.rerere.rikkahub.ui.pages.group.components.GroupPicker
 import me.rerere.rikkahub.utils.navigateToChatPage
 import me.rerere.rikkahub.utils.toDp
 import me.rerere.ui.components.Tooltip
@@ -127,26 +117,16 @@ fun ChatDrawerContent(
     vm: ChatVM,
     settings: Settings,
     current: Conversation,
-    onGroupSelected: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val toaster = LocalToaster.current
     val isPlayStore = rememberIsPlayStoreVersion()
     val repo = koinInject<ConversationRepository>()
-    val groupVm = rememberGroupVM()
-    val groupId by groupVm.selectedGroupId.collectAsStateWithLifecycle()
-    val selectedGroup = settings.selectedGroup(groupId)
-    var showNewGroup by remember { mutableStateOf(false) }
-    var conversationToRename by remember(selectedGroup?.id) { mutableStateOf<Conversation?>(null) }
-    var groupConversationToDelete by remember(selectedGroup?.id) { mutableStateOf<Conversation?>(null) }
-    val groupConversations by groupVm.conversations.collectAsStateWithLifecycle()
-    val groupConversationId by groupVm.selectedConversationId.collectAsStateWithLifecycle()
-    val groupMode = settings.uiMode == UiMode.GROUP
-    val groupGenerationNotice = stringResource(R.string.group_generation_notice)
 
     val activity = context as ComponentActivity
     val drawerVm: ChatDrawerVM = koinViewModel(viewModelStoreOwner = activity)
+    val groupVm: GroupVM = rememberGroupVM()
 
     val conversations = drawerVm.conversations.collectAsLazyPagingItems()
     val folders by drawerVm.folders.collectAsStateWithLifecycle()
@@ -171,6 +151,29 @@ fun ChatDrawerContent(
     val conversationJobs by vm.conversationJobs.collectAsStateWithLifecycle(
         initialValue = emptyMap(),
     )
+    val groupConversations by groupVm.conversations.collectAsStateWithLifecycle()
+    val groupRouteConversation by groupVm.conversation.collectAsStateWithLifecycle()
+    val selectedGroupId by groupVm.selectedGroupId.collectAsStateWithLifecycle()
+    val currentGroup = remember(settings.groups, current.id) {
+        settings.groups.firstOrNull { current.id in it.conversationIds }
+    }
+    val selectedGroup = settings.groups.firstOrNull { it.id == selectedGroupId }
+        ?: currentGroup
+        ?: settings.selectedGroup(null)
+    val drawerMode = settings.uiMode
+    val groupMode = drawerMode == UiMode.GROUP
+    val selectedGroupConversation = if (current.isGroupChat()) {
+        groupRouteConversation ?: current
+    } else {
+        groupRouteConversation
+    }
+
+    LaunchedEffect(groupMode, current.id, currentGroup?.id) {
+        if (groupMode && currentGroup != null) {
+            groupVm.selectGroup(currentGroup.id)
+            groupVm.selectConversation(currentGroup.id, current.id)
+        }
+    }
 
     // 昵称编辑状态
     val nicknameEditState = useEditState<String> { newNickname ->
@@ -195,6 +198,7 @@ fun ChatDrawerContent(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var folderToDelete by remember { mutableStateOf<Folder?>(null) }
+    var groupConversationToRename by remember { mutableStateOf<Conversation?>(null) }
 
     // Menu popup 状态
     var showMenuPopup by remember { mutableStateOf(false) }
@@ -218,6 +222,45 @@ fun ChatDrawerContent(
     // 矮屏（如手表、横屏手机）上顶部固定会把会话列表挤没，改为跟随列表一起滚动
     val windowHeight = LocalWindowInfo.current.containerDpSize.height
     val scrollableHeader = windowHeight < 640.dp
+
+    fun openGroupConversation(group: Group, createNew: Boolean) {
+        vm.updateSettings { it.copy(uiMode = UiMode.GROUP) }
+        groupVm.selectGroup(group.id)
+        if (createNew || group.conversationIds.isEmpty()) {
+            groupVm.createConversation(group.id) { id ->
+                navigateToChatPage(navController, id)
+            }
+        } else {
+            val id = group.conversationIds.last()
+            groupVm.selectConversation(group.id, id)
+            navigateToChatPage(navController, id)
+        }
+    }
+
+    fun switchMode(mode: UiMode) {
+        if (mode == drawerMode) return
+        vm.updateSettings { it.copy(uiMode = mode) }
+        if (mode == UiMode.GROUP) {
+            val group = selectedGroup
+            if (group == null) {
+                navController.navigate(Screen.Groups)
+            } else {
+                openGroupConversation(group, createNew = false)
+            }
+        } else {
+            scope.launch {
+                val id = if (context.readBooleanPreference("create_new_conversation_on_start", true)) {
+                    Uuid.random()
+                } else {
+                    repo.getConversationsOfAssistant(settings.assistantId)
+                        .first()
+                        .firstOrNull()
+                        ?.id ?: Uuid.random()
+                }
+                navigateToChatPage(navController, id)
+            }
+        }
+    }
 
     // 抽屉顶部：更新/备份提醒、用户信息、常用入口和文件夹栏
     val drawerHeader: @Composable () -> Unit = {
@@ -289,47 +332,48 @@ fun ChatDrawerContent(
                         style = MaterialTheme.typography.labelMedium,
                     )
                 }
-                ModeSwitcher(mode = settings.uiMode, onSelect = { mode ->
-                    vm.updateSettings(settings.copy(uiMode = mode))
-                    if (conversationJobs.isNotEmpty()) {
-                        toaster.show(groupGenerationNotice, type = ToastType.Info)
-                    }
-                })
+
+                ModeSwitcher(
+                    mode = drawerMode,
+                    onSelect = ::switchMode,
+                )
             }
 
-            DrawerActions(navController = navController, groupMode = groupMode)
+            DrawerActions(navController = navController)
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FolderBar(
-                    folders = folders,
-                    selectedFolderId = selectedFolderId,
-                    onSelect = { drawerVm.selectFolder(it) },
-                    onCreate = { showCreateFolderDialog = true },
-                    onRename = { folderToRename = it },
-                    onDelete = { folderToDelete = it },
-                    modifier = Modifier.weight(1f),
-                )
+            if (!groupMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FolderBar(
+                        folders = folders,
+                        selectedFolderId = selectedFolderId,
+                        onSelect = { drawerVm.selectFolder(it) },
+                        onCreate = { showCreateFolderDialog = true },
+                        onRename = { folderToRename = it },
+                        onDelete = { folderToDelete = it },
+                        modifier = Modifier.weight(1f),
+                    )
 
-                ConversationSortButton(
-                    sortOrder = settings.displaySetting.conversationSortOrder,
-                    onSortOrderChange = { sortOrder ->
-                        vm.updateSettings {
-                            it.copy(
-                                displaySetting = it.displaySetting.copy(
-                                    conversationSortOrder = sortOrder
+                    ConversationSortButton(
+                        sortOrder = settings.displaySetting.conversationSortOrder,
+                        onSortOrderChange = { sortOrder ->
+                            vm.updateSettings {
+                                it.copy(
+                                    displaySetting = it.displaySetting.copy(
+                                        conversationSortOrder = sortOrder
+                                    )
                                 )
-                            )
-                        }
-                        // 换排序后回到顶部，否则会停留在原来滚动到的位置
-                        scope.launch { conversationListState.scrollToItem(0) }
-                    },
-                )
+                            }
+                            // 换排序后回到顶部，否则会停留在原来滚动到的位置
+                            scope.launch { conversationListState.scrollToItem(0) }
+                        },
+                    )
+                }
             }
         }
     }
@@ -345,73 +389,120 @@ fun ChatDrawerContent(
                 drawerHeader()
             }
 
-            ConversationList(
-                current = current,
-                conversations = conversations,
-                conversationJobs = conversationJobs.keys,
-                listState = conversationListState,
-                header = if (scrollableHeader) drawerHeader else null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                onClick = {
-                    navigateToChatPage(navController, it.id)
-                },
-                onRegenerateTitle = {
-                    vm.generateTitle(it, true)
-                },
-                onDelete = {
-                    scope.launch {
-                        vm.deleteConversation(it).join()
-                        conversations.refresh()
-                        if (it.id == current.id) {
-                            navigateToChatPage(navController)
+            if (groupMode) {
+                GroupConversationList(
+                    settings = settings,
+                    group = selectedGroup,
+                    conversations = groupConversations,
+                    current = selectedGroupConversation,
+                    header = if (scrollableHeader) drawerHeader else null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    onSelect = { conversation ->
+                        selectedGroup?.let { group ->
+                            groupVm.selectGroup(group.id)
+                            groupVm.selectConversation(group.id, conversation.id)
+                            navigateToChatPage(navController, conversation.id)
                         }
+                    },
+                    onCreate = {
+                        selectedGroup?.let { openGroupConversation(it, createNew = true) }
+                            ?: navController.navigate(Screen.Groups)
+                    },
+                    onTogglePin = { conversation ->
+                        selectedGroup?.let { groupVm.toggleConversationPin(it.id, conversation) }
+                    },
+                    onRename = { groupConversationToRename = it },
+                    onDelete = { conversation ->
+                        selectedGroup?.let { group ->
+                            scope.launch {
+                                groupVm.deleteConversation(group.id, conversation.id).join()
+                                if (conversation.id == current.id) {
+                                    groupVm.createConversation(group.id) { id ->
+                                        navigateToChatPage(navController, id)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+                GroupPicker(
+                    settings = settings,
+                    current = selectedGroup,
+                    onSelect = { openGroupConversation(it, createNew = false) },
+                    onCreate = { navController.navigate(Screen.Groups) },
+                    onEdit = { navController.navigate(Screen.GroupConfig(it.id.toString())) },
+                )
+            } else {
+                ConversationList(
+                    current = current,
+                    conversations = conversations,
+                    conversationJobs = conversationJobs.keys,
+                    listState = conversationListState,
+                    header = if (scrollableHeader) drawerHeader else null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    onClick = {
+                        navigateToChatPage(navController, it.id)
+                    },
+                    onRegenerateTitle = {
+                        vm.generateTitle(it, true)
+                    },
+                    onDelete = {
+                        scope.launch {
+                            vm.deleteConversation(it).join()
+                            conversations.refresh()
+                            if (it.id == current.id) {
+                                navigateToChatPage(navController)
+                            }
+                        }
+                    },
+                    onPin = {
+                        vm.updatePinnedStatus(it)
+                    },
+                    onMoveToAssistant = {
+                        conversationToMove = it
+                        showMoveToAssistantSheet = true
+                    },
+                    onMoveToFolder = {
+                        conversationToMoveFolder = it
+                        showMoveToFolderSheet = true
                     }
-                },
-                onPin = {
-                    vm.updatePinnedStatus(it)
-                },
-                onMoveToAssistant = {
-                    conversationToMove = it
-                    showMoveToAssistantSheet = true
-                },
-                onMoveToFolder = {
-                    conversationToMoveFolder = it
-                    showMoveToFolderSheet = true
-                }
-            )
+                )
 
-            if (memoryDreaming) {
-                MemoryDreamingEntry(
-                    onClick = { navController.navigate(Screen.AssistantMemory(settings.assistantId.toString())) },
+                if (memoryDreaming) {
+                    MemoryDreamingEntry(
+                        onClick = { navController.navigate(Screen.AssistantMemory(settings.assistantId.toString())) },
+                    )
+                }
+
+                // 助手选择器
+                AssistantPicker(
+                    settings = settings,
+                    onSelectAssistant = { assistant ->
+                        val updateJob = vm.updateSettings { it.copy(assistantId = assistant.id) }
+                        scope.launch {
+                            updateJob.join()
+                            val id = if (context.readBooleanPreference("create_new_conversation_on_start", true)) {
+                                Uuid.random()
+                            } else {
+                                repo.getConversationsOfAssistant(assistant.id)
+                                    .first()
+                                    .firstOrNull()
+                                    ?.id ?: Uuid.random()
+                            }
+                            navigateToChatPage(navigator = navController, chatId = id)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    onClickSetting = {
+                        val currentAssistantId = settings.assistantId
+                        navController.navigate(Screen.AssistantDetail(id = currentAssistantId.toString()))
+                    }
                 )
             }
-
-            // 助手选择器
-            AssistantPicker(
-                settings = settings,
-                onSelectAssistant = { assistant ->
-                    val updateJob = vm.updateSettings { it.copy(assistantId = assistant.id) }
-                    scope.launch {
-                        updateJob.join()
-                        val id = if (context.readBooleanPreference("create_new_conversation_on_start", true)) {
-                            Uuid.random()
-                        } else {
-                            repo.getConversationsOfAssistant(assistant.id)
-                                .first()
-                                .firstOrNull()
-                                ?.id ?: Uuid.random()
-                        }
-                        navigateToChatPage(navigator = navController, chatId = id)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                onClickSetting = {
-                    val currentAssistantId = settings.assistantId
-                    navController.navigate(Screen.AssistantDetail(id = currentAssistantId.toString()))
-                }
-            )
 
             Row(
                 horizontalArrangement = Arrangement.SpaceAround,
@@ -426,91 +517,30 @@ fun ChatDrawerContent(
                             imageVector = HugeIcons.LookTop,
                             contentDescription = stringResource(R.string.assistant_page_title)
                         )
+                    },
+                    label = {
+                        Text(stringResource(R.string.assistant_page_title))
+                    },
+                    onClick = {
+                        navController.navigate(Screen.Assistant)
+                    },
+                )
 
-                        ConversationList(
-                            current = current,
-                            conversations = conversations,
-                            conversationJobs = conversationJobs.keys,
-                            listState = conversationListState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            onClick = {
-                                navigateToChatPage(navController, it.id)
-                            },
-                            onRegenerateTitle = {
-                                vm.generateTitle(it, true)
-                            },
-                            onDelete = {
-                                scope.launch {
-                                    vm.deleteConversation(it).join()
-                                    conversations.refresh()
-                                    if (it.id == current.id) {
-                                        navigateToChatPage(navController)
-                                    }
-                                }
-                            },
-                            onPin = {
-                                vm.updatePinnedStatus(it)
-                            },
-                            onMoveToAssistant = {
-                                conversationToMove = it
-                                showMoveToAssistantSheet = true
-                            },
-                            onMoveToFolder = {
-                                conversationToMoveFolder = it
-                                showMoveToFolderSheet = true
-                            }
-                        )
-
-                        // 助手选择器
-                        AssistantPicker(
-                            settings = settings,
-                            onUpdateSettings = {
-                                val updateJob = vm.updateSettings(it)
-                                scope.launch {
-                                    updateJob.join()
-                                    val id = if (context.readBooleanPreference("create_new_conversation_on_start", true)) {
-                                        Uuid.random()
-                                    } else {
-                                        repo.getConversationsOfAssistant(it.assistantId)
-                                            .first()
-                                            .firstOrNull()
-                                            ?.id ?: Uuid.random()
-                                    }
-                                    navigateToChatPage(navigator = navController, chatId = id)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            onClickSetting = {
-                                val currentAssistantId = settings.assistantId
-                                navController.navigate(Screen.AssistantDetail(id = currentAssistantId.toString()))
-                            }
-                        )
-                    } else {
-                        GroupPicker(settings, selectedGroup,
-                            onSelect = { groupVm.selectGroup(it.id); onGroupSelected() }, onCreate = { showNewGroup = true },
-                            onEdit = { navController.navigate(Screen.GroupConfig(it.id.toString())) })
-                        GroupConversationList(
-                            settings = settings, group = selectedGroup, conversations = groupConversations,
-                            current = groupConversations.find { it.id == groupConversationId },
-                            onSelect = { conversation -> selectedGroup?.let {
-                                groupVm.selectConversation(it.id, conversation.id); onGroupSelected()
-                            } },
-                            onCreate = { if (selectedGroup == null) showNewGroup = true else groupVm.newConversation(selectedGroup.id) },
-                            onTogglePin = { conversation -> selectedGroup?.let { groupVm.toggleConversationPin(it.id, conversation) } },
-                            onRename = { conversationToRename = it },
-                            onDelete = { groupConversationToDelete = it },
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                        )
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
+                Box {
+                    DrawerAction(
+                        icon = {
+                            Icon(HugeIcons.Sparkles, "Menu")
+                        },
+                        label = {
+                            Text(stringResource(R.string.menu))
+                        },
+                        onClick = {
+                            showMenuPopup = true
+                        },
+                    )
+                    DropdownMenu(
+                        expanded = showMenuPopup,
+                        onDismissRequest = { showMenuPopup = false }
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.chat_page_menu_image_generation)) },
@@ -519,68 +549,48 @@ fun ChatDrawerContent(
                                 showMenuPopup = false
                                 navController.navigate(Screen.ImageGen)
                             }
-                        }
-
-                        DrawerAction(
-                            icon = {
-                                Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
-                            },
-                            label = {
-                                Text(stringResource(R.string.favorite_page_title))
-                            },
-                            onClick = {
-                                navController.navigate(Screen.Favorite)
-                            },
-                        )
-
-                        DrawerAction(
-                            icon = {
-                                Icon(HugeIcons.ChartColumn, "统计数据")
-                            },
-                            label = {
-                                Text("统计数据")
-                            },
-                            onClick = {
-                                navController.navigate(Screen.Stats)
-                            },
-                        )
-
-                        Spacer(Modifier.weight(1f))
-
-                        DrawerAction(
-                            icon = {
-                                Icon(HugeIcons.Settings03, null)
-                            },
-                            label = { Text(stringResource(R.string.settings)) },
-                            onClick = {
-                                navController.navigate(Screen.Setting)
-                            },
                         )
                     }
                 }
+
+                DrawerAction(
+                    icon = {
+                        Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
+                    },
+                    label = {
+                        Text(stringResource(R.string.favorite_page_title))
+                    },
+                    onClick = {
+                        navController.navigate(Screen.Favorite)
+                    },
+                )
+
+                DrawerAction(
+                    icon = {
+                        Icon(HugeIcons.ChartColumn, "统计数据")
+                    },
+                    label = {
+                        Text("统计数据")
+                    },
+                    onClick = {
+                        navController.navigate(Screen.Stats)
+                    },
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                DrawerAction(
+                    icon = {
+                        Icon(HugeIcons.Settings03, null)
+                    },
+                    label = { Text(stringResource(R.string.settings)) },
+                    onClick = {
+                        navController.navigate(Screen.Setting)
+                    },
+                )
             }
         }
     }
-
-    if (showNewGroup) NewGroupDialog(settings, { showNewGroup = false }, onCreate = { group ->
-        groupVm.saveGroup(group) {
-            showNewGroup = false
-            groupVm.selectGroup(group.id)
-            navController.navigate(Screen.GroupConfig(group.id.toString()))
-        }
-    }, onCreateMember = { navController.navigate(Screen.GroupMembers) }, onUpdateTags = groupVm::updateGroupTags)
-
-    conversationToRename?.let { conversation ->
-        GroupRenameDialog(initial = conversation.title, onDismiss = { conversationToRename = null }, onConfirm = { name ->
-            selectedGroup?.let { groupVm.renameConversation(it.id, conversation.id, name) }
-            conversationToRename = null
-        }, label = stringResource(R.string.chat_page_rename), fieldLabel = stringResource(R.string.group_chat_new_conversation_title))
-    }
-    RikkaConfirmDialog(groupConversationToDelete != null, stringResource(R.string.confirm_delete), stringResource(R.string.delete),
-        stringResource(R.string.cancel), onConfirm = {
-            groupConversationToDelete?.let { conversation -> selectedGroup?.let { groupVm.deleteConversation(it.id, conversation.id) } }
-            groupConversationToDelete = null
-        }, onDismiss = { groupConversationToDelete = null }) { Text(groupConversationToDelete?.title.orEmpty()) }
 
     // 昵称编辑对话框
     nicknameEditState.EditStateContent { nickname, onUpdate ->
@@ -618,6 +628,38 @@ fun ChatDrawerContent(
                     Text(stringResource(R.string.chat_page_cancel))
                 }
             }
+        )
+    }
+
+    groupConversationToRename?.let { conversation ->
+        var title by remember(conversation.id) { mutableStateOf(conversation.title) }
+        AlertDialog(
+            onDismissRequest = { groupConversationToRename = null },
+            title = { Text(stringResource(R.string.chat_page_rename)) },
+            text = {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        settings.groups.firstOrNull { conversation.id in it.conversationIds }?.let { group ->
+                            groupVm.renameConversation(group.id, conversation.id, title)
+                        }
+                        groupConversationToRename = null
+                    },
+                    enabled = title.isNotBlank(),
+                ) { Text(stringResource(R.string.chat_page_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { groupConversationToRename = null }) {
+                    Text(stringResource(R.string.chat_page_cancel))
+                }
+            },
         )
     }
 
@@ -855,9 +897,7 @@ fun ChatDrawerContent(
 }
 
 @Composable
-private fun DrawerActions(navController: Navigator, groupMode: Boolean = false) {
-    val toaster = LocalToaster.current
-    val groupNotice = stringResource(R.string.group_search_notice)
+private fun DrawerActions(navController: Navigator) {
     Column {
         // 历史记录入口，行尾是搜索入口
         DrawerEntry(

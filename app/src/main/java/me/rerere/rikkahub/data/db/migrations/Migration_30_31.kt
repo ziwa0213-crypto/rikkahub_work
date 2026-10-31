@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
+import me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID
 
 private const val TAG = "Migration_30_31"
 
@@ -19,6 +20,17 @@ val Migration_30_31 = object : Migration(30, 31) {
         DatabaseMigrationTracker.onMigrationStart(30, 31)
         db.beginTransaction()
         try {
+            // Upstream 27-30 schema fixtures/backups do not have the fork's workspace columns.
+            // Fork 26 already has them: preserve those values, adding only truly missing columns.
+            val workspaceColumns = db.query("PRAGMA table_info(workspaces)").use { cursor ->
+                buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                }
+            }
+            if ("owner" !in workspaceColumns) db.execSQL("ALTER TABLE workspaces ADD COLUMN owner TEXT DEFAULT NULL")
+            if ("shared_rootfs_from" !in workspaceColumns) {
+                db.execSQL("ALTER TABLE workspaces ADD COLUMN shared_rootfs_from TEXT DEFAULT NULL")
+            }
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `usage_record` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                     "`created_at` INTEGER NOT NULL, `source` TEXT NOT NULL, `provider_id` TEXT, `model_id` TEXT, " +
@@ -52,6 +64,7 @@ val Migration_30_31 = object : Migration(30, 31) {
                 JOIN ConversationEntity c ON c.id = mn.conversation_id,
                     json_each(CASE WHEN json_valid(mn.messages) THEN mn.messages ELSE '[]' END) j
                 WHERE json_extract(j.value, '$.role') = 'assistant'
+                    AND c.assistant_id != '$GROUP_CHAT_ASSISTANT_ID'
                     AND json_type(j.value, '$.usage') = 'object'
                     AND (
                         COALESCE(json_extract(j.value, '$.usage.promptTokens'), 0) > 0

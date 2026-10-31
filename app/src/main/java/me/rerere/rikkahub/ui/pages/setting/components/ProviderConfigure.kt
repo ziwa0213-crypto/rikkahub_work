@@ -192,7 +192,6 @@ internal fun ProviderSetting.ApiKey.defaultBaseUrlForReset(): String {
         is ProviderSetting.OpenAI -> ProviderSetting.OpenAI().baseUrl
         is ProviderSetting.Google -> ProviderSetting.Google().baseUrl
         is ProviderSetting.Claude -> ProviderSetting.Claude().baseUrl
-        is ProviderSetting.DeepSeekWeb -> ""
     }
 }
 

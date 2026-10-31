@@ -25,7 +25,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -56,6 +55,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.switchItem
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionLocalNetwork
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionNotification
@@ -230,40 +230,32 @@ fun SettingWebPage() {
                             )
                         },
                     )
-                    item(
+                    switchItem(
+                        checked = settings.webServerLocalhostOnly,
+                        onCheckedChange = { checked ->
+                            scope.launch {
+                                settingsStore.update {
+                                    it.copy(webServerLocalhostOnly = checked)
+                                }
+                            }
+                        },
+                        // 运行中不允许切换 需重启服务生效
+                        enabled = !serverState.isRunning,
                         headlineContent = { Text(stringResource(R.string.setting_page_web_server_localhost_only)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_web_server_localhost_only_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = settings.webServerLocalhostOnly,
-                                onCheckedChange = { checked ->
-                                    scope.launch {
-                                        settingsStore.update {
-                                            it.copy(webServerLocalhostOnly = checked)
-                                        }
-                                    }
-                                },
-                                // 运行中不允许切换 需重启服务生效
-                                enabled = !serverState.isRunning,
-                            )
-                        },
                     )
-                    item(
+                    switchItem(
+                        checked = settings.webServerJwtEnabled,
+                        onCheckedChange = { checked ->
+                            scope.launch {
+                                settingsStore.update {
+                                    it.copy(webServerJwtEnabled = checked)
+                                }
+                            }
+                        },
+                        enabled = settings.webServerJwtEnabled || accessPasswordText.isNotBlank(),
                         headlineContent = { Text(stringResource(R.string.setting_page_web_server_jwt_enable)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_web_server_jwt_enable_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = settings.webServerJwtEnabled,
-                                onCheckedChange = { checked ->
-                                    scope.launch {
-                                        settingsStore.update {
-                                            it.copy(webServerJwtEnabled = checked)
-                                        }
-                                    }
-                                },
-                                enabled = settings.webServerJwtEnabled || accessPasswordText.isNotBlank(),
-                            )
-                        },
                     )
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_page_web_server_password)) },

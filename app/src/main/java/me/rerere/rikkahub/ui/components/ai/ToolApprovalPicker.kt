@@ -33,7 +33,7 @@ import me.rerere.hugeicons.stroke.ShieldOff
 import me.rerere.hugeicons.stroke.ShieldQuestionMark
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.ToolApprovalMode
-import me.rerere.rikkahub.ui.components.ui.ToggleSurface
+import me.rerere.ui.components.ToggleSurface
 
 @Composable
 fun ToolApprovalButton(

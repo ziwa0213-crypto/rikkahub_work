@@ -15,7 +15,6 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.db.dao.WorkspaceDAO
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.normalizeGroupData
-import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.workspace.RootfsInstallProgress
 import me.rerere.workspace.RootfsInstaller
 import me.rerere.workspace.WorkspaceCommandResult
@@ -174,18 +173,6 @@ class WorkspaceRepository internal constructor(
         require(owner == null || owner == "chat" || owner == "group") { "Invalid workspace owner" }
         val workspace = dao.getById(id) ?: return@withLock false
         dao.upsert(workspace.copy(owner = owner, updatedAt = System.currentTimeMillis()))
-        true
-    }
-
-    suspend fun setToolApproval(id: String, toolName: String, needsApproval: Boolean): Boolean = lifecycleMutex.withLock {
-        val workspace = dao.getById(id) ?: return@withLock false
-        val overrides = workspace.toolApprovalOverrides() + (toolName to needsApproval)
-        dao.upsert(
-            workspace.copy(
-                toolApprovals = JsonInstant.encodeToString(overrides),
-                updatedAt = System.currentTimeMillis(),
-            )
-        )
         true
     }
 

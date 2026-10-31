@@ -5,9 +5,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.rerere.rikkahub.data.db.dao.MemoryDAO
+import me.rerere.rikkahub.data.db.dao.MemoryEntityDAO
+import me.rerere.rikkahub.data.db.entity.MemoryEntity
+import me.rerere.rikkahub.data.model.RowMemory
 import me.rerere.rikkahub.data.db.entity.MemoryFileEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.MemoryFile
+import kotlin.uuid.Uuid
 
 sealed interface MemoryWriteResult {
     /** [file] 为 null 表示文件已被删除 */
@@ -25,14 +29,83 @@ sealed interface MemoryWriteResult {
  * 写操作都带 ifVersion 做乐观锁：传 [NEW_FILE_VERSION] 表示新建，传版本号表示基于该版本修改，
  * 传 null 则不校验（用户在界面里直接编辑）。
  */
-class MemoryRepository(private val memoryDAO: MemoryDAO) {
+enum class MemoryMigrationMode { COPY, MOVE }
+
+class MemoryRepository(
+    private val memoryDAO: MemoryDAO,
+    private val memoryEntityDAO: MemoryEntityDAO,
+) {
     companion object {
         const val GLOBAL_MEMORY_ID = "__global__"
         const val NEW_FILE_VERSION = "new"
+
+        /** Kept consistent with the scope used by group generation in ChatService. */
+        const val GROUP_CHAT_MEMORY_PREFIX = "grp:"
+
+        /** User-created memory-group bucket prefix. */
+        const val GROUP_MEMORY_PREFIX = "g:"
+
+        /** Legacy group bucket, moved to the first conversation when it is created. */
+        fun scopeOfChatGroup(groupId: Uuid): String =
+            "$GROUP_CHAT_MEMORY_PREFIX$groupId"
+
+        fun scopeOfChatGroup(groupId: Uuid, conversationId: Uuid): String =
+            "$GROUP_CHAT_MEMORY_PREFIX$groupId:$conversationId"
+
+        fun scopeOf(memoryGroupId: Uuid): String = "$GROUP_MEMORY_PREFIX$memoryGroupId"
     }
 
     // 读取、校验版本、写入必须一起完成，否则两个写入方会互相覆盖
     private val writeLock = Mutex()
+
+    fun getRowMemoriesFlow(scope: String): Flow<List<RowMemory>> =
+        memoryEntityDAO.getMemoriesOfAssistantFlow(scope).map { rows -> rows.map { it.toRowMemory() } }
+
+    suspend fun getRowMemories(scope: String): List<RowMemory> =
+        memoryEntityDAO.getMemoriesOfAssistant(scope).map { it.toRowMemory() }
+
+    suspend fun addRowMemory(scope: String, content: String): RowMemory {
+        require(content.isNotBlank()) { "Memory content must not be blank" }
+        val entity = MemoryEntity(assistantId = scope, content = content.trim())
+        return entity.copy(id = memoryEntityDAO.insertMemory(entity).toInt()).toRowMemory()
+    }
+
+    suspend fun updateRowMemory(scope: String, id: Int, content: String): RowMemory {
+        require(content.isNotBlank()) { "Memory content must not be blank" }
+        check(memoryEntityDAO.updateContent(scope, id, content.trim()) == 1) {
+            "Memory does not belong to this scope or no longer exists"
+        }
+        return RowMemory(id, content.trim())
+    }
+
+    suspend fun deleteRowMemory(scope: String, id: Int) {
+        check(memoryEntityDAO.getMemoryById(id)?.assistantId == scope) { "Memory does not belong to this scope" }
+        memoryEntityDAO.deleteMemories(scope, listOf(id))
+    }
+
+    suspend fun deleteRowMemories(scope: String, ids: List<Int>) {
+        if (ids.isEmpty()) return
+        memoryEntityDAO.deleteMemories(scope, ids)
+    }
+
+    suspend fun copyRowMemories(fromScope: String, toScope: String) =
+        memoryEntityDAO.transferRows(fromScope, toScope, null, move = false)
+
+    /** Move a whole bucket of row memories and memory files to the first conversation. */
+    suspend fun moveAllRowMemories(fromScope: String, toScope: String) {
+        if (fromScope == toScope) return
+        memoryEntityDAO.transferRows(fromScope, toScope, ids = null, move = true)
+        val files = memoryDAO.getFilesOfAssistant(fromScope)
+        if (files.isNotEmpty()) {
+            memoryDAO.upsertFiles(files.map { it.copy(assistantId = toScope) })
+            memoryDAO.deleteFilesOfAssistant(fromScope)
+        }
+    }
+
+    suspend fun migrateRowMemories(fromScope: String, toScope: String, ids: List<Int>, mode: MemoryMigrationMode) =
+        memoryEntityDAO.transferRows(fromScope, toScope, ids, move = mode == MemoryMigrationMode.MOVE)
+
+    suspend fun deleteAllRowMemories(scope: String) = memoryEntityDAO.deleteAllOfAssistant(scope)
 
     fun getFilesFlow(assistantId: String): Flow<List<MemoryFile>> =
         memoryDAO.getFilesOfAssistantFlow(assistantId).map { entities -> entities.map { it.toMemoryFile() } }
@@ -159,7 +232,13 @@ class MemoryRepository(private val memoryDAO: MemoryDAO) {
 
 /** 助手读写的记忆库：开启全局记忆后所有助手共用一份 */
 val Assistant.memoryId: String
-    get() = if (useGlobalMemory) MemoryRepository.GLOBAL_MEMORY_ID else id.toString()
+    get() = when {
+        useGlobalMemory -> MemoryRepository.GLOBAL_MEMORY_ID
+        memoryGroupId != null -> "${MemoryRepository.GROUP_MEMORY_PREFIX}$memoryGroupId"
+        else -> id.toString()
+    }
+
+private fun MemoryEntity.toRowMemory() = RowMemory(id = id, content = content)
 
 private fun MemoryFileEntity.toMemoryFile() = MemoryFile(path = path, content = content, updatedAt = updatedAt)
 

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -62,12 +63,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -79,14 +82,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.window.DialogProperties
 import me.rerere.ui.toast.ToastType
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
-import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ModelType
@@ -104,9 +104,6 @@ import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
-import me.rerere.rikkahub.data.model.ToolApprovalMode
-import me.rerere.ai.ui.UIMessageAnnotation
-import me.rerere.rikkahub.ui.hooks.insertMention
 import me.rerere.rikkahub.service.MessageQueueState
 import me.rerere.rikkahub.service.QueuedMessage
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
@@ -136,6 +133,8 @@ fun ChatInput(
     // 会话视角下的助手和模型：会话开始后以会话上固定的配置为准
     assistant: Assistant,
     chatModel: Model?,
+    groupMode: Boolean = false,
+    reasoningAvailable: Boolean? = null,
     hazeState: HazeState,
     onUpdateSearchMode: (SearchMode) -> Unit,
     modifier: Modifier = Modifier,
@@ -158,14 +157,6 @@ fun ChatInput(
     forceLiquidGlass: Boolean = false,
     onInputPanelBoundsChanged: ((Float, Float, IntSize) -> Unit)? = null,
     onInputHeightChanged: ((Int) -> Unit)? = null,
-    groupMode: Boolean = false,
-    reasoningLevelOverride: ReasoningLevel? = null,
-    onUpdateReasoningLevelOverride: ((ReasoningLevel) -> Unit)? = null,
-    toolApprovalModeOverride: ToolApprovalMode? = null,
-    onUpdateToolApprovalModeOverride: ((ToolApprovalMode) -> Unit)? = null,
-    quoteTarget: UIMessageAnnotation.GroupQuote? = null,
-    onClearQuote: () -> Unit = {},
-    inputFocusRequester: FocusRequester? = null,
 ) {
     val toaster = LocalToaster.current
     val containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -232,20 +223,35 @@ fun ChatInput(
     // 底部渐变遮罩：从输入区顶部一直过渡到屏幕底部（键盘弹出时到键盘上沿），避免消息透到系统导航栏
     val scrimColor = MaterialTheme.colorScheme.background
     val imeInsets = WindowInsets.ime
+    val navigationBarInsets = WindowInsets.navigationBars
     Surface(
         color = Color.Transparent,
-        modifier = Modifier.drawWithCache {
-            val brush = Brush.verticalGradient(
-                colors = listOf(scrimColor.copy(alpha = 0f), scrimColor),
-                startY = 0f,
-                endY = (size.height - imeInsets.getBottom(this)).coerceAtLeast(1f),
-            )
-            onDrawBehind { drawRect(brush) }
+        modifier = Modifier.onSizeChanged { onInputHeightChanged?.invoke(it.height) }.drawWithCache {
+            if (forceLiquidGlass) {
+                // 玻璃模式只遮住系统导航栏，输入框背后保持透明，避免盖住下层玻璃。
+                val navBottom = navigationBarInsets.getBottom(this)
+                val navTop = (size.height - navBottom).coerceAtLeast(0f)
+                onDrawBehind {
+                    if (navBottom > 0) {
+                        drawRect(
+                            color = scrimColor,
+                            topLeft = Offset(0f, navTop),
+                            size = Size(size.width, size.height - navTop),
+                        )
+                    }
+                }
+            } else {
+                val brush = Brush.verticalGradient(
+                    colors = listOf(scrimColor.copy(alpha = 0f), scrimColor),
+                    startY = 0f,
+                    endY = (size.height - imeInsets.getBottom(this)).coerceAtLeast(1f),
+                )
+                onDrawBehind { drawRect(brush) }
+            }
         },
     ) {
         Column(
             modifier = modifier
-                .onSizeChanged { onInputHeightChanged?.invoke(it.height) }
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 8.dp)
@@ -259,55 +265,25 @@ fun ChatInput(
                 onFinishEdit = onFinishEditQueuedMessage,
                 onResume = onResumeMessageQueue,
             )
-            Box(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(containerShape)
-                    .chatInputHaze(
-                        hazeState = hazeState,
-                        displaySetting = settings.displaySetting,
-                        containerColor = containerColor,
-                        shape = containerShape,
+                    .onGloballyPositioned { coordinates ->
+                        val position = coordinates.positionInWindow()
+                        onInputPanelBoundsChanged?.invoke(position.x, position.y, coordinates.size)
+                    }
+                    .then(
+                        if (forceLiquidGlass) Modifier else Modifier.chatInputHaze(
+                            hazeState = hazeState,
+                            displaySetting = settings.displaySetting,
+                        )
                     ),
                 shape = containerShape,
                 tonalElevation = 0.dp,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                 color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else containerColor,
             ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(containerShape)
-                        .then(
-                            if (backgroundEffect.enableBlurEffect && !useLiquidGlass) {
-                                when (backgroundEffect.backgroundEffectType) {
-                                    BackgroundEffectType.BLUR -> Modifier.hazeBlur(
-                                        input = HazeInput.Sources(hazeState),
-                                        style = inputHazeStyle,
-                                    )
-                                    BackgroundEffectType.GLASS,
-                                    BackgroundEffectType.LIQUID -> Modifier.hazeGlass(
-                                        input = HazeInput.Sources(hazeState),
-                                        style = GlassStyle.Material3(
-                                            containerColor = hazeTintColor,
-                                            tint = hazeTintColor.copy(alpha = 0.3f),
-                                        ) {
-                                            // Keep background text from competing with the input text.
-                                            optics(GlassDefaults.optics.copy(
-                                                blurRadius = OpticalSizeValue.Fixed(16.dp),
-                                                depth = OpticalSizeValue.Fixed(0.5f),
-                                            ))
-                                            shape(containerShape)
-                                        },
-                                    )
-                                }
-                            } else Modifier
-                        ),
-                    shape = containerShape,
-                    tonalElevation = 0.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                    color = if (backgroundEffect.enableBlurEffect) Color.Transparent else hazeTintColor,
-                ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -326,24 +302,11 @@ fun ChatInput(
                         MediaFileInputRow(state = state)
                     }
 
-                    if (groupMode && quoteTarget != null) {
-                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-                            Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("${quoteTarget.targetSenderName}:${quoteTarget.preview}", Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                IconButton(onClick = onClearQuote, modifier = Modifier.size(40.dp)) {
-                                    Icon(HugeIcons.Cancel01, stringResource(R.string.group_quote_clear), Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
                     TextInputRow(
                         state = state,
                         assistant = assistant,
                         completionProviders = completionProviders,
                         onSendMessage = { sendMessage() },
-                        groupMode = groupMode,
-                        focusRequester = inputFocusRequester,
                     )
 
                     Row(
@@ -359,7 +322,7 @@ fun ChatInput(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            // Group models are configured on each member.
+                            // Model Picker
                             if (!groupMode) {
                                 ModelSelectorButton(
                                     state = modelListState,
@@ -392,35 +355,22 @@ fun ChatInput(
                             )
 
                             // Reasoning
-                            if (chatModel?.abilities?.contains(ModelAbility.REASONING) == true) {
+                            if (reasoningAvailable ?: (chatModel?.abilities?.contains(ModelAbility.REASONING) == true)) {
                                 ReasoningButton(
-                                    reasoningLevel = reasoningLevel,
-                                    onUpdateReasoningLevel = { level ->
-                                        if (onUpdateReasoningLevelOverride != null) {
-                                            onUpdateReasoningLevelOverride(level)
-                                        } else {
-                                            onUpdateAssistant(assistant.copy(reasoningLevel = level))
-                                        }
+                                    reasoningLevel = assistant.reasoningLevel,
+                                    onUpdateReasoningLevel = {
+                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
                                     },
                                     onlyIcon = true,
                                 )
                             }
 
-                            val showApprovalButton = !groupMode || toolApprovalModeOverride != null
-                            if (showApprovalButton) {
-                                ToolApprovalButton(
-                                    mode = toolApprovalModeOverride ?: assistant.toolApprovalMode,
-                                    onUpdateMode = { mode ->
-                                        if (groupMode) {
-                                            onUpdateToolApprovalModeOverride?.invoke(mode)
-                                        } else {
-                                            onUpdateAssistant(assistant.copy(toolApprovalMode = mode))
-                                        }
-                                    },
-                                    onlyIcon = true,
-                                )
-                            }
-
+                            // Tool approval (F004)
+                            ToolApprovalButton(
+                                mode = assistant.toolApprovalMode,
+                                onUpdateMode = { onUpdateAssistant(assistant.copy(toolApprovalMode = it)) },
+                                onlyIcon = true,
+                            )
                         }
 
                         ActionIconButton(
@@ -474,7 +424,6 @@ fun ChatInput(
                             )
                         }
                     }
-                }
                 }
             }
 
@@ -559,8 +508,6 @@ private fun TextInputRow(
     assistant: Assistant,
     completionProviders: List<ChatCompletionProvider>,
     onSendMessage: () -> Unit,
-    groupMode: Boolean,
-    focusRequester: FocusRequester?,
 ) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
@@ -684,8 +631,7 @@ private fun TextInputRow(
             CompletionPopup(
                 completionList = list,
                 onItemClick = { item ->
-                    if (groupMode && item.mentionName != null) state.insertMention(item.mentionName, list.replacementRange)
-                    else state.applyCompletion(list.replacementRange, item)
+                    state.applyCompletion(list.replacementRange, item)
                     completionList = null
                 },
             )
@@ -696,7 +642,6 @@ private fun TextInputRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("chat_input")
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .contentReceiver(receiveContentListener)
                 .onFocusChanged {
                     isFocused = it.isFocused

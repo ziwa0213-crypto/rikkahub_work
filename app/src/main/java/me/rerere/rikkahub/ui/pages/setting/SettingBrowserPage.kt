@@ -16,7 +16,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -33,10 +32,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dokar.sonner.ToastType
+import me.rerere.ui.toast.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.Cookie
+import me.rerere.hugeicons.stroke.Clock01
+import me.rerere.hugeicons.stroke.Cursor01
+import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.FileView
+import me.rerere.hugeicons.stroke.Filter
 import me.rerere.hugeicons.stroke.Internet
+import me.rerere.hugeicons.stroke.ListView
+import me.rerere.hugeicons.stroke.PencilEdit01
+import me.rerere.hugeicons.stroke.SmartPhone01
+import me.rerere.hugeicons.stroke.Tick01
+import me.rerere.hugeicons.stroke.Tools
+import me.rerere.hugeicons.stroke.View
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.browser.BrowserController
@@ -46,8 +58,10 @@ import me.rerere.rikkahub.browser.BrowserToolRegistry
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.components.ui.OutlinedNumberInput
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
+import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
+import me.rerere.rikkahub.ui.components.ui.switchItem
+import me.rerere.ui.components.OutlinedNumberInput
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
@@ -109,11 +123,13 @@ fun SettingBrowserPage(
                     )
                     item(
                         onClick = { showClearConfirmation = true },
+                        leadingContent = { CardGroupIcon(HugeIcons.Delete01) },
                         headlineContent = { Text(stringResource(R.string.browser_clear_data)) },
                         supportingContent = { Text(stringResource(R.string.browser_clear_data_desc)) },
                     )
                     item(
                         onClick = { navController.navigate(Screen.SettingBrowserCookies) },
+                        leadingContent = { CardGroupIcon(HugeIcons.Cookie) },
                         headlineContent = { Text(stringResource(R.string.browser_cookies_title)) },
                         supportingContent = { Text(stringResource(R.string.browser_cookies_desc)) },
                     )
@@ -142,19 +158,29 @@ fun SettingBrowserPage(
                         )
                         BrowserToolRegistry.forCategory(category).forEach { tool ->
                             val enabled = BrowserToolRegistry.isEnabled(settings.browserToolsDisabled, tool.name)
-                            item(
-                                headlineContent = { Text(stringResource(tool.titleRes)) },
-                                supportingContent = { Text(stringResource(tool.descriptionRes)) },
-                                trailingContent = {
-                                    Switch(
-                                        checked = enabled,
-                                        onCheckedChange = { checked ->
-                                            val disabled = settings.browserToolsDisabled.toMutableSet()
-                                            if (checked) disabled.remove(tool.name) else disabled.add(tool.name)
-                                            scope.launch { settingsStore.setBrowserToolsDisabled(disabled.toList()) }
+                            switchItem(
+                                checked = enabled,
+                                onCheckedChange = { checked ->
+                                    val disabled = settings.browserToolsDisabled.toMutableSet()
+                                    if (checked) disabled.remove(tool.name) else disabled.add(tool.name)
+                                    scope.launch { settingsStore.setBrowserToolsDisabled(disabled.toList()) }
+                                },
+                                leadingContent = {
+                                    CardGroupIcon(
+                                        when (tool.name) {
+                                            "browser_open" -> HugeIcons.Internet
+                                            "browser_state" -> HugeIcons.View
+                                            "browser_read" -> HugeIcons.FileView
+                                            "browser_list_actions" -> HugeIcons.ListView
+                                            "browser_click" -> HugeIcons.Cursor01
+                                            "browser_type" -> HugeIcons.PencilEdit01
+                                            "browser_scroll" -> HugeIcons.ArrowDown01
+                                            else -> HugeIcons.Tick01
                                         },
                                     )
                                 },
+                                headlineContent = { Text(stringResource(tool.titleRes)) },
+                                supportingContent = { Text(stringResource(tool.descriptionRes)) },
                             )
                         }
                     }
@@ -166,20 +192,18 @@ fun SettingBrowserPage(
                     modifier = Modifier.padding(horizontal = 8.dp),
                     title = { Text(stringResource(R.string.browser_group_defaults)) },
                 ) {
-                    item(
+                    switchItem(
+                        checked = filterEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) scope.launch { settingsStore.setBrowserFilterEnabled(true) }
+                            else showFilterWarning = true
+                        },
+                        leadingContent = { CardGroupIcon(HugeIcons.Filter) },
                         headlineContent = { Text(stringResource(R.string.browser_setting_filter_title)) },
                         supportingContent = { Text(stringResource(R.string.browser_setting_filter_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = filterEnabled,
-                                onCheckedChange = { enabled ->
-                                    if (enabled) scope.launch { settingsStore.setBrowserFilterEnabled(true) }
-                                    else showFilterWarning = true
-                                },
-                            )
-                        },
                     )
                     item(
+                        leadingContent = { CardGroupIcon(HugeIcons.SmartPhone01) },
                         headlineContent = { Text(stringResource(if (settings.browserDesktopMode) R.string.browser_mode_desktop else R.string.browser_mode_mobile)) },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -199,6 +223,7 @@ fun SettingBrowserPage(
                         },
                     )
                     item(
+                        leadingContent = { CardGroupIcon(HugeIcons.Clock01) },
                         headlineContent = { Text(stringResource(R.string.browser_tool_timeout_title)) },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -219,6 +244,7 @@ fun SettingBrowserPage(
                         },
                     )
                     item(
+                        leadingContent = { CardGroupIcon(HugeIcons.Clock01) },
                         headlineContent = { Text(stringResource(R.string.browser_task_timeout_title)) },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

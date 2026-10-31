@@ -49,15 +49,16 @@ import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.FileImport
+import me.rerere.hugeicons.stroke.Message02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.DisplaySetting
-import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FileUtils
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.components.ui.CardGroupValue
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceButtons
 import me.rerere.rikkahub.ui.components.ui.switchItem
@@ -140,21 +141,14 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_display_page_show_user_avatar_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_display_page_show_user_avatar_title)) },
                     )
-                    if (settings.uiMode == UiMode.CHAT) {
-                        item(
-                            headlineContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_title)) },
-                            supportingContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_desc)) },
-                            trailingContent = {
-                                Switch(
-                                    checked = displaySetting.showAssistantBubble,
-                                    onCheckedChange = {
-                                        updateDisplaySetting(displaySetting.copy(showAssistantBubble = it))
-                                    }
-                                )
-                            },
-                        )
-                    }
-                    item(
+                    switchItem(
+                        checked = displaySetting.showAssistantBubble,
+                        onCheckedChange = { updateDisplaySetting(displaySetting.copy(showAssistantBubble = it)) },
+                        leadingContent = { CardGroupIcon(HugeIcons.Message02) },
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_assistant_bubble_desc)) },
+                    )
+                    formItem(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_bubble_opacity_title)) },
                         trailingContent = { CardGroupValue("${(displaySetting.bubbleOpacity * 100).roundToInt()}%") },
                     ) {
@@ -266,6 +260,7 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                     }
                     item(
                         onClick = { fontPickerLauncher.launch(CustomFontMimeTypesUI) },
+                        leadingContent = { CardGroupIcon(HugeIcons.FileImport) },
                         headlineContent = { Text(stringResource(R.string.setting_display_page_custom_font_title)) },
                         supportingContent = {
                             Text(

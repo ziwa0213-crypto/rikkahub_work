@@ -56,6 +56,7 @@ import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
 import me.rerere.ui.components.ToggleSurface
 import org.koin.compose.koinInject
+import kotlin.uuid.Uuid
 
 @Composable
 fun McpPickerButton(
@@ -168,12 +169,13 @@ fun McpPickerListItem(
     mcpManager: McpManager,
     shapes: ListItemShapes,
     modifier: Modifier = Modifier,
+    selectedServerIds: Set<Uuid> = assistant.mcpServers,
     onClick: () -> Unit,
 ) {
     val status by mcpManager.syncingStatus.collectAsStateWithLifecycle()
     val loading = status.values.any { it == McpStatus.Connecting }
     val enabledServers = servers.fastFilter {
-        it.commonOptions.enable && assistant.mcpServers.contains(it.id)
+        it.commonOptions.enable && selectedServerIds.contains(it.id)
     }
 
     SegmentedListItem(
@@ -208,6 +210,8 @@ internal fun McpPickerPage(
     mcpManager: McpManager,
     onUpdateAssistant: (Assistant) -> Unit,
     onBack: () -> Unit,
+    selectedServerIds: Set<Uuid>? = null,
+    onUpdateMcpServers: ((Set<Uuid>) -> Unit)? = null,
 ) {
     val status by mcpManager.syncingStatus.collectAsStateWithLifecycle()
     val loading = status.values.any { it == McpStatus.Connecting }
@@ -246,6 +250,8 @@ internal fun McpPickerPage(
             assistant = assistant,
             servers = servers,
             onUpdateAssistant = onUpdateAssistant,
+            selectedServerIds = selectedServerIds,
+            onUpdateMcpServers = onUpdateMcpServers,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -261,7 +267,9 @@ fun McpPicker(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     colors: ListItemColors = ListItemDefaults.segmentedColors(),
-    onUpdateAssistant: (Assistant) -> Unit
+    onUpdateAssistant: (Assistant) -> Unit,
+    selectedServerIds: Set<Uuid>? = null,
+    onUpdateMcpServers: ((Set<Uuid>) -> Unit)? = null,
 ) {
     val mcpManager = koinInject<McpManager>()
     val enabledServers = servers.fastFilter { it.commonOptions.enable }
@@ -272,18 +280,17 @@ fun McpPicker(
     ) {
         itemsIndexed(enabledServers, key = { _, server -> server.id }) { index, server ->
             val status by mcpManager.getStatus(server).collectAsStateWithLifecycle(McpStatus.Idle)
-            val checked = server.id in assistant.mcpServers
+            val selectedIds = selectedServerIds ?: assistant.mcpServers
+            val checked = server.id in selectedIds
             SegmentedListItem(
                 checked = checked,
                 onCheckedChange = {
-                    val newServers = assistant.mcpServers.toMutableSet()
+                    val newServers = selectedIds.toMutableSet()
                     if (it) newServers.add(server.id) else newServers.remove(server.id)
                     newServers.removeIf { servers.none { s -> s.id == server.id } } // remove invalid servers
-                    onUpdateAssistant(
-                        assistant.copy(
-                            mcpServers = newServers.toSet()
-                        )
-                    )
+                    val updatedServers = newServers.toSet()
+                    if (onUpdateMcpServers != null) onUpdateMcpServers(updatedServers)
+                    else onUpdateAssistant(assistant.copy(mcpServers = updatedServers))
                 },
                 shapes = ListItemDefaults.segmentedShapes(index = index, count = enabledServers.size),
                 colors = colors,

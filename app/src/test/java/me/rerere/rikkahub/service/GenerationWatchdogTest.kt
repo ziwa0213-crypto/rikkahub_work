@@ -13,6 +13,44 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GenerationWatchdogTest {
+    @Test fun realProgressExtendsIdleDeadlineButNotForeverAfterItStops() = runBlocking {
+        val ticks = Channel<Unit>(Channel.UNLIMITED)
+        var now = RequestClockSnapshot(0, 0)
+        val activity = GenerationActivity { now }
+        val errors = mutableListOf<GenerationDeadlineExceeded>()
+        val generation = launch {
+            val watchdog = launchGenerationWatchdog(
+                clock = { now }, onDeadline = errors::add,
+                waitForTick = { ticks.receive() }, lastActivity = { activity.lastActivity },
+            )
+            try { awaitCancellation() } finally { watchdog.cancel() }
+        }
+        yield()
+        repeat(3) { index ->
+            now = RequestClockSnapshot((index + 1) * 15 * 60_000L, (index + 1) * 15 * 60_000L)
+            activity.touch()
+            ticks.send(Unit)
+            yield()
+            assertTrue(generation.isActive)
+        }
+        assertTrue(errors.isEmpty())
+        now = RequestClockSnapshot(65 * 60_000L, 65 * 60_000L)
+        ticks.send(Unit)
+        generation.join()
+        assertEquals(listOf(GenerationDeadlineExceeded(20, false)), errors)
+    }
+
+    @Test fun activityIsInheritedByStructuredGenerationWork() = runBlocking {
+        var now = RequestClockSnapshot(0, 0)
+        val activity = GenerationActivity { now }
+        val work = launch(activity) {
+            now = RequestClockSnapshot(1234, 1200)
+            markGenerationProgress()
+        }
+        work.join()
+        assertEquals(now, activity.lastActivity)
+    }
+
     @Test fun timeoutPublishesErrorBeforeCancellingOriginalJob() = runBlocking {
         val ticks = Channel<Unit>(Channel.UNLIMITED)
         var now = RequestClockSnapshot(1000, 500)

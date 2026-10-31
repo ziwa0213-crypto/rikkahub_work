@@ -34,6 +34,7 @@ import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
 import me.rerere.rikkahub.ui.pages.extensions.workspace.toShellStatusLabel
+import kotlin.uuid.Uuid
 
 @Composable
 internal fun WorkspaceSelectSheet(
@@ -43,6 +44,7 @@ internal fun WorkspaceSelectSheet(
     onManage: () -> Unit,
     onDismiss: () -> Unit,
     scope: WorkspaceOwnerScope = WorkspaceOwnerScope.CHAT,
+    workspaceId: Uuid? = assistant.workspaceId,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -73,7 +75,7 @@ internal fun WorkspaceSelectSheet(
                 // 不绑定
                 WorkspaceSelectRow(
                     title = stringResource(R.string.workspace_no_binding),
-                    selected = assistant.workspaceId == null,
+                    selected = workspaceId == null,
                     onClick = { onSelect(null) },
                 )
                 workspaces.filter(scope::includes).forEach { workspace ->
@@ -85,7 +87,7 @@ internal fun WorkspaceSelectSheet(
                     WorkspaceSelectRow(
                         title = workspace.name,
                         status = "${workspace.shellStatus.toShellStatusLabel()} · $ownerLabel",
-                        selected = workspace.id == assistant.workspaceId?.toString(),
+                        selected = workspace.id == workspaceId?.toString(),
                         onClick = { onSelect(workspace.id) },
                     )
                 }

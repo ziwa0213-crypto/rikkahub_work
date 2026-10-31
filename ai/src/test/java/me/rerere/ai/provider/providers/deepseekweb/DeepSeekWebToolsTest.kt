@@ -21,6 +21,8 @@ class DeepSeekWebToolsTest {
                 "search_web",
                 "scrape_web",
                 "workspace_read_file",
+                "memory_read",
+                "memory_list",
                 "ask_user",
                 "text_to_speech",
                 "clipboard_tool",
@@ -39,11 +41,16 @@ class DeepSeekWebToolsTest {
     fun allowsReadOnlyCallsAndRejectsWrites() {
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"calendar_query","arguments":{}}""").result is DeepSeekWebToolProtocol.Result.Allowed)
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"workspace_read_file","arguments":{"path":"a.txt"}}""").result is DeepSeekWebToolProtocol.Result.Allowed)
+        assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"memory_read","arguments":{"path":["/profile.md"]}}""").result is DeepSeekWebToolProtocol.Result.Allowed)
+        assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"memory_list","arguments":{}}""").result is DeepSeekWebToolProtocol.Result.Allowed)
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"clipboard_tool","arguments":{"action":"read"}}""").result is DeepSeekWebToolProtocol.Result.Allowed)
 
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"calendar_create","arguments":{}}""").result is DeepSeekWebToolProtocol.Result.Blocked)
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"calendar_delete","arguments":{}}""").result is DeepSeekWebToolProtocol.Result.Blocked)
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"memory_tool","arguments":{"action":"create"}}""").result is DeepSeekWebToolProtocol.Result.Blocked)
+        for (name in listOf("memory_write", "memory_append", "memory_str_replace", "memory_delete")) {
+            assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"$name","arguments":{}}""").result is DeepSeekWebToolProtocol.Result.Blocked)
+        }
         assertTrue(DeepSeekWebToolProtocol.parse("""{"tool":"clipboard_tool","arguments":{"action":"write"}}""").result is DeepSeekWebToolProtocol.Result.Blocked)
     }
 

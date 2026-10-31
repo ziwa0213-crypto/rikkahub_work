@@ -12,8 +12,9 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
-import me.rerere.rikkahub.data.repository.ConversationRepository
+import me.rerere.rikkahub.data.model.RowMemory
 import me.rerere.rikkahub.data.repository.MemoryMigrationMode
+import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.memoryId
 import me.rerere.rikkahub.service.ChatService
@@ -47,6 +48,7 @@ class AssistantVM(
                 settings.copy(assistants = settings.assistants.filter { it.id != assistant.id })
             }
             memoryRepository.deleteFilesOfAssistant(assistant.id.toString())
+            memoryRepository.deleteAllRowMemories(assistant.id.toString())
             chatService.deleteConversationsOfAssistant(assistant.id)
         }
     }
@@ -62,6 +64,9 @@ class AssistantVM(
         }
     }
 
+    suspend fun loadRowMemories(assistant: Assistant): List<RowMemory> =
+        memoryRepository.getRowMemories(assistant.memoryId)
+
     fun copyAssistant(assistant: Assistant, memoryIds: Set<Int> = emptySet()) {
         viewModelScope.launch {
             val copiedAssistant = assistant.copy(
@@ -72,12 +77,16 @@ class AssistantVM(
                 memoryGroupId = null,
             )
             settingsStore.update { it.copy(assistants = it.assistants.plus(copiedAssistant)) }
-            if (copyMemories) {
-                memoryRepository.copyFiles(
-                    fromAssistantId = assistant.id.toString(),
-                    toAssistantId = copiedAssistant.id.toString(),
+            val targetScope = copiedAssistant.id.toString()
+            if (memoryIds.isNotEmpty()) {
+                memoryRepository.migrateRowMemories(
+                    assistant.memoryId,
+                    targetScope,
+                    memoryIds.toList(),
+                    MemoryMigrationMode.COPY,
                 )
             }
+            memoryRepository.copyFiles(assistant.memoryId, targetScope)
         }
     }
 

@@ -122,6 +122,8 @@ import me.rerere.ui.charts.ChartSpec
 import me.rerere.ui.webview.WebViewContentCache
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.widthIn
 
 @Composable
 fun ChatMessage(
@@ -507,7 +509,6 @@ private fun MessagePartsBlock(
                                         modifier = Modifier.animateContentSize(),
                                         shape = RoundedCornerShape(16.dp),
                                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
-                                        modifier = Modifier.animateContentSize(),
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                             if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
@@ -628,7 +629,7 @@ private fun MessagePartsBlock(
     }
 
     // Annotations (always rendered at the end)
-    if (annotations.isNotEmpty()) {
+    if (annotations.any { it is UIMessageAnnotation.UrlCitation }) {
         ChatMessageCitations(annotations = annotations)
     }
 }
@@ -692,9 +693,10 @@ private fun Modifier.clipDrawing(shape: Shape): Modifier = drawWithCache {
 private fun ChatMessageCitations(annotations: List<UIMessageAnnotation>) {
     var expand by remember { mutableStateOf(false) }
     val urls = remember(annotations) {
-        annotations.map { annotation ->
+        annotations.mapNotNull { annotation ->
             when (annotation) {
                 is UIMessageAnnotation.UrlCitation -> annotation.url
+                else -> null
             }
         }
     }
@@ -703,7 +705,7 @@ private fun ChatMessageCitations(annotations: List<UIMessageAnnotation>) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         ChatMessageFileChip(
-            text = stringResource(R.string.citations_count, annotations.size),
+            text = stringResource(R.string.citations_count, annotations.count { it is UIMessageAnnotation.UrlCitation }),
             onClick = { expand = !expand },
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             icon = { FaviconRow(urls = urls, size = 18.dp) },
@@ -722,7 +724,7 @@ private fun ChatMessageCitations(annotations: List<UIMessageAnnotation>) {
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        citations.fastForEachIndexed { index, annotation ->
+                        annotations.filterIsInstance<UIMessageAnnotation.UrlCitation>().fastForEachIndexed { index, annotation ->
                             when (annotation) {
                                 is UIMessageAnnotation.UrlCitation -> {
                                     Row(

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 31,
-    "identityHash": "a428043e3256791d9bc0855715c6355a",
+    "identityHash": "3e72ed54dfe3290e13a2d13acba61c85",
     "entities": [
       {
         "tableName": "ConversationEntity",
@@ -473,7 +473,7 @@
       },
       {
         "tableName": "workspaces",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `root` TEXT NOT NULL, `shell_status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `last_access_at` INTEGER, `tool_approvals` TEXT NOT NULL DEFAULT '{}', `shell_compatibility_mode` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `root` TEXT NOT NULL, `shell_status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `last_access_at` INTEGER, `tool_approvals` TEXT NOT NULL DEFAULT '{}', `shell_compatibility_mode` INTEGER NOT NULL DEFAULT 0, `owner` TEXT DEFAULT NULL, `shared_rootfs_from` TEXT DEFAULT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -529,6 +529,18 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "owner",
+            "columnName": "owner",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
+          },
+          {
+            "fieldPath": "sharedRootfsFrom",
+            "columnName": "shared_rootfs_from",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
           }
         ],
         "primaryKey": {
@@ -1010,7 +1022,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a428043e3256791d9bc0855715c6355a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3e72ed54dfe3290e13a2d13acba61c85')"
     ]
   }
 }

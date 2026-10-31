@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,17 +59,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANTS_IDS
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.MemoryFile
+import me.rerere.rikkahub.data.model.RowMemory
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
 import me.rerere.rikkahub.ui.components.ui.MemoryPickerDialog
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
@@ -80,7 +83,6 @@ import me.rerere.rikkahub.ui.hooks.heroAnimation
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantImporter
 import me.rerere.rikkahub.ui.theme.CustomColors
-import me.rerere.ui.components.RikkaConfirmDialog
 import org.koin.androidx.compose.koinViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -94,6 +96,7 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     }
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scope = rememberCoroutineScope()
 
     // 搜索关键词状态
     var searchQuery by remember { mutableStateOf("") }
@@ -102,8 +105,8 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     // 待删除的助手
     var deleteTarget by remember { mutableStateOf<Assistant?>(null) }
     var cloneTarget by remember { mutableStateOf<Assistant?>(null) }
-    var cloneMemories by remember { mutableStateOf(emptyList<AssistantMemory>()) }
-    var cloneSelectedMemoryIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var cloneCandidates by remember { mutableStateOf<List<RowMemory>>(emptyList()) }
+    var cloneSelected by remember { mutableStateOf(emptySet<Int>()) }
 
     // 根据搜索关键词和选中的标签过滤助手
     val filteredAssistants = remember(settings.assistants, selectedTagIds, searchQuery) {
@@ -221,12 +224,15 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
                                 navController.navigate(Screen.AssistantDetail(id = assistant.id.toString()))
                             },
                             onCopy = {
-                                if (memories.isNotEmpty()) {
-                                    cloneTarget = assistant
-                                    cloneMemories = memories
-                                    cloneSelectedMemoryIds = emptySet()
-                                } else {
-                                    vm.copyAssistant(assistant)
+                                scope.launch {
+                                    val rows = vm.loadRowMemories(assistant)
+                                    if (rows.isEmpty()) {
+                                        vm.copyAssistant(assistant)
+                                    } else {
+                                        cloneTarget = assistant
+                                        cloneCandidates = rows
+                                        cloneSelected = emptySet()
+                                    }
                                 }
                             },
                             onDelete = {
@@ -263,22 +269,23 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
         show = cloneTarget != null,
         title = stringResource(R.string.memory_picker_copy_title),
         subtitle = stringResource(R.string.memory_picker_copy_subtitle),
-        memories = cloneMemories,
-        selectedIds = cloneSelectedMemoryIds,
-        onSelectedIdsChange = { cloneSelectedMemoryIds = it },
+        memories = cloneCandidates,
+        selectedIds = cloneSelected,
+        onSelectedIdsChange = { cloneSelected = it },
         confirmText = stringResource(R.string.confirm),
         onConfirm = {
-            cloneTarget?.let { vm.copyAssistant(it, memoryIds = cloneSelectedMemoryIds) }
+            cloneTarget?.let { vm.copyAssistant(it, memoryIds = cloneSelected) }
             cloneTarget = null
-            cloneMemories = emptyList()
-            cloneSelectedMemoryIds = emptySet()
+            cloneCandidates = emptyList()
+            cloneSelected = emptySet()
         },
         onDismiss = {
             cloneTarget = null
-            cloneMemories = emptyList()
-            cloneSelectedMemoryIds = emptySet()
+            cloneCandidates = emptyList()
+            cloneSelected = emptySet()
         },
     )
+
 }
 
 @Composable

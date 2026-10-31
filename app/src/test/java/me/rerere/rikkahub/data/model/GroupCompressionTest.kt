@@ -7,6 +7,21 @@ import org.junit.Test
 import kotlin.uuid.Uuid
 
 class GroupCompressionTest {
+    @Test fun multipleCheckpointsUseOnlyTheLatestSummaryAndHistory() {
+        val oldSummary = UIMessage.user("old summary".repeat(100)).copy(isContextCheckpoint = true)
+        val oldReply = UIMessage.assistant("old reply").copy(usage = TokenUsage(promptTokens = 5000))
+        val latestSummary = UIMessage.user("新摘要").copy(isContextCheckpoint = true)
+        val latestReply = UIMessage.assistant("recent")
+        val history = listOf(oldSummary, oldReply, latestSummary, latestReply)
+
+        assertEquals(heuristicTokens("新摘要") + heuristicTokens("recent"), history.estimateContextTokens())
+        assertEquals(
+            42,
+            history.dropLast(1).plus(latestReply.copy(usage = TokenUsage(promptTokens = 40, cachedTokens = 2)))
+                .estimateContextTokens(),
+        )
+    }
+
     @Test fun realUsageIncludesCacheAndFallsBackAfterCompression() {
         val user = UIMessage.user("你好 hello")
         val reply = UIMessage.assistant("reply").copy(usage = TokenUsage(promptTokens = 100, cachedTokens = 20))

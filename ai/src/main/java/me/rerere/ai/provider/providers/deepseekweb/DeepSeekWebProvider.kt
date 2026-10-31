@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
@@ -105,9 +104,10 @@ internal class DeepSeekWebProvider(
     private suspend fun createSession(headers: Map<String, String>): String = withContext(Dispatchers.IO) {
         val response = client.newCall(Request.Builder().url("$BASE/api/v0/chat_session/create").headers(headers.toHeaders()).post(EMPTY).build()).await()
         val body = response.body?.string().orEmpty()
+        val root = parseDeepSeekResponse(body)
         check(response.isSuccessful) { "DeepSeek session creation failed: ${response.code}" }
-        json.parseToJsonElement(body).jsonObject["data"]?.jsonObject?.get("biz_data")?.jsonObject?.let { data ->
-            (data["chat_session"]?.jsonObject?.get("id") ?: data["id"])?.toString()?.trim('"')
+        root["data"].objOrNull()?.get("biz_data").objOrNull()?.let { data ->
+            (data["chat_session"].objOrNull()?.get("id") ?: data["id"])?.toString()?.trim('"')
         }?.takeIf(String::isNotBlank) ?: error("DeepSeek session id missing")
     }
 

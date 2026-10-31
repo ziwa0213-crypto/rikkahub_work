@@ -10,6 +10,9 @@ import me.rerere.asr.ASRProviderSetting
 import me.rerere.mediagen.provider.MediaGenerationProviderSetting
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.MemoryGroup
+import me.rerere.rikkahub.data.model.Group
+import me.rerere.rikkahub.data.model.GroupMember
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
@@ -27,7 +30,8 @@ class SettingsFieldsTest {
     @OptIn(ExperimentalSerializationApi::class)
     @Test
     fun `every settings property has exactly one field`() {
-        val properties = Settings.serializer().descriptor.elementNames.sorted()
+        // launchCount is read from its legacy key and incremented separately, never snapshot-written.
+        val properties = Settings.serializer().descriptor.elementNames.filterNot { it == "launchCount" }.sorted()
 
         assertEquals(properties, SETTINGS_FIELDS.map { it.property.name }.sorted())
     }
@@ -69,6 +73,7 @@ class SettingsFieldsTest {
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.chatModelId)
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.fastModelId)
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.translateModeId)
+        assertEquals(DEFAULT_AUTO_MODEL_ID, settings.compressModelId)
         assertEquals(DEFAULT_MODE_INJECTIONS, settings.modeInjections)
         assertEquals(DEFAULT_ASSISTANT_ID, settings.assistantId)
         assertEquals(DEFAULT_SYSTEM_TTS_ID, settings.selectedTTSProviderId)
@@ -104,6 +109,23 @@ class SettingsFieldsTest {
 
         assertEquals("changed", preferences[SettingsStore.THEME_ID])
         assertEquals("on disk", preferences[SettingsStore.TITLE_PROMPT])
+    }
+
+    @Test
+    fun `legacy launch counter cannot be overwritten by a stale settings snapshot`() {
+        val preferences = mutablePreferencesOf(SettingsStore.LAUNCH_COUNT to 42)
+        preferences.putSettings(SAMPLE.copy(launchCount = 1))
+        assertEquals(42, preferences.toSettings().launchCount)
+    }
+
+    @Test
+    fun `legacy display and fork state survive json backups`() {
+        val sample = SAMPLE.copy(displaySetting = SAMPLE.displaySetting.copy(
+            backgroundEffectType = BackgroundEffectType.LIQUID, liquidCompatMode = true,
+            useAppIconStyleLoadingIndicator = false,
+        ))
+        val json = me.rerere.rikkahub.utils.JsonInstant
+        assertEquals(sample, json.decodeFromString<Settings>(json.encodeToString(sample)))
     }
 }
 
@@ -162,6 +184,20 @@ private val SAMPLE = Settings(
     webServerLocalhostOnly = true,
     backupReminderConfig = BackupReminderConfig(enabled = true),
     sponsorAlertDismissedAt = 7,
+    compressModelId = id(32),
+    compressPrompt = "legacy compression",
+    groupCompressPrompt = "group compression",
+    memoryGroups = listOf(MemoryGroup(id = id(33), name = "shared")),
+    loadingAnimationHintDismissed = true,
+    browserDesktopMode = true,
+    browserToolsDisabled = listOf("browser_open"),
+    browserToolTimeoutMs = 12_000L,
+    browserTaskTimeoutMs = 60_000L,
+    browserVisitedHosts = listOf("example.test"),
+    uiMode = UiMode.GROUP,
+    groupMembers = listOf(GroupMember(id = id(34), name = "member")),
+    groups = listOf(Group(id = id(35), name = "group")),
+    groupTags = listOf(Tag(id = id(36), name = "group tag")),
 )
 
 private val STORED_KEYS = setOf(
@@ -213,4 +249,18 @@ private val STORED_KEYS = setOf(
     "quick_messages",
     "backup_reminder_config",
     "sponsor_alert_dismissed_at",
+    "compress_model",
+    "compress_prompt",
+    "group_compress_prompt",
+    "memory_groups",
+    "loading_animation_hint_dismissed",
+    "browser_desktop_mode",
+    "browser_tools_disabled",
+    "browser_tool_timeout_ms",
+    "browser_task_timeout_ms",
+    "browser_visited_hosts",
+    "ui_mode",
+    "group_members",
+    "groups",
+    "group_tags",
 )

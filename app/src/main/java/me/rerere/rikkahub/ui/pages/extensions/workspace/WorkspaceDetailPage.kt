@@ -87,13 +87,10 @@ import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.Copy01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.File02
-import me.rerere.hugeicons.stroke.FileEdit
 import me.rerere.hugeicons.stroke.FileExport
 import me.rerere.hugeicons.stroke.FileImport
-import me.rerere.hugeicons.stroke.FileView
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.FolderOpen
-import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share08
@@ -101,7 +98,6 @@ import me.rerere.hugeicons.stroke.Tag01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import androidx.compose.ui.res.stringResource
 import me.rerere.rikkahub.R
@@ -132,6 +128,7 @@ import me.rerere.workspace.WorkspaceStorageArea
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
+import androidx.compose.material3.LinearProgressIndicator
 
 private enum class WorkspaceDetailTab(
     override val icon: ImageVector,
@@ -249,7 +246,6 @@ fun WorkspaceDetailPage(id: String) {
                         workspace = state.workspace,
                         installProgress = installProgress,
                         onInstallRootfs = { showInstallDialog = true },
-                        onToolApprovalChange = vm::setToolApproval,
                         onShellCompatibilityModeChange = vm::setShellCompatibilityMode,
                     )
 
@@ -407,7 +403,6 @@ private fun WorkspaceBasicPage(
     workspace: WorkspaceEntity?,
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
-    onToolApprovalChange: (String, Boolean) -> Unit,
     onShellCompatibilityModeChange: (Boolean) -> Unit,
 ) {
     val shellStatus = workspace?.shellStatus
@@ -480,12 +475,6 @@ private fun WorkspaceBasicPage(
             }
         }
 
-        item {
-            WorkspaceToolApprovalCard(
-                workspace = workspace,
-                onToolApprovalChange = onToolApprovalChange,
-            )
-        }
     }
 }
 
@@ -511,53 +500,6 @@ private fun ShellStatusBadge(status: String?) {
         )
     }
 }
-
-@Composable
-private fun WorkspaceToolApprovalCard(
-    workspace: WorkspaceEntity?,
-    onToolApprovalChange: (String, Boolean) -> Unit,
-) {
-    val overrides = workspace?.toolApprovalOverrides().orEmpty()
-    val tools = workspaceToolApprovalItems()
-
-    CardGroup(
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.workspace_detail_tool_approval))
-                Text(
-                    text = stringResource(R.string.workspace_detail_tool_approval_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-    ) {
-        tools.forEach { (toolName, label, icon) ->
-            switchItem(
-                checked = resolveWorkspaceToolApproval(toolName, overrides),
-                onCheckedChange = { onToolApprovalChange(toolName, it) },
-                enabled = workspace != null,
-                supportingContent = {
-                    Text(
-                        text = toolName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                leadingContent = { CardGroupIcon(icon) },
-                headlineContent = { Text(label) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun workspaceToolApprovalItems() = listOf(
-    Triple("workspace_read_file", stringResource(R.string.workspace_detail_tool_read_file), HugeIcons.FileView),
-    Triple("workspace_write_file", stringResource(R.string.workspace_detail_tool_write_file), HugeIcons.PencilEdit01),
-    Triple("workspace_edit_file", stringResource(R.string.workspace_detail_tool_edit_file), HugeIcons.FileEdit),
-    Triple("workspace_shell", stringResource(R.string.workspace_detail_tool_shell), HugeIcons.ComputerTerminal01),
-)
 
 @Composable
 private fun RootfsProgress(progress: RootfsInstallProgress) {
@@ -1086,87 +1028,7 @@ private fun ErrorCard(message: String) {
     }
 }
 
-@Composable
-private fun RootfsProgress(progress: RootfsInstallProgress) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        val fraction = progress.totalBytes?.takeIf { it > 0 }?.let {
-            (progress.bytesRead.toFloat() / it).coerceIn(0f, 1f)
-        }
-        if (fraction != null && progress.stage == RootfsInstallStage.DOWNLOADING) {
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        Text(
-            text = when (progress.stage) {
-                RootfsInstallStage.DOWNLOADING -> {
-                    val total = progress.totalBytes?.let { " / ${it.fileSizeToString()}" }.orEmpty()
-                    stringResource(R.string.workspace_detail_downloading, progress.bytesRead.fileSizeToString(), total)
-                }
 
-                RootfsInstallStage.EXTRACTING -> {
-                    val entry = progress.currentEntry?.let { " · $it" }.orEmpty()
-                    stringResource(R.string.workspace_detail_extracting, progress.entriesExtracted, entry)
-                }
-
-                RootfsInstallStage.INSTALLED -> stringResource(R.string.workspace_detail_install_complete)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun InstallRootfsDialog(
-    workspace: WorkspaceEntity,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var url by rememberSaveable(workspace.id) { mutableStateOf(DEFAULT_ROOTFS_URL) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.workspace_detail_install_rootfs)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.workspace_detail_install_rootfs_desc, workspace.name),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.workspace_detail_download_url)) },
-                    maxLines = 5,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(url.trim()) },
-                enabled = url.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.common_install))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
-}
 
 private const val DEFAULT_ROOTFS_URL =
     "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.3-base-arm64.tar.gz"

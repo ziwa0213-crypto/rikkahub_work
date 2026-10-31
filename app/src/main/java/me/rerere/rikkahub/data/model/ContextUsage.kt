@@ -4,6 +4,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.limitContext
 import kotlin.math.ceil
 import kotlin.uuid.Uuid
 
@@ -17,6 +18,9 @@ internal fun heuristicTokens(text: String): Int {
 }
 
 internal fun List<UIMessage>.estimateContextTokens(): Int {
+    if (indexOfLast { it.isContextCheckpoint } > 0) {
+        return limitContext(0).estimateContextTokens()
+    }
     // Compression creates a new first message but retains older recent-message IDs and usage.
     // Those usage records describe the pre-compression context and must not be reused.
     val boundary = firstOrNull()?.createdAt

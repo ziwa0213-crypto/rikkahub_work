@@ -52,14 +52,13 @@ import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
-import me.rerere.rikkahub.ui.components.ui.Select
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
-import me.rerere.ui.components.RikkaConfirmDialog
 import org.koin.androidx.compose.koinViewModel
+import me.rerere.ui.components.Select
 
 @Composable
 fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
@@ -206,70 +205,46 @@ private fun WorkspaceItem(
             ) {
                 Text(
                     text = workspace.name,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleSmallEmphasized,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = workspace.name,
-                        style = MaterialTheme.typography.titleSmallEmphasized,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = workspace.shellStatus.toShellStatusLabel(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(stringResource(when (workspace.owner) {
+                Text(
+                    text = workspace.shellStatus.toShellStatusLabel(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(when (workspace.owner) {
                         "chat" -> R.string.workspace_owner_chat
                         "group" -> R.string.workspace_owner_group
                         else -> R.string.workspace_owner_unassigned
-                    }), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                ItemActionMenu(
-                    actions = buildList {
-                        add(ItemAction(
-                            text = stringResource(R.string.common_rename),
-                            icon = HugeIcons.PencilEdit01,
-                            onClick = onRename,
-                        ))
-                        add(ItemAction(
-                            text = stringResource(R.string.workspace_set_owner),
-                            icon = HugeIcons.Settings03,
-                            onClick = onSetOwner,
-                        ))
-                        add(ItemAction(
-                            text = stringResource(R.string.common_delete),
-                            icon = HugeIcons.Delete01,
-                            destructive = true,
-                            onClick = onDelete,
-                        ))
-                    }
+                    }),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             ItemActionMenu(
-                actions = listOf(
-                    ItemAction(
+                actions = buildList {
+                    add(ItemAction(
                         text = stringResource(R.string.common_rename),
                         icon = HugeIcons.PencilEdit01,
                         onClick = onRename,
-                    ),
-                    ItemAction(
+                    ))
+                    add(ItemAction(
+                        text = stringResource(R.string.workspace_set_owner),
+                        icon = HugeIcons.Settings03,
+                        onClick = onSetOwner,
+                    ))
+                    add(ItemAction(
                         text = stringResource(R.string.common_delete),
                         icon = HugeIcons.Delete01,
                         destructive = true,
                         onClick = onDelete,
-                    ),
-                )
+                    ))
+                }
             )
         }
     }

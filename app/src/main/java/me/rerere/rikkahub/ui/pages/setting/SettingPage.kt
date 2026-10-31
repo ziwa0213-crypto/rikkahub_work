@@ -66,13 +66,14 @@ import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share04
 import me.rerere.hugeicons.stroke.SmartPhone01
 import me.rerere.hugeicons.stroke.Sun01
+import me.rerere.hugeicons.stroke.UserGroup03
+import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.isNotConfigured
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceButtons
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceLabel
@@ -85,6 +86,8 @@ import me.rerere.rikkahub.utils.plus
 import me.rerere.rikkahub.utils.writeClipboardText
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import me.rerere.ui.components.Select
+import androidx.compose.foundation.layout.Row
 
 @Composable
 fun SettingPage(vm: SettingVM = koinViewModel()) {
@@ -179,6 +182,18 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
                     )
+                    item(
+                        onClick = { navController.navigate(Screen.GroupMembers) },
+                        leadingContent = { CardGroupIcon(HugeIcons.UserGroup03, containerColor = containerColor, contentColor = contentColor) },
+                        supportingContent = { Text(stringResource(R.string.setting_page_group_members_desc)) },
+                        headlineContent = { Text(stringResource(R.string.group_members_title)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Groups) },
+                        leadingContent = { CardGroupIcon(HugeIcons.UserMultiple, containerColor = containerColor, contentColor = contentColor) },
+                        supportingContent = { Text(stringResource(R.string.setting_page_groups_desc)) },
+                        headlineContent = { Text(stringResource(R.string.group_settings_title)) },
+                    )
                 }
             }
 
@@ -208,7 +223,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     )
                     item(
                         onClick = { navController.navigate(Screen.SettingBrowser) },
-                        leadingContent = { Icon(HugeIcons.Internet, null) },
+                        leadingContent = { CardGroupIcon(HugeIcons.Internet, containerColor = containerColor, contentColor = contentColor) },
                         supportingContent = { Text(stringResource(R.string.assistant_page_local_tools_browser_desc)) },
                         headlineContent = { Text(stringResource(R.string.assistant_page_local_tools_browser_title)) },
                     )

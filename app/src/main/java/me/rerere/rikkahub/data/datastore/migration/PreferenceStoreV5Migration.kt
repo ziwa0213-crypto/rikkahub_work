@@ -48,13 +48,15 @@ internal fun migrateProvidersQuotaQuery(providersJson: String): String {
  * 余额查询 `balanceOption` 改成自定义额度查询 `quotaQuery`。
  *
  * 旧的查询只对 OpenAI 类型生效：GET `baseUrl + apiPath`（apiPath 是完整地址时直接用），带 Bearer key，
- * 这里转成等价的模板。Google、Claude 上的旧配置界面上从没开放过，直接丢掉。
+ * 这里转成等价的模板。本 fork 保留所有类型的旧字段，供旧配置与备份兼容；
+ * Google、Claude 等类型不生成新的查询模板。
  * 模型级覆盖里嵌套的提供商配置一并处理。
  */
 internal fun migrateProviderQuotaQuery(provider: JsonElement): JsonElement {
     val obj = provider as? JsonObject ?: return provider
     val migrated = obj.toMutableMap()
-    val balanceOption = migrated.remove(LEGACY_KEY) as? JsonObject
+    // The fork retains the persisted legacy field for backwards-compatible backups.
+    val balanceOption = migrated[LEGACY_KEY] as? JsonObject
     val type = obj["type"]?.jsonPrimitiveOrNull?.contentOrNull
     if (balanceOption != null && type == "openai" && "quotaQuery" !in obj) {
         migrated["quotaQuery"] = balanceOption.toQuotaQuery()

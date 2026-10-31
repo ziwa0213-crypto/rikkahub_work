@@ -150,6 +150,7 @@ fun CardGroupScope.switchItem(
     enabled: Boolean = true,
     supportingContent: (@Composable () -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
+    colors: ListItemColors? = null,
     headlineContent: @Composable () -> Unit,
 ) = item(
     onClick = if (enabled) {
@@ -158,6 +159,7 @@ fun CardGroupScope.switchItem(
     modifier = modifier,
     supportingContent = supportingContent,
     leadingContent = leadingContent,
+    colors = colors,
     trailingContent = {
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     },

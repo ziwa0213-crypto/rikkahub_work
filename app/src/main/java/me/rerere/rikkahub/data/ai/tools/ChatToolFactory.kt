@@ -62,6 +62,8 @@ class ChatToolFactory(
         val tools = buildList {
             if (assistant.enableMemory) {
                 addAll(buildMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
+                // Register even for an empty store, so the first explicit request can be saved.
+                addAll(buildRowMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
             }
             if (shouldUseExternalWebSearch(assistant, model)) {
                 addAll(createSearchTools(settings))

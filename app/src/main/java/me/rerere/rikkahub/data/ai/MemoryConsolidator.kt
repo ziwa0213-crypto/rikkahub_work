@@ -17,6 +17,8 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderManager
+import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebCapabilityRefusalException
 import me.rerere.ai.ui.UIMessage
 import me.rerere.common.android.Logging
 import me.rerere.rikkahub.data.ai.prompts.MemoryConsolidationConversation
@@ -166,12 +168,18 @@ class MemoryConsolidator(
             }
             .withinTranscriptBudget()
         val files = memoryRepository.getFiles(memoryId)
+        // Read-only context for deduplication; the organizer still has file-store tools only.
+        val rowMemories = memoryRepository.getRowMemories(memoryId)
         // 没有新的轮次时，只有手动清理且记忆库里有东西才值得调用模型
         if (batches.isEmpty() && (!fullReview || files.isEmpty())) return null
 
         val model = settings.consolidationModel(batches.firstOrNull()?.conversation, assistants.first())
             ?: error("No model available")
         val providerSetting = model.findProvider(settings.providers) ?: error("Provider not found")
+        // New upstream background agent must not bypass the fork's read-only provider boundary.
+        if (providerSetting is ProviderSetting.DeepSeekWeb) {
+            throw DeepSeekWebCapabilityRefusalException(blockedToolName = "memory_write")
+        }
         // 自动整理只增改；删文件只在用户手动要求清理整个记忆库时才允许
         val tools = buildMemoryTools(memoryRepository, memoryId)
             .filter { fullReview || it.name != MemoryToolNames.DELETE } +
@@ -199,6 +207,7 @@ class MemoryConsolidator(
                     UIMessage.user(
                         buildMemoryConsolidationInput(
                             files = files,
+                            rowMemories = rowMemories,
                             conversations = batches.map { it.input },
                         )
                     )

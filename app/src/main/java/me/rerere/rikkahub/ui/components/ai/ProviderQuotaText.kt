@@ -48,6 +48,7 @@ fun rememberProviderQuota(providerSetting: ProviderSetting): Result<ProviderQuot
     val cacheKey = "${providerSetting.id}," + when (providerSetting) {
         is ProviderSetting.ApiKey -> providerSetting.quotaQuery.hashCode()
         is ProviderSetting.Account -> providerSetting.credential?.accountId
+        is ProviderSetting.DeepSeekWeb -> null
     }
     val quota by produceState(
         initialValue = cache.getIfPresent(cacheKey)?.let { Result.success(it) },

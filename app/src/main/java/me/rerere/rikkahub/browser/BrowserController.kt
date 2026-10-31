@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.ui.components.webview.WebViewState
+import me.rerere.ui.webview.WebViewState
 import java.net.URI
 import kotlin.coroutines.resume
 import kotlin.uuid.Uuid

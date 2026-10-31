@@ -1,23 +1,17 @@
 package me.rerere.rikkahub.ui.pages.chat
 
-import android.os.Build
 import android.net.Uri
+import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -42,24 +36,20 @@ import androidx.compose.material3.adaptive.currentWindowDpSize
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,7 +63,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
@@ -81,26 +73,22 @@ import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getSelectedASRProvider
+import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.data.model.displayNameOf
+import me.rerere.rikkahub.data.model.Group
+import me.rerere.rikkahub.data.model.compressionThreshold
+import me.rerere.rikkahub.data.model.enabledMembers
+import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.toInputAssistant
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.ChatError
-import me.rerere.rikkahub.service.MessageQueueState
 import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.components.ai.ChatInput
-import me.rerere.rikkahub.data.datastore.UiMode
-import me.rerere.rikkahub.ui.pages.group.GroupChatContent
-import me.rerere.rikkahub.ui.pages.group.LocalGroupChatContext
-import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
-import me.rerere.rikkahub.data.model.compressionThreshold
-import me.rerere.rikkahub.ui.pages.group.selectedGroup
-import me.rerere.rikkahub.ui.hooks.insertMention
-import me.rerere.ai.ui.UIMessageAnnotation
-import me.rerere.rikkahub.ui.components.ai.completion.GroupMentionCompletionProvider
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassChatHost
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassCircuitBreaker
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassInputBounds
@@ -115,6 +103,9 @@ import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.useEditState
+import me.rerere.rikkahub.ui.pages.group.GroupChatContent
+import me.rerere.rikkahub.ui.pages.group.GroupVM
+import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
 import me.rerere.rikkahub.utils.base64Decode
 import me.rerere.rikkahub.utils.navigateToChatPage
 import org.koin.androidx.compose.koinViewModel
@@ -136,6 +127,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 
     val setting by vm.settings.collectAsStateWithLifecycle()
     val conversation by vm.conversation.collectAsStateWithLifecycle()
+    val conversationLoaded by vm.conversationLoaded.collectAsStateWithLifecycle()
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
     val currentChatModel by vm.currentChatModel.collectAsStateWithLifecycle()
@@ -152,13 +144,6 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-
-    LaunchedEffect(setting.uiMode) {
-        if (setting.uiMode == UiMode.GROUP) {
-            focusManager.clearFocus(force = true)
-            softwareKeyboardController?.hide()
-        }
-    }
 
     // Handle back press when drawer is open
     BackHandler(enabled = drawerState.isOpen) {
@@ -234,6 +219,29 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
         }
     }
 
+    // 模式跟随当前会话类型：打开群聊即群组模式，打开聊天即聊天模式。
+    // 只在类型不一致时写一次，避免恢复阶段三⑥之前的无条件常量写回。
+    LaunchedEffect(conversation.id, conversation.isGroupChat(), setting.uiMode, conversationLoaded) {
+        if (!conversationLoaded || setting.init) return@LaunchedEffect
+        val target = if (conversation.isGroupChat()) UiMode.GROUP else UiMode.CHAT
+        if (setting.uiMode != target) {
+            vm.updateSettings { current ->
+                if (current.uiMode == target) current else current.copy(uiMode = target)
+            }
+        }
+    }
+
+    if (conversation.isGroupChat()) {
+        GroupChatHost(
+            conversation = conversation,
+            settings = setting,
+            drawerState = drawerState,
+            bigScreen = isBigScreen,
+            chatVm = vm,
+        )
+        return
+    }
+
     when {
         isBigScreen -> {
             PermanentNavigationDrawer(
@@ -242,8 +250,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                         navController = navController,
                         current = conversation,
                         vm = vm,
-                        settings = setting,
-                        onGroupSelected = { scope.launch { drawerState.close() } },
+                        settings = setting
                     )
                 }
             ) {
@@ -276,8 +283,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                         navController = navController,
                         current = conversation,
                         vm = vm,
-                        settings = setting,
-                        onGroupSelected = { scope.launch { drawerState.close() } },
+                        settings = setting
                     )
                 }
             ) {
@@ -308,6 +314,317 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 }
 
 @Composable
+private fun GroupChatHost(
+    conversation: Conversation,
+    settings: Settings,
+    drawerState: DrawerState,
+    bigScreen: Boolean,
+    chatVm: ChatVM,
+) {
+    val groupVm: GroupVM = rememberGroupVM()
+    val group = settings.groups.firstOrNull { conversation.id in it.conversationIds }
+    val groupAssistant = remember(group) { group?.toInputAssistant() ?: Assistant() }
+    val groupConversation by groupVm.conversation.collectAsStateWithLifecycle()
+    val conversationJob by groupVm.conversationJob.collectAsStateWithLifecycle()
+    val messageQueue by groupVm.messageQueue.collectAsStateWithLifecycle()
+    val contextUsage by groupVm.contextUsage.collectAsStateWithLifecycle()
+    val activeConversation = groupConversation ?: conversation
+    val navController = LocalNavController.current
+    val workspaceRepository: WorkspaceRepository = koinInject()
+    val mcpManager: McpManager = koinInject()
+    val hazeState = rememberHazeState()
+    val scope = rememberCoroutineScope()
+
+    var showFilesSheet by remember { mutableStateOf(false) }
+    var showCompressDialog by remember { mutableStateOf(false) }
+    var blocked by remember { mutableStateOf(false) }
+    var pendingQuote by remember { mutableStateOf<UIMessageAnnotation.GroupQuote?>(null) }
+    var inputPanelBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var inputHeightPx by remember { mutableStateOf(0) }
+
+    LaunchedEffect(group?.id, conversation.id) {
+        group?.let {
+            groupVm.selectGroup(it.id)
+            groupVm.selectConversation(it.id, conversation.id)
+        }
+    }
+
+    val completionProviders = remember(group?.workspaceId, activeConversation.workspaceCwd, workspaceRepository) {
+        group?.workspaceId?.let { workspaceId ->
+            listOf(
+                WorkspaceCompletionProvider(
+                    workspaceId = workspaceId.toString(),
+                    repository = workspaceRepository,
+                    currentCwd = activeConversation.workspaceCwd,
+                )
+            )
+        }.orEmpty()
+    }
+    val attachmentPickerActions = rememberChatAttachmentPickerActions(
+        inputState = groupVm.inputState,
+        setting = settings,
+        onAttachmentAdded = { showFilesSheet = false },
+    )
+
+    val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
+    val useLiquidHost = shouldUseNativeLiquidGlass(
+        apiLevel = Build.VERSION.SDK_INT,
+        setting = settings.displaySetting,
+        unavailable = liquidUnavailable,
+    )
+
+    val inputContent: @Composable (Boolean) -> Unit = { drawLiquidGlass ->
+        ChatInput(
+            state = groupVm.inputState,
+            loading = conversationJob != null,
+            settings = settings,
+            assistant = groupAssistant,
+            chatModel = null,
+            groupMode = true,
+            reasoningAvailable = true,
+            hazeState = hazeState,
+            completionProviders = completionProviders,
+            onUpdateChatModel = {},
+            onUpdateAssistant = { updated ->
+                group?.let { current ->
+                    groupVm.updateGroup(current.id) {
+                        it.copy(
+                            reasoningLevel = updated.reasoningLevel,
+                            toolApprovalMode = updated.toolApprovalMode,
+                        )
+                    }
+                }
+            },
+            onUpdateSearchService = {},
+            onUpdateSearchMode = { mode ->
+                group?.let { current ->
+                    groupVm.updateGroup(current.id) { it.copy(enableWebSearch = mode != SearchMode.OFF) }
+                }
+            },
+            onMoreClick = { showFilesSheet = true },
+            onCancelClick = { groupVm.stopGeneration() },
+            onSendClick = {
+                val parts = groupVm.inputState.getContents()
+                if (parts.isEmptyInputMessage()) return@ChatInput
+                if (groupVm.inputState.isEditing()) {
+                    groupVm.inputState.editingMessage?.let { groupVm.editMessage(parts, it) }
+                } else {
+                    if (group == null || group.enabledMembers(settings).isEmpty()) {
+                        blocked = true
+                        return@ChatInput
+                    }
+                    groupVm.sendMessage(group.id, parts, quote = pendingQuote)
+                    pendingQuote = null
+                }
+                groupVm.inputState.clearInput()
+            },
+            onLongSendClick = {
+                val parts = groupVm.inputState.getContents()
+                if (parts.isEmptyInputMessage()) return@ChatInput
+                if (groupVm.inputState.isEditing()) {
+                    groupVm.inputState.editingMessage?.let { groupVm.editMessage(parts, it) }
+                } else {
+                    if (group == null || group.enabledMembers(settings).isEmpty()) {
+                        blocked = true
+                        return@ChatInput
+                    }
+                    groupVm.sendMessage(group.id, parts, answer = false, quote = pendingQuote)
+                    pendingQuote = null
+                }
+                groupVm.inputState.clearInput()
+            },
+            messageQueue = messageQueue,
+            onRemoveQueuedMessage = { groupVm.removeQueuedMessage(it) },
+            onBeginEditQueuedMessage = { groupVm.beginEditQueuedMessage(it) },
+            onFinishEditQueuedMessage = { id, parts -> groupVm.finishEditQueuedMessage(id, parts) },
+            onResumeMessageQueue = { groupVm.resumeMessageQueue() },
+            forceLiquidGlass = drawLiquidGlass,
+            onInputHeightChanged = { height -> inputHeightPx = height },
+            onInputPanelBoundsChanged = if (drawLiquidGlass) { { x, y, size ->
+                inputPanelBounds = LiquidGlassInputBounds(x, y, size.width, size.height)
+            } } else null,
+        )
+    }
+
+    val groupPage: @Composable () -> Unit = {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            if (useLiquidHost) {
+                LiquidGlassChatHost(
+                    sourceContent = {
+                        GroupChatContent(
+                            drawerState = drawerState,
+                            bigScreen = bigScreen,
+                            settings = settings,
+                            hazeState = hazeState,
+                            useLiquidHost = true,
+                            inputHeightPx = inputHeightPx,
+                            onDrawInput = {},
+                            blocked = blocked,
+                            onBlockedChange = { blocked = it },
+                            vm = groupVm,
+                            onQuote = { pendingQuote = it },
+                            onMention = { groupVm.inputState.appendText("@$it ") },
+                        )
+                    },
+                    inputContent = { inputContent(true) },
+                    inputBounds = inputPanelBounds,
+                    tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                GroupChatContent(
+                    drawerState = drawerState,
+                    bigScreen = bigScreen,
+                    settings = settings,
+                    hazeState = hazeState,
+                    useLiquidHost = false,
+                    inputHeightPx = 0,
+                    onDrawInput = { inputContent(false) },
+                    blocked = blocked,
+                    onBlockedChange = { blocked = it },
+                    vm = groupVm,
+                    onQuote = { pendingQuote = it },
+                    onMention = { groupVm.inputState.appendText("@$it ") },
+                )
+            }
+
+            if (showFilesSheet && group != null) {
+                GroupChatFilesPickerSheet(
+                    conversation = activeConversation,
+                    group = group,
+                    assistant = groupAssistant,
+                    settings = settings,
+                    groupVm = groupVm,
+                    mcpManager = mcpManager,
+                    contextUsage = contextUsage,
+                    inputState = groupVm.inputState,
+                    attachmentPickerActions = attachmentPickerActions,
+                    showCompressDialog = showCompressDialog,
+                    onShowCompressDialogChange = { showCompressDialog = it },
+                    onDismiss = {
+                        showCompressDialog = false
+                        showFilesSheet = false
+                    },
+                )
+            }
+        }
+    }
+
+    if (bigScreen) {
+        androidx.compose.material3.PermanentNavigationDrawer(
+            drawerContent = {
+                ChatDrawerContent(
+                    navController = navController,
+                    current = conversation,
+                    vm = chatVm,
+                    settings = settings,
+                )
+            },
+        ) {
+            groupPage()
+        }
+    } else {
+        androidx.compose.material3.ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ChatDrawerContent(
+                    navController = navController,
+                    current = conversation,
+                    vm = chatVm,
+                    settings = settings,
+                )
+            },
+        ) {
+            groupPage()
+        }
+        BackHandler(drawerState.isOpen) {
+            scope.launch { drawerState.close() }
+        }
+    }
+}
+
+@Composable
+private fun GroupChatFilesPickerSheet(
+    conversation: Conversation,
+    group: Group,
+    assistant: Assistant,
+    settings: Settings,
+    groupVm: GroupVM,
+    mcpManager: McpManager,
+    contextUsage: me.rerere.rikkahub.data.model.ContextUsage?,
+    inputState: ChatInputState,
+    attachmentPickerActions: ChatAttachmentPickerActions,
+    showCompressDialog: Boolean,
+    onShowCompressDialogChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = onDismiss,
+    ) {
+        FilesPicker(
+            conversation = conversation,
+            state = inputState,
+            assistant = assistant,
+            chatModel = null,
+            mcpManager = mcpManager,
+            onCompressContext = { prompt, keep ->
+                groupVm.handleCompressContext(prompt, group.compressTargetTokens, keep)
+            },
+            onGroupCompressContext = { prompt, target, keep ->
+                groupVm.handleCompressContext(prompt, target, keep)
+            },
+            onUpdateAssistant = {},
+            onUpdateWorkspaceCwd = {},
+            showCompressDialog = showCompressDialog,
+            onShowCompressDialogChange = onShowCompressDialogChange,
+            onDismiss = onDismiss,
+            onTakePic = attachmentPickerActions.onTakePicture,
+            onPickImage = attachmentPickerActions.onPickImage,
+            onPickVideo = attachmentPickerActions.onPickVideo,
+            onPickAudio = attachmentPickerActions.onPickAudio,
+            onPickFile = attachmentPickerActions.onPickFile,
+            onSketch = attachmentPickerActions.onSketch,
+            groupContextUsage = contextUsage,
+            groupCompressThreshold = group.compressionThreshold(),
+            onGroupCompressThresholdChange = { threshold ->
+                groupVm.updateGroup(group.id) { it.copy(compressThresholdRatio = threshold) }
+            },
+            groupCompressTargetTokens = group.compressTargetTokens,
+            groupCompressKeepRecent = group.compressKeepRecent,
+            groupMode = true,
+            groupWorkspaceId = group.workspaceId,
+            onUpdateGroupWorkspace = { workspaceId ->
+                groupVm.updateGroup(group.id) { it.copy(workspaceId = workspaceId) }
+            },
+            onUpdateGroupCwd = { cwd ->
+                groupVm.updateWorkspaceCwd(group.id, conversation.id, cwd)
+            },
+            groupMcpServerIds = group.mcpServers,
+            onUpdateGroupMcpServers = { ids ->
+                groupVm.updateGroup(group.id) { it.copy(mcpServers = ids) }
+            },
+            groupModeInjectionIds = group.modeInjectionIds,
+            onUpdateGroupModeInjectionIds = { ids ->
+                groupVm.updateGroup(group.id) { it.copy(modeInjectionIds = ids) }
+            },
+            groupLorebookIds = group.lorebookIds,
+            onUpdateGroupLorebookIds = { ids ->
+                groupVm.updateGroup(group.id) { it.copy(lorebookIds = ids) }
+            },
+            groupEnabledSkills = group.enabledSkills,
+            onUpdateGroupEnabledSkills = { skills ->
+                groupVm.updateGroup(group.id) { it.copy(enabledSkills = skills) }
+            },
+        )
+    }
+}
+
+@Composable
 private fun ChatPageContent(
     onStartVoiceMode: () -> Unit,
     inputState: ChatInputState,
@@ -328,47 +645,126 @@ private fun ChatPageContent(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
-    val resources = LocalResources.current
-    val groupVm = rememberGroupVM()
-    val selectedGroupId by groupVm.selectedGroupId.collectAsStateWithLifecycle()
-    val group = setting.selectedGroup(selectedGroupId)
-    var groupBlocked by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
 
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
     var showFilesSheet by remember { mutableStateOf(false) }
     val attachmentPickerActions = rememberChatAttachmentPickerActions(
-        inputState = activeInputState,
+        inputState = inputState,
         setting = setting,
         onAttachmentAdded = { showFilesSheet = false },
     )
     val allowAudioVideoAttachments =
         currentChatModel?.findProvider(setting.providers) is ProviderSetting.Google
 
-    val groupWorkspaceConversation by groupVm.conversation.collectAsStateWithLifecycle()
-    val inputWorkspaceId = if (setting.uiMode == UiMode.GROUP) group?.workspaceId else assistant.workspaceId
-    val inputWorkspaceCwd = if (setting.uiMode == UiMode.GROUP) groupWorkspaceConversation?.workspaceCwd else conversation.workspaceCwd
-    val completionProviders = remember(inputWorkspaceId, inputWorkspaceCwd, workspaceRepository) {
-        inputWorkspaceId?.let { workspaceId ->
+    val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
+        assistant.workspaceId?.let { workspaceId ->
             listOf(
                 WorkspaceCompletionProvider(
                     workspaceId = workspaceId.toString(),
                     repository = workspaceRepository,
-                    currentCwd = inputWorkspaceCwd,
+                    currentCwd = conversation.workspaceCwd,
                 )
             )
         }.orEmpty()
     }
 
-    if (setting.uiMode == UiMode.CHAT) TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
+    TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        modifier = Modifier.fillMaxSize()
-    ) {
+    val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
+    val useLiquidHost = shouldUseNativeLiquidGlass(
+        apiLevel = Build.VERSION.SDK_INT,
+        setting = setting.displaySetting,
+        unavailable = liquidUnavailable,
+    )
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    var inputPanelBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var inputHeightPx by remember { mutableStateOf(0) }
+
+    val inputContent: @Composable (Boolean) -> Unit = { drawLiquidGlass ->
+        val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
+        val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
+        ChatInput(
+            onStartVoiceMode = onStartVoiceMode,
+            voiceState = voiceState,
+            onStopVoiceMode = vm.voiceSession::stop,
+            state = inputState,
+            messageQueue = messageQueue,
+            onRemoveQueuedMessage = vm::removeQueuedMessage,
+            onBeginEditQueuedMessage = vm::beginEditQueuedMessage,
+            onFinishEditQueuedMessage = vm::finishEditQueuedMessage,
+            onResumeMessageQueue = vm::resumeMessageQueue,
+            loading = loadingJob != null,
+            settings = setting,
+            assistant = assistant,
+            chatModel = currentChatModel,
+            hazeState = hazeState,
+            completionProviders = completionProviders,
+            onCancelClick = {
+                vm.stopGeneration()
+            },
+            onUpdateSearchMode = { mode ->
+                vm.updateSearch(
+                    enableWebSearch = mode == SearchMode.LOCAL,
+                    builtInSearch = mode == SearchMode.BUILT_IN,
+                )
+            },
+            onSendClick = {
+                if (currentChatModel == null) {
+                    toaster.show("请先选择模型", type = ToastType.Error)
+                    return@ChatInput
+                }
+                if (inputState.isEditing()) {
+                    vm.handleMessageEdit(
+                        parts = inputState.getContents(),
+                        messageId = inputState.editingMessage!!,
+                    )
+                } else {
+                    vm.handleMessageSend(inputState.getContents())
+                    scope.launch {
+                        delay(100.milliseconds)
+                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                    }
+                }
+                inputState.clearInput()
+            },
+            onLongSendClick = {
+                if (inputState.isEditing()) {
+                    vm.handleMessageEdit(
+                        parts = inputState.getContents(),
+                        messageId = inputState.editingMessage!!,
+                    )
+                } else {
+                    vm.handleMessageSend(content = inputState.getContents(), answer = false)
+                    scope.launch {
+                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                    }
+                }
+                inputState.clearInput()
+            },
+            onUpdateChatModel = vm::setChatModel,
+            onUpdateAssistant = vm::updateAssistant,
+            onUpdateSearchService = { index ->
+                vm.updateSettings { it.copy(searchServiceSelected = index) }
+            },
+            forceLiquidGlass = drawLiquidGlass,
+            onInputHeightChanged = { height ->
+                if (inputHeightPx != height) inputHeightPx = height
+            },
+            onInputPanelBoundsChanged = if (drawLiquidGlass) { { x, y, size ->
+                val bounds = LiquidGlassInputBounds(x, y, size.width, size.height)
+                if (inputPanelBounds != bounds) inputPanelBounds = bounds
+            } } else null,
+            onMoreClick = {
+                showFilesSheet = true
+            },
+        )
+    }
+
+    val body: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
         Scaffold(
             topBar = {
@@ -391,201 +787,18 @@ private fun ChatPageContent(
                     }
                 )
             },
-            onSendClick = {
-                if (isGroupMode) {
-                    groupSend()
-                    return@ChatInput
-                }
-                if (currentChatModel == null) {
-                    toaster.show("请先选择模型", type = ToastType.Error)
-                    return@ChatInput
-                }
-                if (inputState.isEditing()) {
-                    vm.handleMessageEdit(inputState.getContents(), inputState.editingMessage!!)
-                } else {
-                    vm.handleMessageSend(inputState.getContents())
-                    scope.launch {
-                        delay(100.milliseconds)
-                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                    }
-                }
-                inputState.clearInput()
-            },
-            onLongSendClick = {
-                if (isGroupMode) {
-                    groupSend(answer = false)
-                    return@ChatInput
-                }
-                if (inputState.isEditing()) {
-                    vm.handleMessageEdit(inputState.getContents(), inputState.editingMessage!!)
-                } else {
-                    vm.handleMessageSend(inputState.getContents(), answer = false)
-                    scope.launch { chatListState.requestScrollToItem(conversation.currentMessages.size + 5) }
-                }
-                inputState.clearInput()
-            },
-            onUpdateChatModel = { vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it) },
-            onUpdateAssistant = { updated ->
-                vm.updateSettings(
-                    setting.copy(assistants = setting.assistants.map { if (it.id == updated.id) updated else it })
-                )
-            },
-            onUpdateSearchService = { index -> vm.updateSettings(setting.copy(searchServiceSelected = index)) },
-            onMoreClick = { showFilesSheet = true },
-            modifier = Modifier.fillMaxWidth(),
-            forceLiquidGlass = drawLiquidGlass,
-            onInputPanelBoundsChanged = if (drawLiquidGlass) {
-                { x, y, size ->
-                    if (mode == setting.uiMode) inputPanelBounds = LiquidGlassInputBounds(x, y, size.width, size.height)
-                }
-            } else null,
-            onInputHeightChanged = { if (mode == setting.uiMode) inputHeightPx = it },
-            groupMode = isGroupMode,
-            reasoningLevelOverride = if (isGroupMode) group?.reasoningLevel else null,
-            onUpdateReasoningLevelOverride = if (isGroupMode) { { level ->
-                setting.selectedGroup(groupVm.selectedGroupId.value)?.let { currentGroup ->
-                    groupVm.updateGroup(currentGroup.id) { it.copy(reasoningLevel = level) }
-                }
-            } } else null,
-            toolApprovalModeOverride = if (isGroupMode) group?.toolApprovalMode else null,
-            onUpdateToolApprovalModeOverride = if (isGroupMode) { { approvalMode ->
-                setting.selectedGroup(groupVm.selectedGroupId.value)?.let { currentGroup ->
-                    groupVm.updateGroup(currentGroup.id) { it.copy(toolApprovalMode = approvalMode) }
-                }
-            } } else null,
-            quoteTarget = if (isGroupMode && !inputState.isEditing()) quoteTarget else null,
-            onClearQuote = { quoteTarget = null },
-            inputFocusRequester = if (isGroupMode) groupInputFocusRequester else null,
-        )
-    }
-
-    val chatContent: @Composable () -> Unit = {
-        Box(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-        ) {
-            AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
-            Scaffold(
-                topBar = {
-                    TopBar(
-                        settings = setting,
-                        conversation = conversation,
-                        bigScreen = bigScreen,
-                        drawerState = drawerState,
-                        previewMode = previewMode,
-                        onNewChat = {
-                            navigateToChatPage(navController)
-                        },
-                        onClickMenu = {
-                            previewMode = !previewMode
-                        },
-                        onUpdateTitle = {
-                            vm.updateTitle(it)
-                        }
-                    )
-                },
-                bottomBar = {
-                    if (!useLiquidHost) {
-                        inputContent(UiMode.CHAT, false)
-                    }
-                },
-                containerColor = Color.Transparent,
-            ) { innerPadding ->
-                ChatList(
-                    innerPadding = if (useLiquidHost) {
-                        PaddingValues(
-                            start = innerPadding.calculateStartPadding(layoutDirection),
-                            top = innerPadding.calculateTopPadding(),
-                            end = innerPadding.calculateEndPadding(layoutDirection),
-                            bottom = maxOf(
-                                innerPadding.calculateBottomPadding(),
-                                with(density) { inputHeightPx.toDp() },
-                            ),
-                        )
-                    } else innerPadding,
-                    conversation = conversation,
-                    state = chatListState,
-                    loading = loadingJob != null,
-                    processingStatus = processingStatus,
-                    previewMode = previewMode,
-                    settings = setting,
-                    assistant = assistant,
-                    chatModel = currentChatModel,
-                    hazeState = hazeState,
-                    errors = errors,
-                    onDismissError = onDismissError,
-                    onClearAllErrors = onClearAllErrors,
-                    onRegenerate = {
-                        vm.regenerateAtMessage(it)
-                    },
-                    onUpdateSearchMode = { mode ->
-                        vm.updateSearch(
-                            enableWebSearch = mode == SearchMode.LOCAL,
-                            builtInSearch = mode == SearchMode.BUILT_IN,
-                        )
-                    },
-                    onForkMessage = {
-                        scope.launch {
-                            val fork = vm.forkMessage(message = it)
-                            navigateToChatPage(navController, chatId = fork.id)
-                        }
-                    },
-                    onDelete = {
-                        if (loadingJob != null) {
-                            vm.showDeleteBlockedWhileGeneratingError()
-                        } else {
-                            vm.deleteMessage(it)
-                        }
-                    },
-                    onLongSendClick = {
-                        if (inputState.isEditing()) {
-                            vm.handleMessageEdit(
-                                parts = inputState.getContents(),
-                                messageId = inputState.editingMessage!!,
-                            )
-                        } else {
-                            vm.handleMessageSend(content = inputState.getContents(), answer = false)
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                            }
-                        }
-                        inputState.clearInput()
-                    },
-                    onUpdateChatModel = vm::setChatModel,
-                    onUpdateAssistant = vm::updateAssistant,
-                    onUpdateSearchService = { index ->
-                        vm.updateSettings { it.copy(searchServiceSelected = index) }
-                    },
-                    onTranslate = { message, locale ->
-                        vm.translateMessage(message, locale)
-                    },
-                    onClearTranslation = { message ->
-                        vm.clearTranslationField(message.id)
-                    },
-                    onJumpToMessage = { index ->
-                        previewMode = false
-                        scope.launch {
-                            chatListState.requestScrollToItem(index)
-                        }
-                    },
-                    onToolApproval = { toolCallId, approved, reason ->
-                        vm.handleToolApproval(toolCallId, approved, reason)
-                    },
-                    onToolAnswer = { toolCallId, answer ->
-                        vm.handleToolAnswer(toolCallId, answer)
-                    },
-                    onToggleFavorite = { node ->
-                        vm.toggleMessageFavorite(node)
-                    },
-                    onConversationSystemPromptChange = { newPrompt ->
-                        vm.updateConversation(conversation.copy(customSystemPrompt = newPrompt))
-                        vm.saveConversationAsync()
-                    },
-                )
+            bottomBar = {
+                if (!useLiquidHost) inputContent(false)
             },
             containerColor = Color.Transparent,
         ) { innerPadding ->
             ChatList(
-                innerPadding = innerPadding,
+                innerPadding = if (useLiquidHost) PaddingValues(
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    top = innerPadding.calculateTopPadding(),
+                    end = innerPadding.calculateEndPadding(layoutDirection),
+                    bottom = maxOf(innerPadding.calculateBottomPadding(), with(density) { inputHeightPx.toDp() }),
+                ) else innerPadding,
                 conversation = conversation,
                 state = chatListState,
                 loading = loadingJob != null,
@@ -649,8 +862,19 @@ private fun ChatPageContent(
                 },
             )
         }
-    }
 
+        }
+    }
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        if (useLiquidHost) {
+            LiquidGlassChatHost(
+                sourceContent = body,
+                inputContent = { inputContent(true) },
+                inputBounds = inputPanelBounds,
+                tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else body()
         if (showFilesSheet) {
             ChatFilesPickerSheet(
                 inputState = inputState,
@@ -664,32 +888,6 @@ private fun ChatPageContent(
                 onDismiss = { showFilesSheet = false },
             )
         }
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            if (useLiquidHost) {
-                LiquidGlassChatHost(
-                    sourceContent = body,
-                    inputContent = { inputContent(mode, true) },
-                    inputBounds = inputPanelBounds,
-                    tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else body()
-        }
-    }
-    if (showFilesSheet) {
-        ChatFilesPickerSheet(
-            inputState = activeInputState,
-            setting = setting,
-            conversation = conversation,
-            assistant = assistant,
-            vm = vm,
-            groupVm = groupVm,
-            attachmentPickerActions = attachmentPickerActions,
-            onStartVoiceMode = { if (setting.uiMode == UiMode.GROUP) groupOperationUnavailable() else onStartVoiceMode() },
-            allowConversationActions = setting.uiMode == UiMode.CHAT,
-            onConversationActionBlocked = ::groupOperationUnavailable,
-            onDismiss = { showFilesSheet = false },
-        )
     }
 }
 
@@ -701,22 +899,14 @@ private fun ChatFilesPickerSheet(
     assistant: Assistant,
     chatModel: Model?,
     vm: ChatVM,
-    groupVm: me.rerere.rikkahub.ui.pages.group.GroupVM,
     attachmentPickerActions: ChatAttachmentPickerActions,
     onStartVoiceMode: () -> Unit,
     onDismiss: () -> Unit,
-    allowConversationActions: Boolean = true,
-    onConversationActionBlocked: () -> Unit = {},
 ) {
-    val scope = rememberCoroutineScope()
     val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     var showCompressDialog by remember { mutableStateOf(false) }
-    val groupConversation by groupVm.conversation.collectAsStateWithLifecycle()
-    val groupUsage by groupVm.contextUsage.collectAsStateWithLifecycle()
-    val selectedGroupId by groupVm.selectedGroupId.collectAsStateWithLifecycle()
-    val compressionGroup = if (setting.uiMode == UiMode.GROUP) setting.selectedGroup(selectedGroupId) else null
 
     fun dismissAll() {
         showCompressDialog = false
@@ -732,7 +922,7 @@ private fun ChatFilesPickerSheet(
         onDismissRequest = { dismissAll() },
     ) {
         FilesPicker(
-            conversation = if (setting.uiMode == UiMode.GROUP) groupConversation ?: conversation.copy(messageNodes = emptyList()) else conversation,
+            conversation = conversation,
             state = inputState,
             assistant = assistant,
             chatModel = chatModel,

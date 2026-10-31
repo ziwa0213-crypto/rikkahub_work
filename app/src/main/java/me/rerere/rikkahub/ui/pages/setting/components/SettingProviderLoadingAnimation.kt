@@ -42,9 +42,9 @@ import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FilesManager
-import me.rerere.rikkahub.ui.components.ui.FormItem
+import me.rerere.ui.components.FormItem
 import me.rerere.rikkahub.ui.components.ui.LoadingAnimationIndicator
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalSettings
 import org.koin.compose.koinInject
 

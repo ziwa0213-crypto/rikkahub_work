@@ -15,7 +15,6 @@ import me.rerere.rikkahub.data.db.dao.ConversationDAO
 import me.rerere.rikkahub.data.db.dao.MessageNodeDAO
 import me.rerere.rikkahub.data.db.dao.getMessageCountPerDay
 import me.rerere.rikkahub.data.db.dao.getTokenStats
-import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID
 import me.rerere.rikkahub.data.db.dao.SourceUsage
 import me.rerere.rikkahub.data.db.dao.UsageBucket

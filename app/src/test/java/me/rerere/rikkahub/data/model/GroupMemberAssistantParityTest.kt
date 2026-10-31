@@ -9,7 +9,9 @@ import kotlin.reflect.full.memberProperties
 import kotlin.uuid.Uuid
 
 class GroupMemberAssistantParityTest {
-    private val intentionallyUnset = setOf("useGlobalMemory", "memoryGroupId", "presetMessages", "quickMessageIds", "regexes", "messageTemplate")
+    private val intentionallyUnset = setOf(
+        "useGlobalMemory", "memoryGroupId", "autoConsolidateMemory", "presetMessages", "quickMessageIds", "regexes", "messageTemplate",
+    )
     private val assigned = setOf("id", "name", "avatar", "useAssistantAvatar", "chatModelId", "tags", "streamOutput",
         "systemPrompt", "temperature", "topP", "maxTokens", "contextMessageLimit", "reasoningLevel", "toolApprovalMode",
         "enableMemory", "localTools", "mcpServers", "enabledSkills", "modeInjectionIds", "lorebookIds", "customHeaders",

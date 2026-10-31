@@ -11,12 +11,48 @@ import org.junit.Test
 
 class MemoryRepositoryTest {
     private val dao = FakeMemoryDAO()
-    private val repository = MemoryRepository(dao)
+    private val entityDao = FakeMemoryEntityDAO()
+    private val repository = MemoryRepository(dao, entityDao)
     private val assistant = "assistant"
 
     private suspend fun create(path: String, content: String): MemoryFile {
         val result = repository.writeFile(assistant, path, content, MemoryRepository.NEW_FILE_VERSION)
         return (result as MemoryWriteResult.Success).file!!
+    }
+
+    @Test
+    fun `row memories remain scoped and can be copied or moved independently of files`() = runBlocking {
+        val row = repository.addRowMemory(assistant, "Avoid cilantro")
+
+        assertEquals(listOf(row), repository.getRowMemories(assistant))
+        assertTrue(repository.getFiles(assistant).isEmpty())
+
+        repository.copyRowMemories(assistant, "copy")
+        assertEquals(listOf("Avoid cilantro"), repository.getRowMemories("copy").map { it.content })
+        assertEquals(listOf(row), repository.getRowMemories(assistant))
+
+        repository.migrateRowMemories(assistant, "moved", listOf(row.id), MemoryMigrationMode.MOVE)
+        assertTrue(repository.getRowMemories(assistant).isEmpty())
+        assertEquals(listOf("Avoid cilantro"), repository.getRowMemories("moved").map { it.content })
+        assertTrue(repository.getFiles("moved").isEmpty())
+    }
+
+    @Test
+    fun `batch row deletion keeps other scopes and memory files intact`() = runBlocking {
+        val first = repository.addRowMemory(assistant, "Synthetic first row")
+        val second = repository.addRowMemory(assistant, "Synthetic second row")
+        val kept = repository.addRowMemory(assistant, "Synthetic retained row")
+        val other = repository.addRowMemory("other", "Synthetic other scope")
+        val file = create("/profile.md", "Synthetic file content")
+
+        repository.deleteRowMemories(assistant, emptyList())
+        assertEquals(listOf(first, second, kept), repository.getRowMemories(assistant))
+
+        repository.deleteRowMemories(assistant, listOf(first.id, second.id, other.id))
+
+        assertEquals(listOf(kept), repository.getRowMemories(assistant))
+        assertEquals(listOf(other), repository.getRowMemories("other"))
+        assertEquals(file, repository.getFile(assistant, "/profile.md"))
     }
 
     @Test

@@ -38,6 +38,7 @@ import me.rerere.hugeicons.stroke.JavaScript
 import me.rerere.hugeicons.stroke.MessageQuestion
 import me.rerere.hugeicons.stroke.SmartPhone01
 import me.rerere.hugeicons.stroke.VolumeHigh
+import me.rerere.hugeicons.stroke.Internet
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.model.Assistant
@@ -229,19 +230,12 @@ internal fun AssistantLocalToolContent(
                 description = R.string.assistant_page_local_tools_chart_display_desc,
             )
             if (showBrowser) {
-                item(
-                    headlineContent = {
-                        Text(stringResource(R.string.assistant_page_local_tools_browser_title))
-                    },
-                    supportingContent = {
-                        Text(stringResource(R.string.assistant_page_local_tools_browser_desc))
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = assistant.localTools.contains(LocalToolOption.Browser),
-                            onCheckedChange = { toggleLocalTool(LocalToolOption.Browser, it) },
-                        )
-                    },
+                switchItem(
+                    checked = assistant.localTools.contains(LocalToolOption.Browser),
+                    onCheckedChange = { toggleLocalTool(LocalToolOption.Browser, it) },
+                    leadingContent = { CardGroupIcon(HugeIcons.Internet) },
+                    supportingContent = { Text(stringResource(R.string.assistant_page_local_tools_browser_desc)) },
+                    headlineContent = { Text(stringResource(R.string.assistant_page_local_tools_browser_title)) },
                 )
             }
         }

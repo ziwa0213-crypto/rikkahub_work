@@ -217,8 +217,6 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.haze.blur)
     implementation(libs.haze.blur.material3)
-    implementation(libs.haze.glass)
-    implementation(libs.haze.glass.material3)
 
     // koin
     implementation(platform(libs.koin.bom))
@@ -325,6 +323,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":material3"))
     implementation(project(":ui"))
+    implementation(project(":liquidglass"))
     implementation(project(":workspace"))
     implementation(project(":oauth"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))

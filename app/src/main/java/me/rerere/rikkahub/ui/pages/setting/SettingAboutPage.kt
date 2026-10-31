@@ -63,12 +63,7 @@ import androidx.compose.ui.util.fastForEach
 import androidx.core.content.ContextCompat
 import androidx.graphics.shapes.Morph
 import kotlin.math.roundToInt
-import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Code
 import me.rerere.hugeicons.stroke.Earth
-import me.rerere.hugeicons.stroke.File02
-import me.rerere.hugeicons.stroke.Github
-import me.rerere.hugeicons.stroke.SmartPhone01
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -81,6 +76,7 @@ import me.rerere.rikkahub.utils.SoundEffectPlayer
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.plus
 import me.rerere.ui.easteregg.EmojiBurstHost
+import androidx.compose.material3.Icon
 
 @Composable
 fun SettingAboutPage() {

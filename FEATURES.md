@@ -1,5 +1,176 @@
 # RikkaHub 二次开发功能台账
 
+## [阶段三⑥三 启动竞态修复] 3.1.0-work.1 / 199（2026-10-30，本地开发，未发布）
+
+- **设置加载闸门**：`RouteActivity.AppRoutes()` 在 `Settings.init == true`（`Settings.dummy()` 占位值）时只渲染空容器并提前返回，禁止在真实设置读盘前创建 `rememberNavBackStack`。
+- **会话加载闸门**：`ChatVM` 暴露 `conversationLoaded`，由初始化协程的 `finally` 置为完成；`ChatPage` 的模式同步同时要求会话已加载且 `setting.init == false`，不再用占位会话的当前助手误判群聊类型。
+- **`colors` 纠正**：恢复 `CardGroup.switchItem(colors = ...)` 和 `SettingProviderDetailPage` 的统一开关行，撤销阶段三⑥二的误删/裸 `Switch` 回退。
+- **边界**：不改 `Settings.init`、`Settings.uiMode`、会话初始化签名、生成链路、数据库、schema、依赖或语言资源；版本保持 `3.1.0-work.1 / 199`。设备上的连续冷启动验收待维护者执行。
+
+## [阶段三⑥二 模式与会话对齐] 3.1.0-work.1 / 199（2026-10-30，本地开发，未发布）
+
+- **模式与会话对齐**：`RouteActivity` 在群组模式冷启动时复用默认组最后一个群聊会话；无组或组内无会话时进入群组列表，不创建空群聊。`ChatPage` 打开会话后按 `conversation.isGroupChat()` 幂等同步 `Settings.uiMode`，覆盖列表、通知、搜索、收藏和深链进入会话的路径；聊天模式的 `create_new_conversation_on_start` 语义不变。
+- **DeepSeek UA**：恢复 WebView UA 的 `; wv`、`Version/4.0 ` 后处理，并同时记录 raw/effective UA；诊断条移至顶部。未改输入修复脚本、请求拦截或 token 解析。
+- **CardGroup 参数清理**：删除 `switchItem` 的死 `colors` 参数；实际需要颜色定制的内置工具行改用 `item` 保持原视觉效果。
+- **边界**：版本保持 `3.1.0-work.1 / 199`，数据库版本 32、schema、依赖和三语资源不变。设备验收、DeepSeek 实机登录和冷启动行为待维护者安装 APK 验证。
+
+## [阶段三⑥修正单] 3.1.0-work.1 / 199（2026-10-29，本地开发，未发布）
+
+- **P0 模式持久化**：删除聊天页按当前会话类型强制写回 `uiMode` 的路径，抽屉读取用户实际选择的模式；保留抽屉中用户主动切换聊天/群组模式的写入。群组压缩提示改用 `state.group == null` 判据，避免移除强制写回后提示永不触发。
+- **P0 液态玻璃竞态**：在 vendored `liquidglass/.../LiquidGlassView.java` 的 `updateConfig()` 中捕获当前 `LiquidGlass` 实例，并在异步回调执行前确认字段仍指向同一实例，避免页面 detach 后延迟回调访问空对象。未改 `ensureGlass`、`removeGlass` 或渲染管线。
+- **P0 DeepSeek 网页登录诊断**：增加 UA/WebView 包、控制台、页面完成探针和资源错误日志；页面完成后记录 URL、标题和正文长度。白屏且尚未捕获登录态时显示诊断条，并提供“用系统浏览器打开”出口；本批后续修正已恢复 UA 后处理，仍未改请求拦截或输入修复脚本。
+- **P1 UI 一致性**：为有把握的设置页、DeepSeek 配置页、浏览器页、群组配置页和群组抽屉行补齐语义图标；将标准卡片开关行统一到 `switchItem`；浏览器首个分组标题改为“操作 / Actions”，避免与页面标题重复。纯说明行、对话框内控件和定制布局中的裸 `Switch` 保留并列入存疑清单。
+- **语言与数据边界**：仅保留 `values`、`values-zh`、`values-zh-rTW`，三份各 2,025 条；不改版本号 `3.1.0-work.1 / 199`、数据库版本 32 或 schema。
+- **上游升级需重做清单**：上游更新时必须重新套用 `liquidglass/src/main/java/com/qmdeve/liquidglass/widget/LiquidGlassView.java` 的 `updateConfig()` 实例快照与身份守卫，并重新核对 `ChatPage.kt`、`ChatDrawer.kt`、`GroupVM.kt`、`DeepSeekWebLogin.kt`、三份 strings 及本批 UI 行级调整。`DEVELOPMENT.md` 不在当前仓库，详细交付边界记录在本批根 `DELIVERY.md`。
+- **验证与交付**：`:app:compileDebugKotlin`、`:app:testDebugUnitTest` 已通过；本批再执行一次 `:app:assembleDebug`。仅生成 ARM64 Debug APK 和不含 APK 的完整源码 ZIP，不提交、不打 tag、不推送、不发布、不操作设备或真实账号。
+
+## [阶段三④ 记忆选择器与引用计数] 3.1.0-work.1 / 199（2026-10-28，本地开发，未发布）
+
+- **依据与范围**：`RikkaHub Work-阶段三④记忆选择器与引用计数-20261028.zip`。恢复两份已停放的选择器，接入复制助手、切换记忆归属、助手记忆导入和群聊会话记忆导入；修复 URL 引用展示计数。
+- **记忆语义**：助手复制默认不迁移行式记忆，弹框可逐条选择；文件式 Markdown 仍整桶复制。切换归属时可复制/移动勾选的行式记忆，允许空选择并先迁移、后更新归属。助手页来源含全局、记忆分组、助手及有效群聊会话；群聊会话页排除自身来源。共享的全局/分组来源移动时提示受影响的助手数。
+- **整桶迁移**：`moveAllRowMemories` 保持既有方法名，扩展为行式记忆与 Markdown 文件一起搬移；目标文件先 upsert，成功后删除来源文件。`g:` 只提取为常量，scope 字符串兼容原存储。
+- **引用展示**：`ChatMessage.kt` 仅修改两处判据/计数：没有 `UrlCitation` 不渲染引用面板，计数只统计 `UrlCitation`；保留 GroupSender、GroupQuote 的原有渲染。
+- **改动文件**：`MemoryPickerDialog.kt`、`MemorySourcePickerDialog.kt`、`MemoryRepository.kt`、`AssistantVM.kt`、`AssistantPage.kt`、`AssistantDetailVM.kt`、`AssistantMemoryPage.kt`、`GroupMemoryPage.kt`、`ChatMessage.kt`、`AGENTS.md`、`CHANGES.md`、本台账及 `DELIVERY.md`。无新增资源 key、依赖、数据字段或 schema。
+- **验证**：`:app:compileDebugKotlin`、`:app:compileDebugUnitTestKotlin` 和 App JVM 测试结果见本批 `DELIVERY.md`；不以源码编译或 JVM 测试代替维护者实机验收。
+- **交付**：一次 ARM64 Debug APK 单独提供，源码 ZIP 内含根目录 `DELIVERY.md`、排除 APK；源码归档保留 Unix 符号链接并设置全部文件名 UTF-8 标志。APK 与 ZIP 位于 `artifacts/3.1.0-work.1/stage3-04-memory-picker-20261028/`。未操作设备、未提交、未打标签、未推送/上传。
+- **提交与回滚**：本批尚未提交；只反向应用本批产品文件的增量，不整文件恢复或覆盖上游合并与前三包修改。引用修复可单独反向两处；恢复选择器时仅撤销本批文件归位和调用接线。
+- **上游重套**：新架构下重新适配 `RowMemory`、分离的 `MemoryEntityDAO`/`MemoryDAO` 和 `me.rerere.ui.toast.ToastType`；逐项核对 `g:` scope 不变、空选择不迁移、先迁移后改归属、文件仅整桶操作，以及引用数仅计 URL。
+
+## [阶段三③ UI 修正] 3.1.0-work.1 / 199（2026-10-28，本地开发，未发布）
+
+- **依据与范围**：维护者提供的《阶段三③ UI 修正》任务包。本批只修正压缩对话框、聊天抽屉模式胶囊和工作区卡片 UI；不改数据模型、生成逻辑或群聊压缩调用链。
+- **改动文件**：`CompressContextDialog.kt`、`ChatDrawer.kt`、`WorkspacePage.kt`；删除两个空目录 `_parked/ui-pages-group/detail` 和 `_parked/ui-pages-group/components`。三份语言资源未改。
+- **压缩对话框**：删除目标 token 选择控件，继续通过 `initialTargetTokens` 将群组配置值传给三参回调；保留 `FilesPicker`、`ChatPage`、`GroupVM`、`ChatService`、`Group.compressTargetTokens` 和群组设置页原调用/配置。最近消息数改用减号、数字和加号调节并限制最小值为0。
+- **抽屉与工作区**：模式胶囊移至昵称行末尾；普通聊天模式的文件夹与排序逻辑保持。工作区卡片合并为单一标题、三行信息及一个“重命名 / 设置归属 / 删除”菜单。
+- **实际验证**：`:app:compileDebugKotlin` 和 `:app:assembleDebug` 通过。ARM64 Debug APK 包名为 `me.rerere.rikkahub.debug`，版本 `3.1.0-work.1 / 199`，仅 `arm64-v8a`，SHA-256 为 `d211000b72911759adb9d1e6c7b00ea535f2ecb01206c3f21f823ed4812c4242`。`./gradlew test` 在既有 `MemoryImportSourcesTest.kt` 测试源码编译阶段失败，因其引用当前源码不存在的 `chatMemorySources`；本批未改测试或记忆接口。静态边界检查通过，未做设备验收。
+- **交付**：`artifacts/3.1.0-work.1/stage3-03-ui-fix-20261028/`，目录内提供 ARM64 Debug APK 和源码 ZIP；源码 ZIP 根目录含 `DELIVERY.md`，不含 APK。
+- **提交与回滚**：尚未提交；不执行 commit/tag/push/上传。回滚时只反向应用本批三个 Kotlin 文件的增量修改并恢复两个空目录；不要整文件恢复覆盖阶段三群聊或上游合并内容。
+- **上游重套**：遇到对应文件冲突时重新套用对话框控件移除/减加控件、抽屉 Row 中 ModeSwitcher 定位和工作区卡片单标题/单菜单结构；逐项确认群聊 `targetTokens` 传递及三份 strings 保持原样。
+
+## [阶段三② 群组配置页] 3.1.0-work.1 / 199（2026-10-27，本地开发，未发布）
+
+- **依据与范围**：维护者提供的 RikkaHub Work-阶段三②群组配置页-20261027.zip；七个文件复位，包含重写 GroupMemoryPage。配置页及 MCP/本地工具/扩展/请求/记忆五个子页接回，群聊、抽屉、模式切换和导入选择器仍留后续阶段。
+- **入口与资源**：设置 → 通用在组员之后追加群组设置，使用已核实可用的 HugeIcons.UserMultiple；七条新 entry 沿用 Nav3 的 key.groupId / key.conversationId，Screen 定义不改。三语仅新增 setting_page_groups_desc，各2022条。
+- **记忆页**：复用 ItemizedMemoryTab，仅对共享函数做 private → internal；CRUD 全部调用当前 MemoryRepository 行式接口和两参 scopeOfChatGroup。页面独立提供选择态顶栏、全选/取消、返回清选和批量删除确认，复用 assistant_page_memory_delete_selected_confirm 文案，失败保留确认状态并提示错误；不触碰 memory_file、不留导入空按钮。
+- **必要适配**：ToastType、SkillManager/SkillMetadata、FormItem、OutlinedNumberInput 均按当前模块导入；三个扩展 Tab 改用 extension_selector_tab_*。任务书低估了文件数，且 ItemizedMemoryTab 的选择态操作实际在原助手页外层，需要在新群组页补齐，不能只复制参考片段。
+- **改动文件**：group/GroupConfigPage、components/GroupCompressionSettings、detail 下 GroupMcpPage/GroupLocalToolPage/GroupExtensionsPage/GroupRequestPage/GroupMemoryPage；RouteActivity、SettingPage、AssistantMemoryPage（仅一个可见性词）、三份 strings 和三份台账。
+- **保护与验收口径**：Settings/群组模型/Room32、SettingsNormalization 临时 CHAT、ChatPage/ChatService/ChatToolFactory/ChatDrawer/GroupChatContext、F006 和原应用图标保持本批前哈希；三个旧测试不改或屏蔽。自检按本批基线比较，DAO 合法的 getMemoriesOfAssistantFlow 不作为页面旧 API 残留删除。无 github flavor 的当前3.1.0工程仍用 assembleDebug，不引入3.1.1构建配置。
+- **交付**：目录 artifacts/3.1.0-work.1/stage3-02-group-config/，一次 ARM64 Debug 和完整源码 ZIP（内含 APK、DELIVERY.md 及 APK 校验值）。所有 ZIP 条目显式标 UTF-8，软链保持 Unix 链接属性；源码 ZIP 的最终哈希放包外，避免循环包含。V13～V22 由维护者实机验证，不操作设备或真实账号。
+- **回滚与上游重套**：尚无本批 commit，不提交/tag/push/上传。仅对照本目录 before 与 PRODUCT.diff 逐项反向应用七个移动和页面/路由/资源增量，不能整文件恢复既有合并内容或覆盖 index。上游共享需重套路由、设置入口和 ItemizedMemoryTab 可见性；SettingsNormalization 到包③才解除。
+
+## [阶段三① 群组地基] 3.1.0-work.1 / 199（2026-10-27，本地开发，未发布）
+
+- **依据**：维护者新版 `RikkaHub Work-阶段三①群组地基-20261027(1).zip`；补充一优先于主任务书。只恢复八个基础文件，剩余十一份 parked 留待包②～④；GroupChatContext 保持原样。
+- **接线**：注册六参数 GroupVM，复用该文件唯一的 rememberGroupVM；仅增加 Screen.GroupMembers entry。设置 → 通用用 CardGroupIcon 显示组员入口，三语各加一条 setting_page_group_members_desc，均为2021条。GroupPage仅参与编译，不开放群组/配置入口。
+- **记忆边界**：MemoryRepository补 GROUP_CHAT_MEMORY_PREFIX、两个scopeOfChatGroup重载、scopeOf(memoryGroupId)和moveAllRowMemories；移动全部行式条目明确传ids=null。GroupVM两处move、三处copy、五处delete完成适配，copyFiles/deleteFilesOfAssistant仅管文件，故与行式调用成对；复制失败的两处清理独立捕获两库异常，保留回滚。
+- **改动文件**：group/GroupVM、GroupListLayout、GroupMemberPage、GroupPage及components下GroupComponents、GroupDialogs、GroupConfigDialogs、GroupBackground；MemoryRepository、ViewModelModule、RouteActivity、SettingPage、三份strings、GroupMemoryCompatibilityTest及三份台账。
+- **源码差异补充**：任务书称ToastType可原样使用，实际已迁往me.rerere.ui.toast，两个列表页按当前源码更正import。旧NewMemberDialog没有头像编辑入口，复用现有UIAvatar.onUpdate补齐V7要求；无新资源/依赖。新增四项记忆回归覆盖作用域兼容、全量移动与隔离、空/同作用域和两库成对复制删除。
+- **保护范围**：Settings/群组模型/Room32、ChatService/ChatToolFactory/ChatDrawer/ChatPage、F006渲染及暂时CHAT归一化不变；三个旧测试不改、不屏蔽；保留原应用身份图标/原Debug证书，仅三语。
+- **实际验证**：App主源码编译通过，AI45套件/347项、App专项13套件/121项通过（原117+新增4），均0失败/错误/跳过。两份Android迁移测试源码编译通过、未运行设备。全量App测试编译实际剩两文件40条诊断：MemoryImportSourcesTest9条、GroupConversationListTest31条，均依赖后续parked组件；GroupTest不再报编译诊断，不能据此称其测试已运行。三个原文件无改动。
+- **交付范围**：本批统一位于 `artifacts/3.1.0-work.1/stage3-01-group-foundation-20261027/`，只出一次ARM64 Debug和完整源码ZIP。不Release、不commit/tag/push/上传、不操作设备或真实账号。V3～V12需维护者实机验证；实际编译/测试/哈希记录在本批DELIVERY中。
+- **APK核验**：唯一Debug构建1分25秒成功，87,868,689 bytes，SHA-256为f492d9c9ba24ee61a15cc06065deaf4c77194a0180f287af563c0f7d511790f2。包名me.rerere.rikkahub.debug、版本199/work.1、原证书/身份图标、三语、ARM64-only、WASM、群组类及CRC均通过，61个其他历史安装包未变。八文件恢复、七处接线/API/资源编辑、一份新测试及三份台账之外的2083个原位源码哈希未变，Git index/HEAD/MERGE_HEAD未变；完整源码/清单随本批交付。
+- **回滚与重套**：尚无本轮commit。仅反向应用本批PRODUCT.diff（包含八个移动及增量适配），保留既有合并内容与index；下次同步重套组员唯一入口、模块组件import、记忆两库成对操作与scope纯函数，不整文件恢复。临时CHAT归一化到包③再解除。
+
+## [群组模式残留根因修正] 3.1.0-work.1 / 199（2026-10-27，本地修正，未发布）
+
+- **四个产品文件**：`ChatPage.kt` 移除原生玻璃的 `uiMode == CHAT` 前置条件；`SettingPreferencesUIPage.kt` 移除气泡开关外的模式条件；两处无用UiMode import删除。`SettingsNormalization.kt` 在withValuesInRange暂时强制CHAT并标注阶段三删除TODO；`SettingPreferencesGeneralPage.kt` 的active状态复用shouldUseNativeLiquidGlass。
+- **兼容边界**：Settings.uiMode声明、类型、默认值、序列化及群组数据不变；normalized末尾的normalizeGroupData不覆盖uiMode。保留ChatInput遮罩、LiquidGlassView尺寸刷新、宿主折射/日志、四项玻璃判据、三层宿主与GONE、熔断和Haze回退；19个parked及三份旧阻塞测试不动。仅英文/简中/繁中，保留原桌面和关于页应用图标及Debug签名。
+- **阶段三必须完成**：①删除强制CHAT归一化；②按当时设计评估ChatPage/设置页模式逻辑；③恢复19个parked文件、rememberGroupVM、8条路由、抽屉/内容入口；④重接ModeSwitcher；⑤修复MemoryImportSourcesTest、GroupTest、GroupConversationListTest。此处只是恢复清单，本批不实施。
+- **交付与验证**：`artifacts/3.1.0-work.1/stage2-glass-group-mode-root-cause-20261026/`，一次ARM64 Debug及完整工作区源码ZIP。App Kotlin编译通过；AI45套件/347项与App专项12套件/117项实际执行通过，0失败/错误/跳过。5项交付回归夹具检验旧GROUP归一化、群数据/供应商/气泡偏好保留、JSON与Preferences兼容、重复归一化及玻璃判据；既有设置字段/存储测试也通过。两份Android迁移测试仅独立编译；全量App旧测试本批不复跑，既有阻塞仍未处理。设备交互、尺寸日志与视觉效果未验证，不能把配置active文案写成实测通过。
+- **包体结果**：唯一Debug构建48秒成功，89,171,690 bytes，SHA-256 `51ffe4119175f1a16c9851f80e009d868d6f19802de1a32eca08d3e0df16e09e`。199/work.1、debug包名、原证书、原应用图标、三语、ARM64-only、WASM/CRC均核验。23个其他旧APK哈希/时间不变，19个parked和Git合并状态不变；源码归档与逐文件校验记录随本批SOURCE-VERIFICATION和DELIVERY提供，不重复出包。
+- **提交/回滚/上游重套**：无本批commit，既有merge仍未提交；修改前七文件在本目录before/。只反向应用四处产品增量（可用 `git apply -R <本批产品差异文件>`，先 `git apply --check -R`），不整文件checkout/reset、不覆盖index；前两轮玻璃修复保留。上游同步重套此四处并保持阶段三TODO，群组恢复时一并清理临时归一化。不Release、不commit/tag/push/上传，不操作设备或真实账号。
+
+## [F006 玻璃尺寸与折射参数修正] 3.1.0-work.1 / 199（2026-10-26，本地修正，未发布）
+
+- **`liquidglass/.../LiquidGlassView.java`**：`onSizeChanged` 对有效尺寸调用 `updateConfig()`，替代销毁/重建玻璃；运行时配置尺寸无效时直接返回，不再回退到屏幕尺寸。`ensureGlassInternal()` 构造期的初始化尺寸兜底保持不变。新增 `refreshConfig()` 和 `debugConfigSize()` 供宿主刷新与诊断。
+- **`LiquidGlassInputBackground.kt`**：更新 bounds 后，根据控件高度设置折射高度/偏移并设 `blurRadius=0f`；使玻璃可见后立即刷新，并于下一次绘制前再刷新、记录 `bounds/glass/conf/boundsW/boundsH`。配置尺寸预期应与实际玻璃 view 尺寸一致；未运行设备，本批不能填写实测值。
+- **保护范围**：不改 `ChatInput.kt`（含刚交付的导航栏遮罩）、`shouldUseNativeLiquidGlass()`、玻璃 source/glass/input 层序、GONE行为、熔断与 Haze 回退。版本保持 `3.1.0-work.1 / 199`，无新资源/设置，仍仅英文/简中/繁中，19个parked和三份旧阻塞测试不变。
+- **验证与交付**：目录 `artifacts/3.1.0-work.1/stage2-glass-size-refraction-fix-20261026/`；App Kotlin主源码编译通过，AI45套件/347项与App专项9套件/93项通过，0失败/错误/跳过；一次ARM64 Debug及完整源码ZIP校验通过。全量App测试本批未复跑，已知三个旧测试阻塞文件不修改/屏蔽。包体、哈希和验证细节见本批 `DELIVERY.md`。V2～V9为维护者设备验收项，自动编译/静态核对不替代 `conf`/`glass` 运行日志与视觉实测。
+- **回滚/上游升级需重做**：逐文件反向应用这两个产品文件的本批增量，不恢复整文件覆盖遮罩分支或fork组件。上游升级时重套 `LiquidGlassView.java` 的尺寸变更刷新、运行时0尺寸保护、`refreshConfig/debugConfigSize`，及宿主的高度相关折射参数/日志；不改构造期 fallback。快照、diff及Git状态证据在本目录，禁止覆盖index或重置merge。
+
+## [F006 玻璃底部遮罩修正] 3.1.0-work.1 / 199（2026-10-26，本地修正，未发布）
+
+- **唯一产品改动**：`app/src/main/java/me/rerere/rikkahub/ui/components/ai/ChatInput.kt` 的外层遮罩按 `forceLiquidGlass` 分支。玻璃模式仅遮住系统导航栏高度，其他区域不绘制遮罩；非玻璃原渐变代码逐字保留，仅增加嵌套缩进。保留 `onSizeChanged`、输入参数、haze、圆角、bounds回调与布局。
+- **与附件的编译适配**：`WindowInsets.navigationBars` 与 `ime` 一样先在可组合函数中取得，再在 `drawWithCache` 读取高度，避免在非可组合绘制回调中调用可组合 getter；新增 `navigationBars`、`Offset`、`Size` 三个 import。不改玻璃判据/宿主/库/熔断、诊断UI、记忆或F009，不新增文案/设置/语言，19个parked和三个旧阻塞测试保留。
+- **验证与交付**：目录 `artifacts/3.1.0-work.1/stage2-glass-scrim-fix-20261026/`；当前编译/测试与最终APK结果如下，完整源码及SHA-256清单随本批交付。全量App已知三个旧测试文件仍阻塞，本轮不修改/停用，不把专项通过称全量通过。V3～V9需维护者实机验证，V3/V4须配置背景图或启用渐变；设置诊断不证明宿主已实际渲染。
+- **回滚与上游升级需重做清单**：本轮无独立commit SHA；仅反向应用本分支、导航栏Insets捕获及三个import，勿整文件覆盖已有fork输入框修改。上游升级必须重套 `ChatInput.kt` 的遮罩分支，并核对 `forceLiquidGlass` 接线和系统Insets；保留上游非玻璃渐变。修改前四文件与全量源码哈希保存在 `before/` / `BEFORE-SOURCE.json`，差异与原分支逐字核对见 `ChatInput.diff` / `NON-GLASS-BEFORE.txt` / `NON-GLASS-AFTER.txt`，不得覆盖merge/index。
+- **本轮测试结果**：App主源码编译及AI测试合计1分4秒成功（147任务，4执行/143复用）；AI45套件/347项实际重跑通过。App专项9套件/93项实际运行9秒通过，0失败、错误或跳过，使用当前生产类；另独立编译两份Android迁移测试源码，未运行Android。全量App测试本轮未复跑，其三个旧阻塞测试文件哈希不变。
+- **最终APK**：唯一 `:app:assembleDebug` 1分50秒成功（300任务，5执行/295复用）；89,171,690 bytes，SHA-256 `0647430915af240f1c530f9c4047f29605b31fddc75ef32b63f81f87b4ee67f9`。版本199/work.1、`me.rerere.rikkahub.debug`、RikkaHub Work名称、SDK26/37、ARM64-only、原Debug证书、三语、WASM及CRC均通过；21个图标源文件匹配原基准、20张包内PNG像素及adaptive引用核验通过。21个其他既有APK哈希/修改时间不变，产品仅ChatInput有变化；源码ZIP及校验值见本批DELIVERY，不再重复构建。
+
+## [记忆页 UI 回归与玻璃诊断] 3.1.0-work.1 / 199（2026-10-24，本地修正，未发布）
+
+- **页面变化**：`AssistantMemoryPage.kt`仅改普通行式卡片的主题底色、内容最多5行及省略号，并对齐删除按钮缩进；选中高亮、8dp间距、选择/确认/删除逻辑、输入及全文编辑和做梦Tab保持原样。`SettingPreferencesGeneralPage.kt`只订阅 `LiquidGlassCircuitBreaker.unavailable`，在已开启且选中LIQUID时显示SDK/熔断状态，不增加开关或重试按钮。
+- **资源**：`values-zh-rTW/strings.xml`补9条工具核准、3条压缩、1条发布页译文；三语各加active/failed/low_api诊断文案。基线英文/简中2017条、繁中2004条；本批最终每份2020条且key集合一致，已有条目值保持不变。
+- **范围核验**：仅上述5个产品文件及三份台账允许变化；不改数据模型、DAO/Repository/Room32、选择删除、文件式记忆、玻璃宿主/判据/库/熔断、F009及3个旧测试。19个parked文件、图标、版本及Git合并状态保留。诊断active分支仅说明配置/SDK/熔断判据，不证明屏幕像素已呈现玻璃。
+- **交付/验证**：目录 `artifacts/3.1.0-work.1/stage2-memory-ui-glass-diagnostic-20261024/`，只出一次ARM64 Debug和完整源码ZIP。编译、AI347项/App专项93项及最终包体验证结果随本批交付说明记录；V1～V8/V10均需维护者实机验收，不以静态核对冒称通过。全量App旧测试上批存在3文件/73条编译诊断，本批不修改或屏蔽，也不宣称全量通过。
+- **本轮已执行**：App主源码编译21秒成功；AI45套件/347项、App专项9套件/93项均实际重新执行，0失败/错误/跳过；两份迁移Android测试源码独立编译通过、未运行设备。普通全量App测试本批未复跑，旧阻塞源码不变；初次辅助init脚本因included build没有ai子项目而失败，已加空项目守卫后成功，失败/成功日志分开保留。
+- **最终APK**：本批唯一ARM64 Debug构建8秒成功，89,171,690 bytes；SHA-256 `faa3df5d76f81602a1c97bbde2c7244673574e32b94bc26699ee27f544867690`。199/work.1、debug包名、应用名、ARM64-only、原Debug证书、三语、WASM、CRC与原应用图标均通过；20个其他既有APK的哈希及修改时间不变。完整源码及校验值随本批 `DELIVERY.md` / `SHA256SUMS` 提供，Git仍未提交，不继续重复构建。
+- **恢复/上游重套**：本批未提交，无独立commit SHA；修改前8份文件及源码哈希位于本目录 `before/`、`BEFORE-SOURCE.json`。仅反向应用卡片颜色/摘要、诊断显示及新增字符串，不能整文件覆盖此前F016/F006修复或改写merge/index。后续上游同步重套这两处页面和三语；临时诊断定位后可单独移除，不影响渲染实现。
+
+## [阶段二遗留三项修正] 3.1.0-work.1 / 199（2026-10-24，本地验证，未发布）
+
+- **F016 多选删除**：`AssistantMemoryPage.kt` 将选择态操作提升到真正顶栏；长按进入选择态，选中条目高亮并显示 Checkbox，支持全选/取消全选、关闭和批量删除。空选自动退出，系统返回先退出选择态，普通点击继续编辑。`AssistantDetailVM` 在删除成功后才退出选择态，Repository 对空 ID 列表短路；DAO 继续只删除当前 scope 的 `MemoryEntity`，不碰 `memory_file`。
+- **F009 登录页**：`DeepSeekWebLogin.kt` 新增 Loading/Done/Failed 状态、主框架网络/HTTP 错误、错误码/原因/重试 UI 与代理提示；失败状态不会被后续 `onPageFinished` 清掉。`shouldInterceptRequest`、凭证捕获与数字输入修复脚本保持原逻辑，UA 清除 `; wv` 与 `Version/4.0`；新增五条英文/简中/繁中资源。
+- **F009 JSON 安全解析**：新增 `DeepSeekWebJson.kt` 的 `objOrNull()` / `parseDeepSeekResponse()`；PoW 与 session 不再对 `JsonNull` 强取 `jsonObject`，顶层/`biz_code` 错误转为可读异常。非 JSON 不回显响应体，错误码只接收整数；涉及凭据或长密钥片段的服务端说明整体省略，避免部分脱敏遗漏 Cookie/Bearer 值。不改请求地址、请求头、PoW 求解算法、SSE 与供应商配置字段。
+- **改动文件**：App 的 `AssistantMemoryPage.kt`、`AssistantDetailVM.kt`、`MemoryRepository.kt`、三语 `strings.xml`、`MemoryRepositoryTest.kt`；AI 的 `deepseekweb/DeepSeekWebJson.kt`、`DeepSeekWebPoW.kt`、`DeepSeekWebProvider.kt`、`DeepSeekWebJsonTest.kt`；三份台账。
+- **验证**：App 主源码编译通过，AI 45 套件/347 项与 App 专项 9 套件/93 项全部通过；专项直接使用当前生产类，不修改或屏蔽普通测试集合。两份 Android 迁移测试源码独立编译通过。全量 App 单测编译仍受 `MemoryImportSourcesTest` / `GroupTest` / `GroupConversationListTest` 阻断，73 条诊断、用例未执行，不称全量通过。WebView 断网/重试、真实登录、快速/思考对话、玻璃效果和覆盖安装仍由维护者验收。
+- **交付与边界**：本批只生成一次 ARM64 Debug 和完整工作区源码 ZIP，目录 `artifacts/3.1.0-work.1/stage2-F006-F016-fix-20261024/`；源码含未提交文件、子模块与19个 `_parked/` 文件，排除 Git、构建缓存、artifacts、本地配置和密钥。构建与 SHA-256 结果记录在该目录的交付说明。本批无 Release、commit/tag/push 或账号/设备操作，合并仍未提交。
+- **最终 APK 核验**：`:app:assembleDebug` 成功（20 秒）；APK 为 `RikkaHub.Work-3.1.0-work.1-arm64-v8a-debug.apk`，87,868,689 bytes，SHA-256 `8c446134c8d7b2937b276610d3c9e1bbf14a056ef4f32ba10424e52639c338b6`。版本199/work.1、`me.rerere.rikkahub.debug`、RikkaHub Work名称、SDK26/37、ARM64-only、三语、WASM、CRC、原Debug证书及原应用图标均通过。19个其他既有APK的哈希和修改时间、19个parked文件、Git HEAD/MERGE_HEAD/index均未改变；详见本批 `APK-VERIFICATION.json`、`SCOPE-VERIFICATION.json` 与 `DELIVERY.md`。
+- **回滚与重套**：仅反向应用本轮 UI、JSON 解析、Repository/VM 和测试增量，不整文件恢复覆盖 F006/F016/F009。下次合并重套主框架失败态保护、JSON 类型检查及完整错误脱敏、选择顶栏和按 scope 的删除成功回调；保留两库边界。无本轮独立 commit SHA，禁止整树 reset/checkout 或覆盖 index。
+
+## [阶段二 F006 / F016] 3.1.0-work.1 / 199（2026-10-23，本地测试，未发布）
+
+- **执行顺序**：先按 01 恢复玻璃并独立编译（`01-compile.log`），再按 02 恢复行式记忆。维护者保留 work.1/199，不采纳包内 work.2/200；启用记忆即注册 `memory_tool`，覆盖旧版“非空才注册”和“两者都空不注册”的冲突条款。DeepSeek Web 仍拒绝该工具。
+- **F006 文件**：恢复 `liquidglass/` 源码与 MIT LICENSE、settings/app Gradle 接线、`LiquidGlassInputBackground`、`liquid_glass_ids.xml`；修改 `ChatPage`、`ChatInput`、`ChatInputHaze`、`SettingPreferencesGeneralPage`、`Settings` 归一化及三语。聊天采样源不包含玻璃或输入控件；仅 LIQUID/BLUR 两档，旧 GLASS 视作 LIQUID；保留兼容字段但不读取它决定渲染，API<33/故障自动回退模糊，故障熔断。
+- **F016 数据/注入文件**：新增 `MemoryEntity`、`MemoryEntityDAO`、`RowMemory`、`Migration_31_32`、Room `32.json`、`RowMemoryTools`；修改 `AppDatabase`/Factory、DAO/Repository DI、`MemoryRepository`、`ChatRequestFactory`/`ChatToolFactory`、`MemoryPrompts`。作用域仅复用 `assistant.memoryId / memoryScope`，行式修改/删除限定作用域；复制助手同步复制两套存储，不借机恢复 F010 多选 UI。
+- **严格边界**：`RowMemoryTools` 无文件库写入；原 `MemoryTools.kt` 六个文件工具不改契约。`MemoryConsolidator` 只多读行式及传入 `<itemized_memory>`（200条）供判重，不写行式，不改变调度/工作流；未实施可选的 row-memory 转录标记。主对话行式100条上限不删数据，迁移历史 `[migrated]` 不重复作为 profile 正文注入，文件本体仍保留。31/32 的 `memory_file` schema逐字相同。
+- **F016 UI 文件**：`AssistantMemoryPage` 三 Tab、行式 CRUD/批量删除、设置分组选择、关闭时禁用两页而不删数据；`AssistantDetailVM` 行式 flow/操作及分组管理、错误状态展示；`AssistantVM` 同步复制两库。删除分组仍沿用合并前确认后删除组内记忆并将助手归私有的实际行为，不以早期过期台账里的“自动搬回私有”改变数据语义。群组页及19个 `_parked/` 文件不动。
+- **F009 补充**：`DeepSeekWebToolPolicy` 只读放行 `memory_read / memory_list`；四个文件写入名显式标为 blocked，确保伪调用进入应用拒绝链，而非只在工具清单中消失。`memory_tool` 仍整项拒绝，不新增 solution 跳转；对应 AI parser/生成守卫测试已更新。
+- **验证证据**：目录 `artifacts/3.1.0-work.1/stage2-F006-F016-20261021/`。App Kotlin编译成功；AI44类/337项全绿；本地诊断任务9类/92项定向JVM全绿，使用当前生产类和同版本Compose编译插件，不排除、停用或修改普通测试集合。全量测试真实结果仍在 `06-all-tests.log`：App旧 `MemoryImportSourcesTest` / `GroupTest` / `GroupConversationListTest` 编译失败，故不是全仓通过。
+- **迁移证据**：`Migration_31_32_Test` 与 `ForkMigration_26_31_Test` 独立编译通过；普通 androidTest 仍受旧 GroupStorage/MessageNodeStats/GroupLayout 测试阻断。`MigrationSqliteFixture` 通过动态数据库适配调用真实迁移，3场景13断言验证空库、多scope/其他文件与元数据保留、幂等和写失败回滚；它是SQLite/JDBC，不替代Android/Room schema校验、真实DB26→32与覆盖安装。
+- **最终Debug交付**：`:app:assembleDebug` 成功（1分53秒），唯一ARM64 APK为上述目录的 `RikkaHub.Work-3.1.0-work.1-arm64-v8a-debug.apk`，87,868,689 bytes；SHA-256 `989541dc4f155c8531e01960e23de42bd685491ceed4161b2494e8198da3e923`。包内199/work.1、`me.rerere.rikkahub.debug`、RikkaHub Work名称、SDK26/37、三语、WASM、CRC、V2原Debug证书和应用图标均核验。旧v3交付包与16个其他输出APK未改；无Release/源码ZIP/commit/tag/push/上传，设备未操作。详情在 `DELIVERY.md`、`APK-VERIFICATION.json`、`SCOPE-VERIFICATION.json`。
+- **待维护者验收**：玻璃切换/进出/低版本回退；首次记住、删除后的后续对话、手动整理不重复（V1/V2）；三Tab与分组切换；备份恢复两表。未访问设备/模拟器、真实账号或模型，没有截图或真实对话成功证明。第三阶段群组、F010/F014迁移选择器、输入框/浏览器等fork UI仍未完成。
+- **恢复与上游重套**：本批源码未提交，无独立commit SHA。修改前快照在本目录 `before/source/`；F006完成后的增量清单在 `after-01-source/`，F016后的在 `after-02-source/`，最终源码哈希及清单在 `after-final-source/`。按清单逐文件反向应用，禁止整树reset/覆盖merge/index；已迁移为DB32的数据不能直接用只认识DB31的旧代码降级，不删数据库或用户文件。升级时重套上述接线、Room手写迁移/两库DI、prompt/tool分工、三Tab及DeepSeek边界。
+
+## [构建约定] 固定最初应用图标（2026-10-21）
+
+- 后续Debug/Release仅保留桌面/系统应用图标及关于页那一个应用标志的最初图像，不再跟随上游替换这两处；规则落在AGENTS的R9，构建前必须核验。其他图标、界面和功能仍按既有合并范围正常同步，不冻结整个关于页或全部图标。
+- 基准为`643191229dcbeb4972e3772986818605633ace92`中的`app/src/main/res/mipmap-*/ic_launcher*`共21文件（20个PNG及1个adaptive XML），已核实与合并前备份`12a6ed24356889a024eca2190c208294d6a38b65`完全一致。不能仅恢复普通图标而遗漏前景/背景/单色图标。源码核实：`SettingAboutPage.kt`以`R.mipmap.ic_launcher`读取同一套图标资源，因此两处共用图像；关于页布局/交互/动画、供应商品牌图标、工具图标等不在固定范围，照常同步。
+- 2026-10-23 阶段二构建前已仅恢复20张PNG，adaptive XML原本未变；21源文件逐一匹配基准，APK内20张PNG像素及adaptive背景/前景/单色引用均通过。版本不变、无提交/上传；既有v3 Debug保留原样，不把旧包误称为已恢复图标。
+- 本条无独立commit SHA；撤销本次记录只需反向应用三份台账的本条增量，不回退整个合并工作区。后续上游同步时重套图标保留规则。
+
+## [合并上游 3.1.0 / 编译修复 v3] 3.1.0-work.1 / 199（2026-10-21，进行中）
+
+- **附件与实际范围**：应用 `RikkaHub Work-3.1.0编译修复v3-20261021.zip`（141,044 bytes，SHA-256 `04bc2894807740fbe9784b71ec79fcaea4142de67d078948ba61371ab94b0aa7`）的36个Kotlin文件，初次全部逐字匹配；22个相对v2有变化，14个原本一致。原包仍有12条诊断/7文件，再显式补漏9文件，最终相对v2共26个源码/资源文件有变化，不能把补漏后的36文件仍称为全部匹配原包。
+- **本批变化文件**：app下 `ChatInputHaze`、`CompressContextDialog`、`FilesPicker`、`ProviderQuotaText`、`ToolApprovalPicker`、`ChatMessage`、`LoadingAnimation`、`AssistantPage`、`AssistantVM`、`AssistantLocalToolPage`、`ChatList`、`ExtensionsPage`、`WorkspaceDetailPage`、`WorkspacePage`、`SettingAboutPage`、`SettingPage`、`SettingPreferencesGeneralPage`、`SettingPreferencesUIPage`、`SettingSearchDetailPage`、`ProviderConfigure`、`ProviderConfigureDeepSeekWeb`、`StatsVM`；app三语 `strings.xml`；`ui/src/main/java/me/rerere/ui/webview/WebView.kt`。完整相对路径/hash见本批VERIFICATION/PACKAGE/FOLLOWUP-FILES。
+- **附件后补漏**：ToolApprovalPicker、ChatList、WorkspacePage、SettingPage、ProviderConfigureDeepSeekWeb删除已迁移至`:ui`的旧包import；SettingPreferencesUIPage的透明度Slider调用改为既有`formItem`，不改CardGroup组件；三语各新增唯一`chat_page_compress_target_tokens`。九文件before/after hash单列，补漏前内容保存在`after-package/`和`before/`。
+- **上游升级需重套**：`:ui` 的 WebViewState 八处 `internal set` 改为公开 `set`，允许`:app`原浏览器页面更新状态。其他组件只改调用方import，不修改`:ui/components/`实现。LIQUID暂并入GLASS/Haze分支，保留序列化字段但不是F006完整重放；AssistantVM.copyAssistant恢复上游`copyMemories: Boolean`文件记忆复制，F010多选仍待后续适配。
+- **生产代码验证**：原包编译失败12条/7文件（1分46秒）；九文件补漏后`:app:compileDebugKotlin`成功（4分33秒，128任务：9执行/119复用），带位置错误0、仍有弃用警告。诊断沿革918→93→12→0，仅代表主程序编译收口。
+- **单测真实结果**：`:ai:test :app:testDebugUnitTest --continue`的续跑52秒失败于`:app:compileDebugUnitTestKotlin`，233任务中1执行/232复用；AI为UP-TO-DATE，不能称重新执行337项。App测试源码4文件82诊断：GroupConversationListTest31、MemoryImportSourcesTest24、GroupTest18、BackgroundEffectTest9。涉及parked群页、旧记忆scope、selectedGroup及旧原生玻璃函数；App用例未执行，不删/停用测试、不为凑绿恢复有损兼容层，留阶段二/三一起适配。
+- **保留边界**：19个parked文件及GroupChatContext内容不变，Git未解决路径和Kotlin冲突标记均为0。与v2相比核心AI/数据/服务/Settings/数据库/API配置不变，F007、F004 HITL/OR、F009只读/常驻错误卡片、watchdog及旧偏好字段不动；app/ui/search仅三语。群组页面、记忆分组/迁移、fork输入框/浏览器入口仍不完整，不得当成整版完成。
+- **产物与日志**：`artifacts/3.1.0-work.1/compile-fix-v3-20261021/`保存原包编译、补漏成功日志、App测试失败日志、精确应用/最终范围核验和恢复材料。`:app:assembleDebug`成功（9分31秒，282任务：70执行/212复用），只输出`RikkaHub.Work-3.1.0-work.1-arm64-v8a-debug.apk`，83,563,821 bytes。包名/版本、ARM64-only、debuggable、三语、WASM源码hash、ZIP CRC及沿用的Debug证书均已核验；三个旧Release的hash/大小/时间未变。无新源码ZIP、设备/真实账号操作；旧源码ZIP不是本批源码。Debug与Release包名不同，不能用这个包直接验证现有Release数据，DB26→31与保数据验收仍待同包名旧Debug数据或专门测试副本验证。
+- **commit/恢复**：无本批SHA；HEAD仍`12a6ed24356889a024eca2190c208294d6a38b65`，MERGE_HEAD仍固定上游3.1.0的`eeef60b22ba24383daf51f3c6c2e5b75bbab6bba`。不commit/tag/push/上传；按本批`before/`逐文件反向应用，若只撤销九处补漏则对照`after-package/`，不整体reset/checkout、不覆盖原index、不直接移回parked旧页掩盖新接口缺口。
+
+## [合并上游 3.1.0 / 冲突修复 v2] 3.1.0-work.1 / 199（2026-10-21，进行中）
+
+- **范围**：按维护者新版执行指令应用 v2 包的 18 个 Kotlin 文件，逐一 SHA-256 匹配；其中 ChatDrawer / ChatPage / ChatInput / AssistantDetailVM / SettingPreferencesGeneralPage / AssistantMemoryPage 逐字匹配上游 3.1.0 标签。其余为 RouteActivity、BrowserController、ViewModelModule、CompressContextDialog、AssistantPage、BackgroundPicker、BrowserMiniPanel、BrowserPage、WorkspacePage、SettingBrowserCookiesPage、SettingBrowserPage、SettingProviderLoadingAnimation。
+- **可恢复暂存**：17 个群组文件由 ui/pages/group/ 移至 `_parked/ui-pages-group/`，原 components/、detail/ 层级保留；MemoryPickerDialog / MemorySourcePickerDialog 移至 `_parked/ui-components/`。19 个文件全部按移动前哈希核验、未删内容。GroupChatContext 原地且内容不变；群组路由定义、数据、核心服务、Room 与配置字段不动。包内示例只匹配顶层 *.kt 会遗漏子目录，实际以其明确列出的17文件为准。
+- **底层边界**：相对 v1 的全源码哈希清单核对，仅18覆盖文件、19原路径移动及 CHANGES/FEATURES/AGENTS 三份台账变化；无其他新增源码。SettingsStore 仍为 lambda 更新，MemoryRepository 未新增 row-memory 伪兼容 API；旧液态/动画字段、F007、F004 HITL/OR、F009拒绝和常驻错误卡片、watchdog 与 API 配置均未由 v2 改动。三语言资源集合不变。
+- **真实验证**：`:app:compileDebugKotlin --console=plain --no-configuration-cache --max-workers=4` 失败，1分26秒；KSP已完成。918诊断/46文件 → **93诊断/23文件**，Syntax error 110→0；达到200以内的回传目标，但不是可运行版本。128任务中2项执行、126项复用，不冒称重跑基础模块测试。App单测/设备/真实账号/API未执行。
+- **剩余问题**：WebViewState 跨模块 internal 可见性；旧 Select/ToggleSurface/Switch 等 import；工作区/搜索页重复声明；LIQUID、DeepSeekWeb、新供应商与群注解的 when 适配；助手页 AssistantMemory 残留、AssistantVM copyMemories 未定义；压缩回调/资源缺口。当前仅定位，未在附件外猜修。
+- **日志**：`artifacts/3.1.0-work.1/conflict-fix-v2-20261021/` 保存完整 build-v2.log、93行 errors.log、ERROR-FILES.tsv、APP-COMPILE-ERRORS.json、PACKAGE.json、PARKED-FILES.json、VERIFICATION.json、BUILD-REPORT.md 与移动/覆盖前41文件备份。上一批日志和旧源码ZIP保留，不能当成当前v2源码包。
+- **恢复边界**：暂无本批 commit SHA；HEAD 和 MERGE_HEAD 不变，无 commit/tag/push 或新 APK/源码ZIP。移动前内容位于本批 before/，逐文件审核后反向应用覆盖；按 PARKED-FILES.json 一一反向 `git mv -- <to> <from>` 可移回旧页，必须先完成文件记忆/接口适配再加入编译。before-git-index 仅留作取证，不整树覆盖index、不 reset/checkout、不整包解压恢复。群组及记忆UI、审批入口和浏览器入口重放仍待阶段二/三指令。
+
+## [合并上游 3.1.0 / 冲突修复] 3.1.0-work.1 / 199（2026-10-21，进行中）
+
+- 应用 `RikkaHub Work-3.1.0冲突修复-20261021.zip` 的 28 个文件，逐文件哈希与附件一致。包外只补齐 `AssistantPage.kt` / `AssistantBasicPage.kt` 的 import 冲突；不自行猜测修复编译后的接口缺口。
+- 移除清单：`SponsorAPI.kt`、`SettingDonatePage.kt`、`:ui` 中的 `DiscordIcon.kt` / `TencentQQIcon.kt`、`LiquidGlassInputBackground.kt`、`README_ZH_CN.md` / `README_ZH_TW.md` 和 `liquidglass/`。模块连同旧 build 目录移至 `artifacts/3.1.0-work.1/conflict-fix-20261021/removed-liquidglass/`，可恢复；其余被移除文件保留在此前源码快照中。清理已为空的八个非支持语言目录，只保留英文、简中、繁中。
+- 不得连带删除：`DisplaySetting.liquidCompatMode` / `useAppIconStyleLoadingIndicator`、F007、F004 HITL/OR、后台前台服务与空闲 watchdog、F009 能力拒绝及常驻错误卡片。功能性 API `api.rikka-ai.com` 不变。
+- 五个上游占位文件：`ChatPage.kt` / `ChatInput.kt` / `ChatDrawer.kt` / `FilesPicker.kt` / `AssistantMemoryPage.kt`。群组模式、浏览器面板及记忆分组/迁移 UI 尚待阶段二/三；保留附件要求的阶段边界，不恢复旧整页来掩盖接口问题。
+- 实际编译/测试日志及剩余报错保存在 `artifacts/3.1.0-work.1/conflict-fix-20261021/`。当前无本批 commit SHA，不执行 commit/tag/push、不生成 APK、不操作设备。冲突清零不是阶段一验收通过。
+- 验证结果：ai/ui/search/mediagen 编译通过；AI Debug 单测本次实际执行 44 套件/337 项，0失败/错误/跳过。App 编译失败，918 条带位置的诊断涉及46文件，其中110条 Syntax error（含级联，不是独立缺陷数）；App单测因编译失败未执行。附件“干净上游占位/能编译”的预期与实际混合代码不符，具体证据和完整日志见本批 BUILD-REPORT.md。未擅自修复附件之外的接口缺口。
+- 回滚边界：此前 `upstream-3.1.0-stage1-source-snapshot-20261021-100005` 源码 ZIP 含原冲突态文件；按本批文件逐项反向应用，不整体 reset/checkout，不覆盖其余数据层合并。`liquidglass/` 可从上述备份路径恢复；源码 ZIP 不含 Git index，不能把解压当成自动恢复 merge 状态。
+
 ## [F013 补充五至七] 2.5.6-work.5 / 198（2026-10-20，本地交付批次）
 
 - 版本基于未公开的 work.4 开发包递增为 `2.5.6-work.5 / 198`；保留工作区中 F013/F014、DeepSeek/AnySearch 与后台修复全部增量。只构建三个签名 Release 与完整源码，不生成 Debug、不执行 commit/tag/push、不上传、不操作设备或真实账号。

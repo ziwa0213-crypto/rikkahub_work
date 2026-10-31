@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,31 +25,18 @@ import me.rerere.rikkahub.data.skills.SkillManager
 import me.rerere.rikkahub.data.skills.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.MemoryFile
-import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.MemoryGroup
+import me.rerere.rikkahub.data.model.RowMemory
+import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Tag
-import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.MemoryMigrationMode
+import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.memoryId
+import kotlinx.coroutines.CancellationException
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import kotlin.uuid.Uuid
 
 private const val TAG = "AssistantDetailVM"
-
-data class MemoryGroupDeleteImpact(
-    val group: MemoryGroup,
-    val memoryCount: Int,
-    val memberCount: Int,
-)
-
-data class PendingMemoryMigration(
-    val fromScope: String,
-    val toScope: String,
-    val targetLabel: String,
-    val candidates: List<AssistantMemory>,
-    val selectorUsedByOthers: Int,
-    val useGlobalMemory: Boolean,
-    val memoryGroupId: Uuid?,
-)
 
 class AssistantDetailVM(
     private val id: String,
@@ -62,12 +51,6 @@ class AssistantDetailVM(
 
     private val _skills = MutableStateFlow<List<SkillMetadata>>(emptyList())
     val skills = _skills.asStateFlow()
-
-    private val _memoryGroupDeleteImpact = MutableStateFlow<MemoryGroupDeleteImpact?>(null)
-    val memoryGroupDeleteImpact = _memoryGroupDeleteImpact.asStateFlow()
-
-    private val _pendingMemoryMigration = MutableStateFlow<PendingMemoryMigration?>(null)
-    val pendingMemoryMigration = _pendingMemoryMigration.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -88,10 +71,150 @@ class AssistantDetailVM(
     val assistant: StateFlow<Assistant> = settingsStore
         .settingsFlow
         .map { settings ->
-            settings.assistants.find { it.id == assistantId } ?: Assistant()
+            settings.assistants.find { it.id == assistantId } ?: Assistant(id = assistantId)
         }.stateIn(
-            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = Assistant()
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = Assistant(id = assistantId)
         )
+
+    val rowMemories = assistant.map { it.memoryId }.distinctUntilChanged()
+        .flatMapLatest { memoryRepository.getRowMemoriesFlow(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _memoryError = MutableStateFlow<String?>(null)
+    val memoryError = _memoryError.asStateFlow()
+    fun clearMemoryError() { _memoryError.value = null }
+
+    private val _pendingMemoryMigration = MutableStateFlow<PendingMemoryMigration?>(null)
+    val pendingMemoryMigration = _pendingMemoryMigration.asStateFlow()
+
+    private fun memoryChange(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try { block() } catch (error: CancellationException) { throw error }
+            catch (error: Exception) { _memoryError.value = error.message ?: error.javaClass.simpleName }
+        }
+    }
+
+    fun saveRowMemory(scope: String, row: RowMemory) = memoryChange {
+        if (row.id == 0) memoryRepository.addRowMemory(scope, row.content)
+        else memoryRepository.updateRowMemory(scope, row.id, row.content)
+    }
+
+    fun deleteRowMemories(scope: String, ids: List<Int>, onDeleted: () -> Unit = {}) = memoryChange {
+        memoryRepository.deleteRowMemories(scope, ids)
+        onDeleted()
+    }
+
+    fun selectMemoryScope(global: Boolean, groupId: Uuid?) = memoryChange {
+        applyScopeChange(global, groupId)
+    }
+
+    /** Request a scope change and ask which row memories should follow it. */
+    fun requestMemoryScopeChange(global: Boolean, groupId: Uuid?, targetLabel: String) = memoryChange {
+        val current = assistant.value
+        val fromScope = current.memoryId
+        val toScope = when {
+            global -> MemoryRepository.GLOBAL_MEMORY_ID
+            groupId != null -> MemoryRepository.scopeOf(groupId)
+            else -> current.id.toString()
+        }
+        if (fromScope == toScope) {
+            applyScopeChange(global, groupId)
+            return@memoryChange
+        }
+        val candidates = memoryRepository.getRowMemories(fromScope)
+        if (candidates.isEmpty()) {
+            applyScopeChange(global, groupId)
+            return@memoryChange
+        }
+        val currentSettings = settingsStore.settingsFlow.first()
+        _pendingMemoryMigration.value = PendingMemoryMigration(
+            global = global,
+            groupId = groupId,
+            targetLabel = targetLabel,
+            fromScope = fromScope,
+            candidates = candidates,
+            sharedUsers = currentSettings.assistants.count { it.memoryId == fromScope },
+        )
+    }
+
+    fun confirmMemoryScopeChange(ids: Set<Int>, mode: MemoryMigrationMode) = memoryChange {
+        val pending = _pendingMemoryMigration.value ?: return@memoryChange
+        _pendingMemoryMigration.value = null
+        if (ids.isNotEmpty()) {
+            memoryRepository.migrateRowMemories(
+                fromScope = pending.fromScope,
+                toScope = targetScopeOf(pending),
+                ids = ids.toList(),
+                mode = mode,
+            )
+        }
+        applyScopeChange(pending.global, pending.groupId)
+    }
+
+    fun dismissMemoryScopeChange() {
+        _pendingMemoryMigration.value = null
+    }
+
+    private fun targetScopeOf(pending: PendingMemoryMigration): String = when {
+        pending.global -> MemoryRepository.GLOBAL_MEMORY_ID
+        pending.groupId != null -> MemoryRepository.scopeOf(pending.groupId)
+        else -> assistantId.toString()
+    }
+
+    private suspend fun applyScopeChange(global: Boolean, groupId: Uuid?) {
+        settingsStore.update { settings ->
+            check(groupId == null || settings.memoryGroups.any { it.id == groupId }) { "Memory group no longer exists" }
+            settings.copy(assistants = settings.assistants.map {
+                if (it.id == assistantId) it.copy(useGlobalMemory = global, memoryGroupId = groupId) else it
+            })
+        }
+    }
+
+    fun createMemoryGroup(name: String) = memoryChange {
+        val group = MemoryGroup(name = name.trim())
+        require(group.name.isNotEmpty())
+        settingsStore.update { settings -> settings.copy(
+            memoryGroups = settings.memoryGroups + group,
+            assistants = settings.assistants.map {
+                if (it.id == assistantId) it.copy(useGlobalMemory = false, memoryGroupId = group.id) else it
+            },
+        ) }
+    }
+
+    fun renameMemoryGroup(group: MemoryGroup, name: String) = memoryChange {
+        require(name.isNotBlank())
+        settingsStore.update { settings -> settings.copy(memoryGroups = settings.memoryGroups.map {
+            if (it.id == group.id) it.copy(name = name.trim()) else it
+        }) }
+    }
+
+    private val _groupDeleteImpact = MutableStateFlow<MemoryGroupDeleteImpact?>(null)
+    val groupDeleteImpact = _groupDeleteImpact.asStateFlow()
+    fun dismissMemoryGroupDeletion() { _groupDeleteImpact.value = null }
+
+    fun requestMemoryGroupDeletion(group: MemoryGroup) = memoryChange {
+        val scope = Assistant(memoryGroupId = group.id).memoryId
+        _groupDeleteImpact.value = MemoryGroupDeleteImpact(
+            group, memoryRepository.getRowMemories(scope).size + memoryRepository.getFiles(scope).size,
+            settings.value.assistants.count { it.memoryGroupId == group.id },
+        )
+    }
+
+    fun confirmMemoryGroupDeletion() {
+        val group = _groupDeleteImpact.value?.group ?: return
+        _groupDeleteImpact.value = null
+        memoryChange {
+            val scope = Assistant(memoryGroupId = group.id).memoryId
+            memoryRepository.deleteAllRowMemories(scope)
+            memoryRepository.deleteFilesOfAssistant(scope)
+            settingsStore.update { settings -> settings.copy(
+                memoryGroups = settings.memoryGroups.filterNot { it.id == group.id },
+                assistants = settings.assistants.map {
+                    if (it.memoryGroupId == group.id) it.copy(useGlobalMemory = false, memoryGroupId = null) else it
+                },
+            ) }
+        }
+    }
 
     val memories = assistant
         .flatMapLatest { currentAssistant ->
@@ -200,145 +323,6 @@ class AssistantDetailVM(
                             it
                         }
                     })
-            )
-        }
-    }
-
-    fun createMemoryGroup(name: String) {
-        val group = MemoryGroup(name = name.trim())
-        if (group.name.isEmpty()) return
-
-        viewModelScope.launch {
-            settingsStore.update { settings -> settings.copy(memoryGroups = settings.memoryGroups + group) }
-            requestMemoryScopeChange(
-                useGlobalMemory = false,
-                memoryGroupId = group.id,
-                targetLabel = group.name,
-            )
-        }
-    }
-
-    fun requestMemoryScopeChange(
-        useGlobalMemory: Boolean,
-        memoryGroupId: Uuid?,
-        targetLabel: String,
-    ) {
-        viewModelScope.launch {
-            val current = assistant.value
-            val fromScope = MemoryRepository.scopeOf(current)
-            val toScope = when {
-                useGlobalMemory -> MemoryRepository.GLOBAL_MEMORY_ID
-                memoryGroupId != null -> MemoryRepository.scopeOf(memoryGroupId)
-                else -> current.id.toString()
-            }
-            val candidates = memoryRepository.getMemoriesOfAssistant(fromScope)
-
-            if (fromScope == toScope || candidates.isEmpty()) {
-                applyScopeChange(useGlobalMemory, memoryGroupId)
-                return@launch
-            }
-
-            _pendingMemoryMigration.value = PendingMemoryMigration(
-                fromScope = fromScope,
-                toScope = toScope,
-                targetLabel = targetLabel,
-                candidates = candidates,
-                selectorUsedByOthers = settings.value.assistants.count {
-                    MemoryRepository.scopeOf(it) == fromScope
-                },
-                useGlobalMemory = useGlobalMemory,
-                memoryGroupId = memoryGroupId,
-            )
-        }
-    }
-
-    fun confirmMemoryScopeChange(memoryIds: Set<Int>, mode: MemoryMigrationMode) {
-        val pending = _pendingMemoryMigration.value ?: return
-        _pendingMemoryMigration.value = null
-        viewModelScope.launch {
-            memoryRepository.migrateMemories(
-                fromScope = pending.fromScope,
-                toScope = pending.toScope,
-                memoryIds = memoryIds,
-                mode = mode,
-            )
-            applyScopeChange(pending.useGlobalMemory, pending.memoryGroupId)
-        }
-    }
-
-    fun dismissMemoryScopeChange() {
-        _pendingMemoryMigration.value = null
-    }
-
-    private fun applyScopeChange(useGlobalMemory: Boolean, memoryGroupId: Uuid?) {
-        update(assistant.value.copy(useGlobalMemory = useGlobalMemory, memoryGroupId = memoryGroupId))
-    }
-
-    fun renameMemoryGroup(group: MemoryGroup, name: String) {
-        val normalizedName = name.trim()
-        if (normalizedName.isEmpty()) return
-
-        viewModelScope.launch {
-            settingsStore.update { settings ->
-                settings.copy(
-                    memoryGroups = settings.memoryGroups.map { currentGroup ->
-                        if (currentGroup.id == group.id) {
-                            currentGroup.copy(name = normalizedName)
-                        } else {
-                            currentGroup
-                        }
-                    }
-                )
-            }
-        }
-    }
-
-    fun requestMemoryGroupDeletion(group: MemoryGroup) {
-        viewModelScope.launch {
-            _memoryGroupDeleteImpact.value = MemoryGroupDeleteImpact(
-                group = group,
-                memoryCount = memoryRepository.getMemoriesOfAssistant(
-                    MemoryRepository.scopeOf(group.id)
-                ).size,
-                memberCount = settings.value.assistants.count { it.memoryGroupId == group.id },
-            )
-        }
-    }
-
-    fun dismissMemoryGroupDeletion() {
-        _memoryGroupDeleteImpact.value = null
-    }
-
-    fun confirmMemoryGroupDeletion() {
-        val impact = _memoryGroupDeleteImpact.value ?: return
-        _memoryGroupDeleteImpact.value = null
-
-        viewModelScope.launch {
-            memoryRepository.deleteMemoriesOfAssistant(MemoryRepository.scopeOf(impact.group.id))
-            settingsStore.update { settings ->
-                settings.copy(
-                    memoryGroups = settings.memoryGroups.filterNot { it.id == impact.group.id },
-                    assistants = settings.assistants.map { currentAssistant ->
-                        if (currentAssistant.memoryGroupId == impact.group.id) {
-                            currentAssistant.copy(
-                                useGlobalMemory = false,
-                                memoryGroupId = null,
-                            )
-                        } else {
-                            currentAssistant
-                        }
-                    },
-                )
-            }
-        }
-    }
-
-    fun addMemory(memory: AssistantMemory) {
-        viewModelScope.launch {
-            memoryRepository.addMemory(
-                assistantId = MemoryRepository.scopeOf(assistant.value),
-                content = memory.content
-            )
             }
             replaced?.let { old ->
                 checkAvatarDelete(old = old, new = assistant) // 删除旧头像
@@ -348,11 +332,7 @@ class AssistantDetailVM(
     }
 
     // 助手还没加载出来时 assistant 是个占位对象，记忆库要按页面拿到的 assistantId 来定位
-    private fun memoryIdOf(assistant: Assistant) = if (assistant.useGlobalMemory) {
-        MemoryRepository.GLOBAL_MEMORY_ID
-    } else {
-        assistantId.toString()
-    }
+    private fun memoryIdOf(assistant: Assistant) = assistant.memoryId
 
     /** 当前助手读写的记忆库 */
     val memoryId: String get() = memoryIdOf(assistant.value)
@@ -390,3 +370,14 @@ class AssistantDetailVM(
         }
     }
 }
+
+data class MemoryGroupDeleteImpact(val group: MemoryGroup, val memoryCount: Int, val memberCount: Int)
+
+data class PendingMemoryMigration(
+    val global: Boolean,
+    val groupId: Uuid?,
+    val targetLabel: String,
+    val fromScope: String,
+    val candidates: List<RowMemory>,
+    val sharedUsers: Int,
+)

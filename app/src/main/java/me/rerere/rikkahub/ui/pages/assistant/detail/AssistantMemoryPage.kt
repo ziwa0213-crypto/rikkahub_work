@@ -1,30 +1,41 @@
 package me.rerere.rikkahub.ui.pages.assistant.detail
 
 import android.text.format.DateUtils
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
-import me.rerere.hugeicons.stroke.ArrowRight01
-import me.rerere.hugeicons.stroke.Delete01
-import me.rerere.hugeicons.stroke.PencilEdit01
-import me.rerere.hugeicons.stroke.Download01
 import me.rerere.hugeicons.stroke.Brain02
+import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.Clock01
+import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Download01
+import me.rerere.hugeicons.stroke.Edit01
+import me.rerere.hugeicons.stroke.File01
+import me.rerere.hugeicons.stroke.Moon02
 import me.rerere.hugeicons.stroke.Settings03
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -35,15 +46,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -56,28 +69,29 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.MemoryConsolidationStatus
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.AssistantMemory
-import me.rerere.rikkahub.data.model.MemoryGroup
-import me.rerere.rikkahub.data.db.dao.MemoryDAO
-import me.rerere.rikkahub.data.repository.MemoryRepository
-import me.rerere.rikkahub.data.repository.ConversationRepository
-import me.rerere.rikkahub.ui.components.ui.MemoryImportDialogs
-import me.rerere.rikkahub.ui.components.ui.MemorySource
-import org.koin.compose.koinInject
-import kotlinx.coroutines.flow.first
-import me.rerere.rikkahub.data.repository.MemoryMigrationMode
 import me.rerere.rikkahub.data.model.MemoryFile
+import me.rerere.rikkahub.data.model.MemoryGroup
+import me.rerere.rikkahub.data.model.RowMemory
+import me.rerere.rikkahub.data.db.dao.MemoryEntityDAO
+import me.rerere.rikkahub.data.repository.ConversationRepository
+import me.rerere.rikkahub.data.repository.MemoryMigrationMode
+import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.memoryId
 import me.rerere.rikkahub.data.model.groupByDirectory
 import me.rerere.rikkahub.data.model.memoryTitleOf
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.ui.components.ai.ExtensionEmptyState
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.components.ui.MemoryGroupSelector
-import me.rerere.rikkahub.ui.components.ui.MemoryPickerDialog
-import me.rerere.rikkahub.ui.components.ui.MemoryPickerModeSwitch
+import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
+import me.rerere.rikkahub.ui.components.ui.MemoryGroupSelector
+import me.rerere.rikkahub.ui.components.ui.MemoryImportDialogs
+import me.rerere.rikkahub.ui.components.ui.MemoryPickerDialog
+import me.rerere.rikkahub.ui.components.ui.MemoryPickerModeSwitch
+import me.rerere.rikkahub.ui.components.ui.MemorySource
+import me.rerere.rikkahub.ui.components.ui.chatMemorySources
 import me.rerere.rikkahub.ui.components.ui.PagerTab
 import me.rerere.rikkahub.ui.components.ui.PagerTabs
 import me.rerere.rikkahub.ui.components.ui.switchItem
@@ -86,16 +100,19 @@ import me.rerere.rikkahub.ui.pages.memory.resultText
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.ui.components.RikkaConfirmDialog
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import kotlinx.coroutines.flow.first
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-// 记忆文件放第一页：从侧边栏的整理入口进来时能直接看到整理状态
+// 行式记忆、后台整理文件和两者共用的设置分开呈现。
 private enum class MemoryTab(
     override val icon: ImageVector,
     @param:StringRes private val labelRes: Int,
 ) : PagerTab {
-    FILES(HugeIcons.Brain02, R.string.assistant_page_manage_memory_title),
+    MEMORY(HugeIcons.Brain02, R.string.assistant_page_tab_memory),
+    DREAMING(HugeIcons.Moon02, R.string.memory_dream_title),
     SETTINGS(HugeIcons.Settings03, R.string.settings);
 
     override val label: String
@@ -111,31 +128,168 @@ fun AssistantMemoryPage(id: String) {
     )
     val assistant by vm.assistant.collectAsStateWithLifecycle()
     val memories by vm.memories.collectAsStateWithLifecycle()
+    val rowMemories by vm.rowMemories.collectAsStateWithLifecycle()
     val consolidation by vm.memoryConsolidation.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val groupDeleteImpact by vm.groupDeleteImpact.collectAsStateWithLifecycle()
+    val memoryError by vm.memoryError.collectAsStateWithLifecycle()
+    val pendingMemoryMigration by vm.pendingMemoryMigration.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val pagerState = rememberPagerState { MemoryTab.entries.size }
     val scope = rememberCoroutineScope()
+    var showGroupSelector by remember { mutableStateOf(false) }
+    var showImport by remember(vm.memoryId) { mutableStateOf(false) }
+    var selectedRowIds by remember(vm.memoryId) { mutableStateOf(emptySet<Int>()) }
+    var pendingRowDeleteIds by remember(vm.memoryId) { mutableStateOf<Set<Int>?>(null) }
+    var migrationMode by remember(pendingMemoryMigration) { mutableStateOf(MemoryMigrationMode.COPY) }
+    var migrationSelected by remember(pendingMemoryMigration) { mutableStateOf(emptySet<Int>()) }
+    val memoryEntityDao: MemoryEntityDAO = koinInject()
+    val conversationRepository: ConversationRepository = koinInject()
+    val globalLabel = stringResource(R.string.memory_group_global)
+    val privateLabel = stringResource(R.string.memory_group_private)
+    val groupChatLabel = stringResource(R.string.memory_import_cat_group_chat)
+    val assistantLabel = stringResource(R.string.memory_import_cat_assistant)
+    val groupLabel = stringResource(R.string.assistant_page_memory_group)
+    val targetScope = vm.memoryId
+    val targetLabel = when {
+        assistant.useGlobalMemory -> globalLabel
+        assistant.memoryGroupId != null -> settings.memoryGroups.find { it.id == assistant.memoryGroupId }?.name
+            ?: privateLabel
+        else -> privateLabel
+    }
+
+    BackHandler(enabled = selectedRowIds.isNotEmpty()) {
+        selectedRowIds = emptySet()
+    }
+
+    LaunchedEffect(rowMemories) {
+        selectedRowIds = selectedRowIds.intersect(rowMemories.mapTo(mutableSetOf()) { it.id })
+    }
+
+    LaunchedEffect(pagerState.currentPage, assistant.enableMemory) {
+        if (!assistant.enableMemory || MemoryTab.entries[pagerState.currentPage] != MemoryTab.MEMORY) {
+            selectedRowIds = emptySet()
+        }
+    }
+
+    MemoryImportDialogs(
+        targetScope = targetScope,
+        targetLabel = targetLabel,
+        showSources = showImport,
+        onDismissSources = { showImport = false },
+        loadSources = {
+            val counts = memoryEntityDao.getAllMemories().groupingBy { it.assistantId }.eachCount()
+            val conversationIds = settings.groups.flatMap { it.conversationIds }.distinct()
+            val titles = if (conversationIds.isEmpty()) emptyMap()
+            else conversationRepository.getGroupConversations(conversationIds).first().associate { it.id to it.title }
+            val groupChatSources = settings.groups.flatMap { group ->
+                group.conversationIds.mapNotNull { conversationId ->
+                    val title = titles[conversationId] ?: return@mapNotNull null
+                    val source = MemoryRepository.scopeOfChatGroup(group.id, conversationId)
+                    val count = counts[source] ?: 0
+                    if (count == 0) null
+                    else MemorySource(
+                        scope = source,
+                        label = "${group.name} · ${title.ifBlank { groupChatLabel }}",
+                        category = groupChatLabel,
+                        count = count,
+                    )
+                }
+            }
+            val assistantSources = chatMemorySources(
+                settings.assistants,
+                settings.memoryGroups,
+                counts,
+                globalLabel,
+                groupLabel,
+                assistantLabel,
+            )
+            assistantSources + groupChatSources
+        },
+        sharedCount = { scope -> settings.assistants.count { it.memoryId == scope } },
+    )
 
     Scaffold(
         topBar = {
-            LargeFlexibleTopAppBar(
-                title = {
-                    Text(stringResource(R.string.assistant_page_tab_memory))
-                },
-                navigationIcon = {
-                    BackButton()
-                },
-                actions = {
-                    if (MemoryTab.entries[pagerState.currentPage] == MemoryTab.FILES) {
-                        IconButton(onClick = { navController.navigate(Screen.MemoryFile(vm.memoryId, null)) }) {
-                            Icon(HugeIcons.Add01, contentDescription = stringResource(R.string.add))
+            if (selectedRowIds.isNotEmpty() && MemoryTab.entries[pagerState.currentPage] == MemoryTab.MEMORY) {
+                val allRowIds = rowMemories.mapTo(mutableSetOf()) { it.id }
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.assistant_page_memory_selected_count, selectedRowIds.size),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedRowIds = emptySet() }) {
+                            Icon(
+                                imageVector = HugeIcons.Cancel01,
+                                contentDescription = stringResource(R.string.cancel),
+                            )
                         }
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = CustomColors.topBarColors,
-            )
+                    },
+                    actions = {
+                        TextButton(
+                            onClick = {
+                                selectedRowIds = if (selectedRowIds.containsAll(allRowIds)) {
+                                    emptySet()
+                                } else {
+                                    allRowIds
+                                }
+                            },
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (selectedRowIds.containsAll(allRowIds)) {
+                                        R.string.media_creation_page_deselect_all
+                                    } else {
+                                        R.string.memory_picker_select_all
+                                    }
+                                )
+                            )
+                        }
+                        IconButton(
+                            enabled = selectedRowIds.isNotEmpty(),
+                            onClick = { pendingRowDeleteIds = selectedRowIds },
+                        ) {
+                            Icon(
+                                imageVector = HugeIcons.Delete01,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    },
+                    colors = CustomColors.topBarColors,
+                )
+            } else {
+                LargeFlexibleTopAppBar(
+                    title = {
+                        Text(stringResource(R.string.assistant_page_tab_memory))
+                    },
+                    navigationIcon = {
+                        BackButton()
+                    },
+                    actions = {
+                        if (assistant.enableMemory && MemoryTab.entries[pagerState.currentPage] == MemoryTab.MEMORY) {
+                            IconButton(onClick = { showImport = true }) {
+                                Icon(
+                                    HugeIcons.Download01,
+                                    contentDescription = stringResource(R.string.memory_import_from_chat),
+                                )
+                            }
+                        }
+                        if (assistant.enableMemory && MemoryTab.entries[pagerState.currentPage] == MemoryTab.DREAMING) {
+                            IconButton(onClick = { navController.navigate(Screen.MemoryFile(vm.memoryId, null)) }) {
+                                Icon(HugeIcons.Add01, contentDescription = stringResource(R.string.add))
+                            }
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                    colors = CustomColors.topBarColors,
+                )
+            }
         },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor,
@@ -158,8 +312,30 @@ fun AssistantMemoryPage(id: String) {
                     .fillMaxWidth()
                     .weight(1f),
             ) { page ->
+                if (!assistant.enableMemory && MemoryTab.entries[page] != MemoryTab.SETTINGS) {
+                    ExtensionEmptyState(
+                        message = stringResource(R.string.assistant_page_tab_memory),
+                        description = stringResource(R.string.assistant_page_memory_empty_disabled_hint),
+                        buttonText = stringResource(R.string.settings),
+                        onAction = {
+                            scope.launch { pagerState.animateScrollToPage(MemoryTab.SETTINGS.ordinal) }
+                        },
+                        icon = MemoryTab.entries[page].icon,
+                    )
+                    return@HorizontalPager
+                }
                 when (MemoryTab.entries[page]) {
-                    MemoryTab.FILES -> MemoryFilesTab(
+                    MemoryTab.MEMORY -> ItemizedMemoryTab(
+                        memoryScope = vm.memoryId,
+                        memories = rowMemories,
+                        selectedIds = selectedRowIds,
+                        onSelectedIdsChange = { selectedRowIds = it },
+                        onAdd = { content -> vm.saveRowMemory(vm.memoryId, RowMemory(id = 0, content = content)) },
+                        onUpdate = { row -> vm.saveRowMemory(vm.memoryId, row) },
+                        onRequestDelete = { ids -> pendingRowDeleteIds = ids },
+                    )
+
+                    MemoryTab.DREAMING -> MemoryFilesTab(
                         memories = memories,
                         consolidation = consolidation.takeIf { assistant.enableMemory },
                         onOrganizeMemory = { vm.organizeMemory() },
@@ -172,18 +348,144 @@ fun AssistantMemoryPage(id: String) {
 
                     MemoryTab.SETTINGS -> MemorySettingsTab(
                         assistant = assistant,
+                        memoryGroups = settings.memoryGroups,
                         onUpdateAssistant = { vm.update(it) },
+                        onShowGroupSelector = { showGroupSelector = true },
                     )
                 }
             }
         }
     }
+
+    MemoryGroupSelector(
+        show = showGroupSelector,
+        assistant = assistant,
+        memoryGroups = settings.memoryGroups,
+        onDismiss = { showGroupSelector = false },
+        onSelectPrivate = {
+            vm.requestMemoryScopeChange(
+                global = false,
+                groupId = null,
+                targetLabel = privateLabel,
+            )
+            showGroupSelector = false
+        },
+        onSelectGlobal = {
+            vm.requestMemoryScopeChange(
+                global = true,
+                groupId = null,
+                targetLabel = globalLabel,
+            )
+            showGroupSelector = false
+        },
+        onSelectGroup = { group ->
+            vm.requestMemoryScopeChange(global = false, groupId = group.id, targetLabel = group.name)
+            showGroupSelector = false
+        },
+        onCreateGroup = { vm.createMemoryGroup(it) },
+        onRenameGroup = { group, name -> vm.renameMemoryGroup(group, name) },
+        onDeleteGroup = { group ->
+            showGroupSelector = false
+            vm.requestMemoryGroupDeletion(group)
+        },
+    )
+
+    MemoryPickerDialog(
+        show = pendingMemoryMigration != null,
+        title = stringResource(R.string.memory_picker_migrate_title),
+        subtitle = pendingMemoryMigration?.let {
+            stringResource(R.string.memory_picker_migrate_subtitle, it.targetLabel)
+        },
+        memories = pendingMemoryMigration?.candidates.orEmpty(),
+        selectedIds = migrationSelected,
+        onSelectedIdsChange = { migrationSelected = it },
+        modeSwitch = MemoryPickerModeSwitch(migrationMode) { migrationMode = it },
+        warning = pendingMemoryMigration?.let { pending ->
+            if (migrationMode == MemoryMigrationMode.MOVE && pending.sharedUsers > 1 &&
+                (pending.fromScope == MemoryRepository.GLOBAL_MEMORY_ID ||
+                    pending.fromScope.startsWith(MemoryRepository.GROUP_MEMORY_PREFIX))
+            ) {
+                stringResource(R.string.memory_picker_warn_move_shared, pending.sharedUsers)
+            } else {
+                null
+            }
+        },
+        confirmText = stringResource(R.string.confirm),
+        onConfirm = {
+            vm.confirmMemoryScopeChange(migrationSelected, migrationMode)
+            migrationSelected = emptySet()
+            migrationMode = MemoryMigrationMode.COPY
+        },
+        onDismiss = {
+            vm.dismissMemoryScopeChange()
+            migrationSelected = emptySet()
+            migrationMode = MemoryMigrationMode.COPY
+        },
+    )
+
+    memoryError?.let { error ->
+        AlertDialog(
+            onDismissRequest = vm::clearMemoryError,
+            title = { Text(stringResource(R.string.error_title_operation)) },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = vm::clearMemoryError) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+        )
+    }
+
+    RikkaConfirmDialog(
+        show = pendingRowDeleteIds != null,
+        title = stringResource(R.string.confirm_delete),
+        confirmText = stringResource(R.string.confirm),
+        dismissText = stringResource(R.string.cancel),
+        onConfirm = {
+            pendingRowDeleteIds?.let { ids ->
+                vm.deleteRowMemories(vm.memoryId, ids.toList()) {
+                    selectedRowIds = emptySet()
+                }
+            }
+            pendingRowDeleteIds = null
+        },
+        onDismiss = { pendingRowDeleteIds = null },
+        text = {
+            Text(
+                stringResource(
+                    R.string.assistant_page_memory_delete_selected_confirm,
+                    pendingRowDeleteIds?.size ?: 0,
+                )
+            )
+        },
+    )
+
+    RikkaConfirmDialog(
+        show = groupDeleteImpact != null,
+        title = stringResource(R.string.memory_group_delete_confirm_title),
+        confirmText = stringResource(R.string.confirm),
+        dismissText = stringResource(R.string.cancel),
+        onConfirm = { vm.confirmMemoryGroupDeletion() },
+        onDismiss = { vm.dismissMemoryGroupDeletion() },
+        text = {
+            groupDeleteImpact?.let { impact ->
+                Text(stringResource(
+                    R.string.memory_group_delete_confirm,
+                    impact.group.name,
+                    impact.memoryCount,
+                    impact.memberCount,
+                ))
+            }
+        },
+    )
 }
 
 @Composable
 private fun MemorySettingsTab(
     assistant: Assistant,
+    memoryGroups: List<MemoryGroup>,
     onUpdateAssistant: (Assistant) -> Unit,
+    onShowGroupSelector: () -> Unit,
 ) {
     var showTimeReminderIntervalDialog by remember(assistant.id) { mutableStateOf(false) }
     var timeReminderIntervalInput by remember(assistant.id) { mutableStateOf("") }
@@ -245,18 +547,25 @@ private fun MemorySettingsTab(
                 supportingContent = { Text(stringResource(R.string.assistant_page_memory_desc)) },
                 headlineContent = { Text(stringResource(R.string.assistant_page_memory)) },
             )
-            switchItem(
-                checked = assistant.useGlobalMemory,
-                onCheckedChange = {
-                    onUpdateAssistant(
-                        assistant.copy(
-                            useGlobalMemory = it
-                        )
+            item(
+                onClick = onShowGroupSelector,
+                leadingContent = { CardGroupIcon(HugeIcons.Brain02) },
+                supportingContent = { Text(stringResource(R.string.assistant_page_memory_group_desc)) },
+                headlineContent = { Text(stringResource(R.string.assistant_page_memory_group)) },
+                trailingContent = {
+                    val selectedGroupName = when {
+                        assistant.useGlobalMemory -> stringResource(R.string.memory_group_global)
+                        assistant.memoryGroupId != null -> memoryGroups
+                            .firstOrNull { it.id == assistant.memoryGroupId }
+                            ?.name ?: stringResource(R.string.memory_group_private)
+                        else -> stringResource(R.string.memory_group_private)
+                    }
+                    Text(
+                        text = selectedGroupName,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
-                enabled = assistant.enableMemory,
-                supportingContent = { Text(stringResource(R.string.assistant_page_global_memory_desc)) },
-                headlineContent = { Text(stringResource(R.string.assistant_page_global_memory)) },
             )
             switchItem(
                 checked = assistant.autoConsolidateMemory,
@@ -300,6 +609,7 @@ private fun MemorySettingsTab(
             )
             if (assistant.enableTimeReminder) {
                 item(
+                    leadingContent = { CardGroupIcon(HugeIcons.Clock01) },
                     headlineContent = { Text(stringResource(R.string.assistant_page_time_reminder_interval)) },
                     supportingContent = { Text(stringResource(R.string.assistant_page_time_reminder_interval_desc)) },
                     trailingContent = {
@@ -320,6 +630,168 @@ private fun MemorySettingsTab(
             }
         }
     }
+}
+
+@Composable
+internal fun ItemizedMemoryTab(
+    memoryScope: String,
+    memories: List<RowMemory>,
+    selectedIds: Set<Int>,
+    onSelectedIdsChange: (Set<Int>) -> Unit,
+    onAdd: (String) -> Unit,
+    onUpdate: (RowMemory) -> Unit,
+    onRequestDelete: (Set<Int>) -> Unit,
+) {
+    var draft by remember(memoryScope) { mutableStateOf("") }
+    var editingMemory by remember(memoryScope) { mutableStateOf<RowMemory?>(null) }
+    var editingContent by remember(memoryScope, editingMemory?.id) { mutableStateOf(editingMemory?.content.orEmpty()) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (memories.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                ExtensionEmptyState(
+                    message = stringResource(R.string.assistant_page_memory_empty),
+                    description = stringResource(R.string.assistant_page_itemized_memory_empty_hint),
+                    icon = HugeIcons.Brain02,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(memories, key = { it.id }) { memory ->
+                    val selected = memory.id in selectedIds
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
+                                    if (selectedIds.isNotEmpty()) {
+                                        onSelectedIdsChange(if (selected) selectedIds - memory.id else selectedIds + memory.id)
+                                    } else {
+                                        editingMemory = memory
+                                    }
+                                },
+                                onLongClick = {
+                                    onSelectedIdsChange(if (selected) selectedIds - memory.id else selectedIds + memory.id)
+                                },
+                            ),
+                        colors = if (selected) {
+                            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        } else {
+                            CustomColors.cardColorsOnSurfaceContainer
+                        },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (selectedIds.isNotEmpty()) {
+                                Checkbox(
+                                    checked = selected,
+                                    onCheckedChange = { checked ->
+                                        onSelectedIdsChange(
+                                            if (checked) selectedIds + memory.id else selectedIds - memory.id
+                                        )
+                                    },
+                                )
+                            }
+                            Text(
+                                text = memory.content,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 4.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 5,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (selectedIds.isEmpty()) {
+                                IconButton(onClick = { editingMemory = memory }) {
+                                    Icon(
+                                        imageVector = HugeIcons.Edit01,
+                                        contentDescription = stringResource(R.string.edit),
+                                    )
+                                }
+                                IconButton(onClick = { onRequestDelete(setOf(memory.id)) }) {
+                                    Icon(
+                                        imageVector = HugeIcons.Delete01,
+                                        contentDescription = stringResource(R.string.delete),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text(stringResource(R.string.assistant_page_memory_input_hint)) },
+                maxLines = 3,
+            )
+            IconButton(
+                enabled = draft.isNotBlank(),
+                onClick = {
+                    onAdd(draft.trim())
+                    draft = ""
+                },
+            ) {
+                Icon(HugeIcons.Add01, contentDescription = stringResource(R.string.add))
+            }
+        }
+    }
+
+    editingMemory?.let { memory ->
+        AlertDialog(
+            onDismissRequest = { editingMemory = null },
+            title = { Text(stringResource(R.string.edit)) },
+            text = {
+                TextField(
+                    value = editingContent,
+                    onValueChange = { editingContent = it },
+                    label = { Text(stringResource(R.string.assistant_page_memory_input_hint)) },
+                    minLines = 2,
+                    maxLines = 6,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = editingContent.isNotBlank(),
+                    onClick = {
+                        onUpdate(memory.copy(content = editingContent.trim()))
+                        editingMemory = null
+                    },
+                ) { Text(stringResource(R.string.assistant_page_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingMemory = null }) {
+                    Text(stringResource(R.string.assistant_page_cancel))
+                }
+            },
+        )
+    }
+
 }
 
 @Composable
@@ -389,6 +861,7 @@ private fun MemoryFilesTab(
                 files.fastForEach { memory ->
                     item(
                         onClick = { onOpenMemory(memory.path) },
+                        leadingContent = { CardGroupIcon(HugeIcons.File01) },
                         trailingContent = {
                             ItemActionMenu(
                                 actions = listOf(
@@ -434,27 +907,6 @@ private fun MemoryFilesTab(
     }
 
     RikkaConfirmDialog(
-        show = memoryGroupDeleteImpact != null,
-        title = stringResource(R.string.memory_group_delete_confirm_title),
-        confirmText = stringResource(R.string.memory_group_delete),
-        dismissText = stringResource(R.string.cancel),
-        onConfirm = onConfirmDeleteMemoryGroup,
-        onDismiss = onDismissDeleteMemoryGroup,
-        text = {
-            memoryGroupDeleteImpact?.let { impact ->
-                Text(
-                    stringResource(
-                        R.string.memory_group_delete_confirm,
-                        impact.group.name,
-                        impact.memoryCount,
-                        impact.memberCount,
-                    )
-                )
-            }
-        },
-    )
-
-    RikkaConfirmDialog(
         show = pendingDeleteMemory != null,
         title = stringResource(R.string.confirm_delete),
         confirmText = stringResource(R.string.confirm),
@@ -483,6 +935,7 @@ private fun MemoryConsolidationSection(
     val lastRun = status.lastRun
     CardGroup {
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Brain02) },
             headlineContent = { Text(stringResource(R.string.memory_dream_title)) },
             supportingContent = { Text(memoryConsolidationSummary(status)) },
             trailingContent = {

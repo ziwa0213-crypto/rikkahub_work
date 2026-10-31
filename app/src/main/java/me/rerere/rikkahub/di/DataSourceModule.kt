@@ -87,6 +87,8 @@ val dataSourceModule = module {
         get<AppDatabase>().memoryDao()
     }
 
+    single { get<AppDatabase>().memoryEntityDao() }
+
     single {
         get<AppDatabase>().memoryConsolidationDao()
     }

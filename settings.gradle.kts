@@ -33,7 +33,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "rikkahub"
 include(":app")
-include(":liquidglass")
 include(":highlight")
 include(":ai")
 include(":search")
@@ -43,6 +42,7 @@ include(":document")
 include(":web")
 include(":material3")
 include(":ui")
+include(":liquidglass")
 include(":workspace")
 include(":app:baselineprofile")
 include(":mediagen")

@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dokar.sonner.ToastType
+import me.rerere.ui.toast.ToastType
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import me.rerere.hugeicons.HugeIcons
@@ -36,7 +36,7 @@ import me.rerere.rikkahub.browser.BrowserVisitThrottle
 import me.rerere.rikkahub.browser.normalizeBrowserVisitedHost
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
-import me.rerere.rikkahub.ui.components.webview.WebViewState
+import me.rerere.ui.webview.WebViewState
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.compose.koinInject

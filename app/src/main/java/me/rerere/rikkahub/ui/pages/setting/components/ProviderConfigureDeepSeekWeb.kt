@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,10 +31,21 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.ai.ui.UIMessage
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Brain02
+import me.rerere.hugeicons.stroke.Clock01
+import me.rerere.hugeicons.stroke.Cookie
+import me.rerere.hugeicons.stroke.Key01
+import me.rerere.hugeicons.stroke.Login03
+import me.rerere.hugeicons.stroke.Search01
+import me.rerere.hugeicons.stroke.Settings03
+import me.rerere.hugeicons.stroke.UserCircle
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.components.ui.Select
+import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
+import me.rerere.rikkahub.ui.components.ui.switchItem
 import org.koin.compose.koinInject
+import me.rerere.ui.components.Select
 
 @Composable
 internal fun ProviderConfigureDeepSeekWeb(
@@ -54,10 +64,12 @@ internal fun ProviderConfigureDeepSeekWeb(
 
     CardGroup(title = { Text(stringResource(R.string.deepseek_web_status_title)) }) {
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.UserCircle) },
             headlineContent = { Text(if (provider.token.isBlank()) stringResource(R.string.deepseek_web_not_logged_in) else stringResource(R.string.deepseek_web_logged_in)) },
             supportingContent = { Text(provider.accountHint.ifBlank { stringResource(R.string.deepseek_web_credential_hint) }) },
         )
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Login03) },
             headlineContent = { Text(stringResource(R.string.deepseek_web_login_title)) },
             supportingContent = {
                 Column(
@@ -90,6 +102,7 @@ internal fun ProviderConfigureDeepSeekWeb(
 
     CardGroup(title = { Text(stringResource(R.string.deepseek_web_manual_title)) }) {
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Key01) },
             headlineContent = {
                 OutlinedTextField(
                     value = provider.token,
@@ -102,6 +115,7 @@ internal fun ProviderConfigureDeepSeekWeb(
             },
         )
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Cookie) },
             headlineContent = {
                 OutlinedTextField(
                     value = provider.cookie,
@@ -112,18 +126,17 @@ internal fun ProviderConfigureDeepSeekWeb(
                 )
             },
         )
-        item(
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.setting_provider_page_enable), modifier = Modifier.weight(1f))
-                    Switch(checked = provider.enabled, onCheckedChange = { onEdit(provider.copy(enabled = it)) })
-                }
-            },
+        switchItem(
+            checked = provider.enabled,
+            onCheckedChange = { onEdit(provider.copy(enabled = it)) },
+            leadingContent = { CardGroupIcon(HugeIcons.Settings03) },
+            headlineContent = { Text(stringResource(R.string.setting_provider_page_enable)) },
         )
     }
 
     CardGroup(title = { Text(stringResource(R.string.deepseek_web_throttle_title)) }) {
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Clock01) },
             headlineContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -146,6 +159,7 @@ internal fun ProviderConfigureDeepSeekWeb(
 
     CardGroup(title = { Text(stringResource(R.string.deepseek_web_test_title)) }) {
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Brain02) },
             headlineContent = {
                 Select(
                     options = deepSeekModels,
@@ -158,6 +172,7 @@ internal fun ProviderConfigureDeepSeekWeb(
             supportingContent = { Text(stringResource(R.string.deepseek_web_test_hint)) },
         )
         item(
+            leadingContent = { CardGroupIcon(HugeIcons.Search01) },
             headlineContent = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

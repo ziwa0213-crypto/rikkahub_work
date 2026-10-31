@@ -32,6 +32,9 @@ import me.rerere.rikkahub.ui.components.ai.ModeInjectionsContent
 import me.rerere.rikkahub.ui.components.ai.QuickMessagesContent
 import me.rerere.rikkahub.ui.components.ai.SkillsContent
 import org.koin.compose.koinInject
+import kotlin.uuid.Uuid
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal enum class ExtensionTab(
     override val icon: ImageVector,
@@ -53,6 +56,11 @@ fun ExtensionSelector(
     assistant: Assistant,
     settings: Settings,
     onUpdate: (Assistant) -> Unit,
+    includeQuickMessages: Boolean = true,
+    groupMode: Boolean = false,
+    onUpdateModeInjectionIds: ((Set<Uuid>) -> Unit)? = null,
+    onUpdateLorebookIds: ((Set<Uuid>) -> Unit)? = null,
+    onUpdateEnabledSkills: ((Set<String>) -> Unit)? = null,
     onNavigateToQuickMessages: () -> Unit = {},
     onNavigateToPrompts: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
@@ -60,20 +68,22 @@ fun ExtensionSelector(
     val skillManager: SkillManager = koinInject()
     var skills by remember { mutableStateOf<List<SkillMetadata>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
-        // 打开扩展面板时清理运行时被删除的技能（残留的 enabledSkills 引用），
-        // prune 顺带返回现存技能列表，避免重复读盘
-        skills = skillManager.pruneOrphanedEnabledSkills()
+    LaunchedEffect(skillManager) {
+        // 选择器只读技能目录；清理助手配置属于全局写操作，群组模式不能触发。
+        skills = withContext(Dispatchers.IO) { skillManager.listSkills() }
     }
 
-    val pagerState = rememberPagerState { ExtensionTab.entries.size }
+    val tabs = remember(includeQuickMessages) {
+        ExtensionTab.entries.filter { includeQuickMessages || it != ExtensionTab.QUICK_MESSAGES }
+    }
+    val pagerState = rememberPagerState { tabs.size }
 
     Column(
         modifier = modifier
     ) {
         PagerTabs(
             pagerState = pagerState,
-            tabs = ExtensionTab.entries,
+            tabs = tabs,
             modifier = Modifier.padding(bottom = 12.dp),
         )
 
@@ -83,7 +93,7 @@ fun ExtensionSelector(
                 .fillMaxWidth()
                 .weight(1f)
         ) { page ->
-            val tab = ExtensionTab.entries[page]
+            val tab = tabs[page]
             when (tab) {
                 ExtensionTab.QUICK_MESSAGES -> {
                     if (settings.quickMessages.isNotEmpty()) {
@@ -121,7 +131,8 @@ fun ExtensionSelector(
                                 } else {
                                     assistant.modeInjectionIds - id
                                 }
-                                onUpdate(assistant.copy(modeInjectionIds = newIds))
+                                if (groupMode) onUpdateModeInjectionIds?.invoke(newIds)
+                                else onUpdate(assistant.copy(modeInjectionIds = newIds))
                             },
                             onManage = onNavigateToPrompts,
                         )
@@ -146,7 +157,8 @@ fun ExtensionSelector(
                                 } else {
                                     assistant.lorebookIds - id
                                 }
-                                onUpdate(assistant.copy(lorebookIds = newIds))
+                                if (groupMode) onUpdateLorebookIds?.invoke(newIds)
+                                else onUpdate(assistant.copy(lorebookIds = newIds))
                             },
                             onManage = onNavigateToPrompts,
                         )
@@ -171,7 +183,8 @@ fun ExtensionSelector(
                                 } else {
                                     assistant.enabledSkills - name
                                 }
-                                onUpdate(assistant.copy(enabledSkills = newSkills))
+                                if (groupMode) onUpdateEnabledSkills?.invoke(newSkills)
+                                else onUpdate(assistant.copy(enabledSkills = newSkills))
                             },
                             onManage = onNavigateToSkills,
                         )

@@ -60,6 +60,7 @@ import me.rerere.ui.toast.rememberToasterState
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
 import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
@@ -81,11 +82,12 @@ import me.rerere.rikkahub.ui.hooks.rememberCustomAsrState
 import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
 import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
 import me.rerere.rikkahub.ui.pages.group.GroupMemberPage
-import me.rerere.rikkahub.ui.pages.group.GroupPage
 import me.rerere.rikkahub.ui.pages.group.GroupConfigPage
-import me.rerere.rikkahub.ui.pages.group.detail.GroupMcpPage
-import me.rerere.rikkahub.ui.pages.group.detail.GroupLocalToolPage
+import me.rerere.rikkahub.ui.pages.group.GroupPage
+import me.rerere.rikkahub.ui.pages.group.selectedGroup
 import me.rerere.rikkahub.ui.pages.group.detail.GroupExtensionsPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupLocalToolPage
+import me.rerere.rikkahub.ui.pages.group.detail.GroupMcpPage
 import me.rerere.rikkahub.ui.pages.group.detail.GroupMemoryPage
 import me.rerere.rikkahub.ui.pages.group.detail.GroupRequestPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
@@ -291,16 +293,32 @@ class RouteActivity : ComponentActivity() {
         }
         val migrationState by DatabaseMigrationTracker.state.collectAsStateWithLifecycle()
 
-        val startScreen = Screen.Chat(
-            id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
-                Uuid.random().toString()
+        if (settings.init) {
+            Box(modifier = Modifier.fillMaxSize())
+            return
+        }
+
+        val startScreen = if (settings.uiMode == UiMode.GROUP) {
+            // 群组模式：复用该组最后一个群聊会话；没有组或组内没有会话时进入群组列表。
+            // 不新建会话，避免每次冷启动都产生空群聊。
+            val groupConversationId = settings.selectedGroup(null)?.conversationIds?.lastOrNull()
+            if (groupConversationId != null) {
+                Screen.Chat(groupConversationId.toString())
             } else {
-                readStringPreference(
-                    "lastConversationId",
-                    Uuid.random().toString()
-                ) ?: Uuid.random().toString()
+                Screen.Groups
             }
-        )
+        } else {
+            Screen.Chat(
+                id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
+                    Uuid.random().toString()
+                } else {
+                    readStringPreference(
+                        "lastConversationId",
+                        Uuid.random().toString()
+                    ) ?: Uuid.random().toString()
+                }
+            )
+        }
 
         val backStack = rememberNavBackStack(startScreen)
         LaunchedEffect(Unit) {
@@ -396,14 +414,38 @@ class RouteActivity : ComponentActivity() {
                                 AssistantPage()
                             }
 
-                            entry<Screen.GroupMembers> { GroupMemberPage() }
-                            entry<Screen.Groups> { GroupPage() }
-                            entry<Screen.GroupConfig> { key -> GroupConfigPage(key.groupId) }
-                            entry<Screen.GroupMcp> { key -> GroupMcpPage(key.groupId) }
-                            entry<Screen.GroupLocalTool> { key -> GroupLocalToolPage(key.groupId) }
-                            entry<Screen.GroupExtensions> { key -> GroupExtensionsPage(key.groupId) }
-                            entry<Screen.GroupMemory> { key -> GroupMemoryPage(key.groupId, key.conversationId) }
-                            entry<Screen.GroupRequest> { key -> GroupRequestPage(key.groupId) }
+                            entry<Screen.GroupMembers> {
+                                GroupMemberPage()
+                            }
+
+                            entry<Screen.Groups> {
+                                GroupPage()
+                            }
+
+                            entry<Screen.GroupConfig> { key ->
+                                GroupConfigPage(key.groupId)
+                            }
+
+                            entry<Screen.GroupMcp> { key ->
+                                GroupMcpPage(key.groupId)
+                            }
+
+                            entry<Screen.GroupLocalTool> { key ->
+                                GroupLocalToolPage(key.groupId)
+                            }
+
+                            entry<Screen.GroupExtensions> { key ->
+                                GroupExtensionsPage(key.groupId)
+                            }
+
+                            entry<Screen.GroupRequest> { key ->
+                                GroupRequestPage(key.groupId)
+                            }
+
+                            entry<Screen.GroupMemory> { key ->
+                                GroupMemoryPage(key.groupId, key.conversationId)
+                            }
+
 
                             entry<Screen.AssistantDetail> { key ->
                                 AssistantDetailPage(key.id)

@@ -57,6 +57,13 @@ class ConversationConfigTest {
     }
 
     @Test
+    fun `group conversation never binds the unrelated current assistant`() {
+        val group = Conversation(assistantId = GROUP_CHAT_ASSISTANT_ID, messageNodes = emptyList())
+        assertSame(group, group.bindConfig(settings()))
+        assertNull(group.bindConfig(settings()).config)
+    }
+
+    @Test
     fun `binding snapshots the assistant configuration`() {
         val bound = conversation().bindConfig(settings())
 

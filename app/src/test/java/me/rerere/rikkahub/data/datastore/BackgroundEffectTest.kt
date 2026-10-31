@@ -19,12 +19,12 @@ class BackgroundEffectTest {
         assertTrue(shouldUseNativeLiquidGlass(37, liquid, unavailable = false))
         assertFalse(shouldUseNativeLiquidGlass(32, liquid, unavailable = false))
         assertFalse(shouldUseNativeLiquidGlass(33, liquid.copy(enableBlurEffect = false), unavailable = false))
-        assertFalse(shouldUseNativeLiquidGlass(33, liquid.copy(liquidCompatMode = true), unavailable = false))
+        assertTrue(shouldUseNativeLiquidGlass(33, liquid.copy(liquidCompatMode = true), unavailable = false))
         assertFalse(shouldUseNativeLiquidGlass(33, liquid, unavailable = true))
     }
 
     @Test
-    fun `blur and legacy glass settings do not initialize native liquid rendering`() {
+    fun `only liquid mode initializes native rendering`() {
         assertFalse(
             shouldUseNativeLiquidGlass(
                 35,
@@ -42,15 +42,15 @@ class BackgroundEffectTest {
     }
 
     @Test
-    fun `legacy glass setting is normalized to liquid compatibility mode`() {
+    fun `legacy glass setting is normalized to liquid mode and clears the deprecated compatibility flag`() {
         val legacy = JsonInstant.decodeFromString<DisplaySetting>(
-            """{"backgroundEffectType":"glass","liquidCompatMode":false}"""
+            """{"backgroundEffectType":"glass","liquidCompatMode":true}"""
         )
 
         val normalized = legacy.normalizeLegacyBackgroundEffect()
 
         assertEquals(BackgroundEffectType.LIQUID, normalized.backgroundEffectType)
-        assertTrue(normalized.liquidCompatMode)
+        assertFalse(normalized.liquidCompatMode)
     }
 
     @Test

@@ -12,6 +12,33 @@ val GROUP_CHAT_ASSISTANT_ID: Uuid = Uuid.parse("8d78b652-5242-4f1b-9c03-a7712328
 
 fun Conversation.isGroupChat(): Boolean = assistantId == GROUP_CHAT_ASSISTANT_ID
 
+/** Builds the shared-settings assistant view used only by the group chat input. */
+fun Group.toInputAssistant(): Assistant = Assistant(
+    id = GROUP_CHAT_ASSISTANT_ID,
+    name = name,
+    avatar = avatar,
+    chatModelId = null,
+    systemPrompt = systemPrompt,
+    enableMemory = enableMemory,
+    reasoningLevel = reasoningLevel,
+    toolApprovalMode = toolApprovalMode,
+    customHeaders = customHeaders,
+    customBodies = customBodies,
+    mcpServers = mcpServers,
+    localTools = localTools,
+    enableWebSearch = enableWebSearch,
+    workspaceId = workspaceId,
+    background = background,
+    backgroundOpacity = backgroundOpacity,
+    useGradientBackground = useGradientBackground,
+    modeInjectionIds = modeInjectionIds,
+    lorebookIds = lorebookIds,
+    enabledSkills = enabledSkills,
+    enableRecentChatsReference = enableRecentChatsReference,
+    enableTimeReminder = enableTimeReminder,
+    timeReminderIntervalMinutes = timeReminderIntervalMinutes,
+)
+
 internal fun defaultConversationTitle(base: String, existing: List<String>): String {
     if (base !in existing) return base
     var number = 2
@@ -146,7 +173,6 @@ fun List<UIMessage>.withGroupSpeakerPrefixes(contextMessageLimit: Int = 0, reply
             else -> message.copy(parts = message.parts.withSpeakerPrefix(prefix))
         }
     }
-    if (contextMessageLimit <= 0) return request
     return request.filter { it.role == MessageRole.SYSTEM } +
         request.filter { it.role != MessageRole.SYSTEM }.limitContext(contextMessageLimit)
 }

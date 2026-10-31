@@ -1,22 +1,17 @@
 package me.rerere.rikkahub.ui.pages.setting
 
 import android.os.Build
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -32,6 +27,8 @@ import kotlin.math.roundToInt
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.BackgroundEffectType
 import me.rerere.rikkahub.data.datastore.DisplaySetting
+import me.rerere.rikkahub.ui.components.ai.LiquidGlassCircuitBreaker
+import me.rerere.rikkahub.ui.components.ai.shouldUseNativeLiquidGlass
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.CardGroupValue
@@ -43,15 +40,14 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
     var ttsPlaybackSpeed by remember(settings.defaultTTSPlaybackSpeed) {
         mutableFloatStateOf(settings.defaultTTSPlaybackSpeed)
     }
-    var showBackgroundEffectSheet by remember { mutableStateOf(false) }
 
     fun updateDisplaySetting(setting: DisplaySetting) {
         displaySetting = setting
@@ -140,16 +136,39 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             headlineContent = { Text(stringResource(R.string.setting_display_page_background_effect_type)) },
                         ) {
                             ConnectedChoiceButtons(
-                                options = BackgroundEffectType.entries,
-                                selected = displaySetting.backgroundEffectType,
+                                options = listOf(BackgroundEffectType.LIQUID, BackgroundEffectType.BLUR),
+                                selected = if (displaySetting.backgroundEffectType == BackgroundEffectType.GLASS) {
+                                    BackgroundEffectType.LIQUID
+                                } else displaySetting.backgroundEffectType,
                                 onSelect = { updateDisplaySetting(displaySetting.copy(backgroundEffectType = it)) },
                             ) { type, selected ->
                                 ConnectedChoiceLabel(
                                     text = when (type) {
                                         BackgroundEffectType.BLUR -> stringResource(R.string.setting_display_page_background_effect_blur)
-                                        BackgroundEffectType.GLASS -> stringResource(R.string.setting_display_page_background_effect_glass)
+                                        BackgroundEffectType.GLASS, BackgroundEffectType.LIQUID -> stringResource(R.string.setting_display_page_background_effect_liquid)
                                     },
                                     selected = selected,
+                                )
+                            }
+                            if (displaySetting.backgroundEffectType == BackgroundEffectType.LIQUID) {
+                                val effective = shouldUseNativeLiquidGlass(
+                                    apiLevel = Build.VERSION.SDK_INT,
+                                    setting = displaySetting,
+                                    unavailable = liquidUnavailable,
+                                )
+                                val status = when {
+                                    effective ->
+                                        R.string.setting_display_page_background_effect_status_active
+                                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ->
+                                        R.string.setting_display_page_background_effect_status_low_api
+                                    else ->
+                                        R.string.setting_display_page_background_effect_status_failed
+                                }
+                                Text(
+                                    text = stringResource(status),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (liquidUnavailable) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -275,101 +294,5 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                 }
             }
         }
-    }
-
-    if (showBackgroundEffectSheet) {
-        BackgroundEffectSheet(
-            setting = displaySetting,
-            onSettingChange = ::updateDisplaySetting,
-            onDismiss = { showBackgroundEffectSheet = false },
-        )
-    }
-}
-
-@Composable
-private fun BackgroundEffectSheet(
-    setting: DisplaySetting,
-    onSettingChange: (DisplaySetting) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val liquidSelected = setting.backgroundEffectType == BackgroundEffectType.LIQUID
-    val compatibilityChecked = setting.liquidCompatMode || !supportsLiquidGlass
-    val compatibilityEnabled = liquidSelected && supportsLiquidGlass
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.setting_display_page_background_effect_type),
-                style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-            BackgroundEffectRadioRow(
-                label = stringResource(R.string.setting_display_page_background_effect_blur),
-                selected = setting.backgroundEffectType == BackgroundEffectType.BLUR,
-                onClick = {
-                    onSettingChange(setting.copy(backgroundEffectType = BackgroundEffectType.BLUR))
-                    onDismiss()
-                },
-            )
-            BackgroundEffectRadioRow(
-                label = stringResource(R.string.setting_display_page_background_effect_liquid),
-                selected = liquidSelected,
-                onClick = {
-                    onSettingChange(setting.copy(backgroundEffectType = BackgroundEffectType.LIQUID))
-                    onDismiss()
-                },
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = compatibilityEnabled) {
-                        onSettingChange(setting.copy(liquidCompatMode = !compatibilityChecked))
-                    }
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.setting_display_page_background_effect_compat),
-                        color = if (compatibilityEnabled) {
-                            androidx.compose.material3.MaterialTheme.colorScheme.onSurface
-                        } else {
-                            androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        },
-                    )
-                }
-                Switch(
-                    checked = compatibilityChecked,
-                    enabled = compatibilityEnabled,
-                    onCheckedChange = { enabled ->
-                        onSettingChange(setting.copy(liquidCompatMode = enabled))
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackgroundEffectRadioRow(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(text = label, modifier = Modifier.padding(start = 8.dp))
     }
 }

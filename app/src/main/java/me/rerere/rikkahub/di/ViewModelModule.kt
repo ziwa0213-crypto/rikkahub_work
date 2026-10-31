@@ -1,13 +1,13 @@
 package me.rerere.rikkahub.di
 
 import me.rerere.rikkahub.ui.pages.assistant.AssistantVM
-import me.rerere.rikkahub.ui.pages.group.GroupVM
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailVM
 import me.rerere.rikkahub.ui.pages.backup.BackupVM
 import me.rerere.rikkahub.ui.pages.chat.ChatDrawerVM
 import me.rerere.rikkahub.ui.pages.chat.ChatVM
 import me.rerere.rikkahub.ui.pages.debug.DebugVM
 import me.rerere.rikkahub.ui.pages.favorite.FavoriteVM
+import me.rerere.rikkahub.ui.pages.group.GroupVM
 import me.rerere.rikkahub.ui.pages.search.SearchVM
 import me.rerere.rikkahub.ui.pages.history.HistoryVM
 import me.rerere.rikkahub.ui.pages.stats.StatsVM
@@ -46,7 +46,16 @@ val viewModelModule = module {
     viewModelOf(::DebugVM)
     viewModelOf(::HistoryVM)
     viewModelOf(::AssistantVM)
-    viewModelOf(::GroupVM)
+    viewModel<GroupVM> {
+        GroupVM(
+            settingsStore = get(),
+            filesManager = get(),
+            conversationRepository = get(),
+            memoryRepository = get(),
+            chatService = get(),
+            context = get(),
+        )
+    }
     viewModel<AssistantDetailVM> {
         AssistantDetailVM(
             id = it.get(),

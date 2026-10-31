@@ -282,6 +282,7 @@
   <string name="chat_page_compress_context">压缩历史</string>
   <string name="chat_page_compress_context_desc">将对话压缩为摘要以节省令牌</string>
   <string name="chat_page_compress_context_title">压缩对话历史</string>
+  <string name="chat_page_compress_target_tokens">目标 token 数</string>
   <string name="chat_page_compressing">正在压缩...</string>
   <string name="chat_page_conversation_system_prompt">对话系统提示</string>
   <string name="chat_page_conversation_system_prompt_clear">清除</string>
@@ -825,6 +826,8 @@
   <string name="setting_page_about_desc">关于本APP</string>
   <string name="setting_page_assistant">助手</string>
   <string name="setting_page_assistant_desc">设置个性化助手 (智能体)</string>
+  <string name="setting_page_group_members_desc">管理可加入群组的组员</string>
+  <string name="setting_page_groups_desc">创建并配置群组</string>
   <string name="setting_page_built_in_tools">内置工具</string>
   <string name="setting_page_built_in_tools_desc">选择模型支持的内置工具, 这些工具直接由API内置，无需APP提供，当前这个功能仅支持Gemini官方API。</string>
   <string name="setting_page_built_in_tools_image_generation">图像生成</string>
@@ -1424,7 +1427,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_display_page_background_effect_desc">为聊天输入栏启用模糊、液态或兼容效果</string>
   <string name="setting_display_page_background_effect_type">背景效果类型</string>
   <string name="setting_display_page_background_effect_blur">模糊</string>
-  <string name="setting_display_page_background_effect_liquid">液态</string>
+  <string name="setting_display_page_background_effect_liquid">玻璃</string>
+  <string name="setting_display_page_background_effect_status_active">玻璃效果已生效</string>
+  <string name="setting_display_page_background_effect_status_failed">玻璃渲染失败，已回退为模糊。重启应用可重试。</string>
+  <string name="setting_display_page_background_effect_status_low_api">需要 Android 13 及以上，已回退为模糊</string>
   <string name="setting_display_page_background_effect_compat">兼容</string>
   <string name="setting_display_page_background_effect_glass">玻璃</string>
   <string name="safe_mode_enter_app">进入应用</string>
@@ -1444,7 +1450,15 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="deepseek_web_login_title">DeepSeek 网页版登录</string>
   <string name="deepseek_web_login_hint">请在 chat.deepseek.com 登录。应用只捕获本供应商所需的请求凭证。</string>
   <string name="deepseek_web_login_captured">已捕获登录凭证，可以关闭此窗口。</string>
+  <string name="deepseek_web_login_loading">正在加载 DeepSeek 登录页…</string>
+  <string name="deepseek_web_login_load_failed">无法加载登录页（错误 %1$d：%2$s）</string>
+  <string name="deepseek_web_login_proxy_hint">WebView 不经过应用内代理，请先使用系统级代理或直连测试。</string>
+  <string name="deepseek_web_login_retry">重试</string>
+  <string name="deepseek_web_login_unknown_error">未知错误</string>
   <string name="deepseek_web_login_browser">打开登录页</string>
+  <string name="deepseek_web_login_open_browser">用系统浏览器打开</string>
+  <string name="deepseek_web_login_manual_hint">网页一直空白？可点下方「用系统浏览器打开」登录（推荐 Via 浏览器，体积小、兼容性好），再用「手动粘贴 Token」。</string>
+  <string name="deepseek_web_login_diag">诊断信息：%1$s</string>
   <string name="deepseek_web_logout">退出并清除 Cookie</string>
   <string name="deepseek_web_manual_title">手动填写凭证</string>
   <string name="deepseek_web_token">Token</string>
@@ -1613,7 +1627,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_local_tools_browser_title">内置浏览器</string>
   <string name="assistant_page_local_tools_browser_desc">让 AI 读取你登录后的网页内容，发送前会在本机过滤敏感信息</string>
   <string name="browser_page_title">浏览器</string>
-  <string name="browser_group_actions">浏览器</string>
+  <string name="browser_group_actions">操作</string>
   <string name="browser_open_action">打开浏览器</string>
   <string name="browser_open_action_desc">将浏览器启动到 about:blank —— 适合在让 AI 接管之前先登录一次。</string>
   <string name="browser_clear_data">清除浏览数据</string>
@@ -1984,6 +1998,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_memory_empty">暂无记忆</string>
   <string name="assistant_page_memory_empty_hint">聊天时，助手会记住你告诉它的内容。你也可以点按 + 添加一条记忆</string>
   <string name="assistant_page_memory_empty_disabled_hint">此助手的记忆功能已关闭。开启后，它就能记住你告诉它的内容</string>
+  <string name="assistant_page_itemized_memory_empty_hint">在对话中告诉助手“记住……”即可保存，也可以在下方手动添加。</string>
+  <string name="assistant_page_memory_input_hint">添加一条要记住的内容</string>
+  <string name="assistant_page_memory_selected_count">已选择 %1$d 条</string>
+  <string name="assistant_page_memory_delete_selected_confirm">确定删除选中的 %1$d 条记忆吗？此操作无法撤销。</string>
   <string name="image_preview_saving">保存中…</string>
   <string name="image_preview_saved">图片已保存</string>
   <string name="setting_provider_page_account">账户</string>

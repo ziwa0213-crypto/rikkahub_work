@@ -39,6 +39,7 @@ internal fun Conversation.editMessage(messageId: Uuid, parts: List<UIMessagePart
             // 编辑的是原消息的内容，来源仍是生成它的模型
             modelId = original.modelId,
             modelSnapshot = original.modelSnapshot,
+            annotations = original.annotations,
         )
     }
     return upsertMessage(node.id, edited)

@@ -14,14 +14,18 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.core.MessageRole
+import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
+import me.rerere.rikkahub.data.ai.prompts.buildRowMemoryPrompt
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
+import me.rerere.rikkahub.data.ai.transformers.GroupSpeakerTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
@@ -37,9 +41,11 @@ import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MemoryFile
+import me.rerere.rikkahub.data.model.RowMemory
 import me.rerere.rikkahub.data.model.getAssistantOf
 import me.rerere.rikkahub.data.model.getChatModelOf
 import me.rerere.rikkahub.data.repository.MemoryRepository
@@ -66,6 +72,8 @@ class ChatTurnContext(
     val workspaceCwd: String?,
     val memories: List<MemoryFile>,
     val tools: List<Tool>,
+    val isGroupChat: Boolean = false,
+    val rowMemories: List<RowMemory> = emptyList(),
 )
 
 /** 把会话变成发给模型的请求：系统提示词、上下文裁剪、输入输出转换都在这里 */
@@ -95,27 +103,41 @@ class ChatRequestFactory(
     )
 
     /** 解析本轮的助手、模型、记忆和工具；MCP 服务名不合法时抛出 InvalidMcpServerNamesException */
-    suspend fun createContext(settings: Settings, conversation: Conversation): ChatTurnContext {
+    suspend fun createContext(
+        settings: Settings,
+        conversation: Conversation,
+        assistantOverride: Assistant? = null,
+        memoryScope: String? = null,
+    ): ChatTurnContext {
         // 模型、思考级别、搜索、工具等以会话上固定的配置为准
-        val assistant = settings.getAssistantOf(conversation)
-        val model = settings.getChatModelOf(conversation)
+        val assistant = assistantOverride ?: settings.getAssistantOf(conversation)
+        val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
+            else settings.findModelById(assistant.chatModelId ?: settings.chatModelId)
+        val resolvedModel = model
             ?: throw IllegalStateException("No chat model selected")
-        val provider = model.findProvider(settings.providers) ?: error("Provider not found")
+        val provider = resolvedModel.findProvider(settings.providers) ?: error("Provider not found")
+        DeepSeekWebGuard.refusal(provider,
+            conversation.currentMessages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty())?.let { throw it }
         return ChatTurnContext(
             settings = settings,
             assistant = assistant,
-            model = model,
+            model = resolvedModel,
             providerSetting = provider,
             conversationId = conversation.id,
-            conversationSystemPrompt = conversation.customSystemPrompt,
+            conversationSystemPrompt = conversation.customSystemPrompt.takeIf { assistantOverride == null },
             workspaceCwd = conversation.workspaceCwd,
-            memories = if (assistant.enableMemory) memoryRepository.getFiles(assistant.memoryId) else emptyList(),
+            memories = if (assistant.enableMemory) memoryRepository.getFiles(memoryScope ?: assistant.memoryId) else emptyList(),
+            rowMemories = if (assistant.enableMemory) memoryRepository.getRowMemories(memoryScope ?: assistant.memoryId) else emptyList(),
             tools = chatToolFactory.createTools(
                 settings = settings,
                 assistant = assistant,
-                model = model,
+                model = resolvedModel,
                 workspaceCwd = conversation.workspaceCwd,
+                memoryScope = memoryScope,
+                conversationScopeAssistantId = if (assistantOverride == null) assistant.id else null,
+                conversationId = conversation.id,
             ),
+            isGroupChat = assistantOverride != null,
         )
     }
 
@@ -127,10 +149,15 @@ class ChatRequestFactory(
         turn: ChatTurnContext,
         messages: List<UIMessage>,
         processingStatus: MutableStateFlow<String?>,
+        finishTransform: (UIMessage) -> UIMessage = { it },
     ): Pair<AgentRequest, AgentHooks> {
+        // Approval resumption can start with existing tools, before prepareStep/finishStep run.
+        messages.lastOrNull()?.let { validateDeepSeekWebToolCalls(turn.providerSetting, it) }
+        val provider = providerManager.getProviderByType(turn.providerSetting)
         val request = AgentRequest(
-            provider = usageRecorder.wrap(
-                providerManager.getProviderByType(turn.providerSetting),
+            // Group usage stays on its messages but must not enter single-chat statistics.
+            provider = if (turn.isGroupChat) provider else usageRecorder.wrap(
+                provider,
                 UsageTag(UsageSource.CHAT, turn.assistant.id, turn.conversationId),
             ),
             providerSetting = turn.providerSetting,
@@ -150,12 +177,16 @@ class ChatRequestFactory(
                     it.visualTransforms(outputTransformers, context, turn.model, turn.assistant, turn.settings)
                 }
 
-            override suspend fun finishStep(message: UIMessage, newPartsFrom: Int) =
-                message.transformNewParts(newPartsFrom) {
+            override suspend fun finishStep(message: UIMessage, newPartsFrom: Int): UIMessage {
+                // AgentLoop turns tool exceptions into tool outputs. Refuse here, before execution,
+                // so the app can show its persistent ErrorCard instead of silently swallowing it.
+                validateDeepSeekWebToolCalls(turn.providerSetting, message)
+                return finishTransform(message.transformNewParts(newPartsFrom) {
                     it.transforms(outputTransformers, context, turn.model, turn.assistant, turn.settings)
                         .visualTransforms(outputTransformers, context, turn.model, turn.assistant, turn.settings)
                         .onGenerationFinish(outputTransformers, context, turn.model, turn.assistant, turn.settings)
-                }
+                })
+            }
         }
         return request to hooks
     }
@@ -193,6 +224,19 @@ class ChatRequestFactory(
         return summary.ifBlank { error("Failed to generate compressed summary") }
     }
 
+    /** Group compression retains its separately selected model and tiered prompt. */
+    suspend fun generateGroupCompressionSummary(settings: Settings, conversationId: Uuid, prompt: String): String {
+        val model = settings.findModelById(settings.compressModelId)
+            ?: settings.findModelById(settings.chatModelId) ?: error("No model available for compression")
+        val provider = model.findProvider(settings.providers) ?: error("Provider not found")
+        val result = providerManager.getProviderByType(provider).generateText(
+            providerSetting = provider, messages = listOf(UIMessage.user(prompt)),
+            params = backgroundTextGenerationParams(model, conversationId),
+        )
+        return result.message.compressionSummaryOrNull()?.takeIf(String::isNotBlank)
+            ?: error(context.getString(R.string.chat_page_compress_tool_call_response))
+    }
+
     /** 一步请求实际发出的消息和参数；正常对话和压缩共用，二者的请求前缀必须一致才能命中提示词缓存 */
     private suspend fun buildStep(
         turn: ChatTurnContext,
@@ -215,6 +259,7 @@ class ChatRequestFactory(
                 // 记忆
                 if (assistant.enableMemory) {
                     appendLine()
+                    append(buildRowMemoryPrompt(turn.rowMemories))
                     append(buildMemoryPrompt(turn.memories))
                 }
                 // 工具prompt
@@ -226,9 +271,11 @@ class ChatRequestFactory(
             if (system.isNotBlank()) {
                 add(UIMessage.system(prompt = system).copy(isSynthetic = true))
             }
-            addAll(messages.limitContext(assistant.contextMessageLimit))
+            addAll(if (turn.isGroupChat) messages else messages.limitContext(assistant.contextMessageLimit))
         }.transforms(
-            transformers = inputTransformers,
+            transformers = if (turn.isGroupChat) listOf(GroupSpeakerTransformer(
+                assistant.contextMessageLimit, context.getString(R.string.group_quote_reply_prefix)
+            )) + inputTransformers else inputTransformers,
             context = context,
             model = turn.model,
             assistant = assistant,

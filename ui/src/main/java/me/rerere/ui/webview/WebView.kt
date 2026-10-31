@@ -237,25 +237,25 @@ class WebViewState(
 
     // --- Loading State ---
     var isLoading: Boolean by mutableStateOf(false)
-        internal set // Only WebViewClients should modify this
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取 // Only WebViewClients should modify this
     var loadingProgress: Float by mutableFloatStateOf(0f)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
 
     // --- Page Information ---
     var pageTitle: String? by mutableStateOf(null)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
     var currentUrl: String? by mutableStateOf(null)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
 
     // --- Navigation State ---
     var canGoBack: Boolean by mutableStateOf(false)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
     var canGoForward: Boolean by mutableStateOf(false)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
 
     // --- Console Message ---
     var consoleMessages: List<ConsoleMessage> by mutableStateOf(emptyList())
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
 
     // --- Settings ---
     var javaScriptEnabled: Boolean by mutableStateOf(true) // Example setting
@@ -264,7 +264,7 @@ class WebViewState(
     // Hold the WebView instance internally to perform actions.
     // Be cautious with this reference, ensure it doesn't leak context.
     var webView: WebView? by mutableStateOf(null)
-        internal set
+        set  // fork: 放宽为 public，供 :app 的浏览器页面读取
 
     // --- Public Actions ---
 

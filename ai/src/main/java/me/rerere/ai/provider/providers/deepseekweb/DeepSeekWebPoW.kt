@@ -10,7 +10,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import me.rerere.ai.util.json
@@ -40,9 +39,10 @@ internal object DeepSeekWebPoW {
             .build()
         val response = client.newCall(request).await()
         val body = response.body?.string().orEmpty()
+        val root = parseDeepSeekResponse(body)
         check(response.isSuccessful) { "DeepSeek PoW challenge failed: ${response.code}" }
-        val challenge = json.parseToJsonElement(body).jsonObject["data"]?.jsonObject
-            ?.get("biz_data")?.jsonObject?.get("challenge")?.jsonObject
+        val challenge = root["data"].objOrNull()
+            ?.get("biz_data").objOrNull()?.get("challenge").objOrNull()
             ?: error("DeepSeek PoW challenge missing")
         val answer = solve(context, challenge)
         return headerPayload(challenge, answer, targetPath)

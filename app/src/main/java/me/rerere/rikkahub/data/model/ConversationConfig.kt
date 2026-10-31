@@ -124,6 +124,8 @@ fun Settings.getChatModelOf(conversation: Conversation): Model? {
  * 只有固定的模型被删除时才改为固定助手当前的模型，之后不再跟着助手变。
  */
 fun Conversation.bindConfig(settings: Settings): Conversation {
+    // Group turns resolve each member and the group's own resources, never the current chat assistant.
+    if (isGroupChat()) return this
     val model = settings.getChatModelOf(this)
     val builtInSearch = model != null && BuiltInTools.Search in model.tools
     val config = config
