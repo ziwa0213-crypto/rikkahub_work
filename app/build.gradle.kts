@@ -27,12 +27,11 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 199
-        versionName = "3.1.0-work.1"
+        versionCode = 200
+        versionName = "3.1.1-work.1"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -96,6 +95,20 @@ android {
             buildConfigField("String", "VERSION_CODE", "\"${android.defaultConfig.versionCode}\"")
         }
     }
+    // 按分发渠道区分：github 是 GitHub Release / 每日构建的 APK，play 是上架 Google Play 的 AAB
+    // 两个渠道共用同一个 applicationId，Play 版不能自更新，相关入口通过 BuildConfig.IS_PLAY_STORE 关闭
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            isDefault = true
+            buildConfigField("boolean", "IS_PLAY_STORE", "false")
+        }
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_PLAY_STORE", "true")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -113,7 +126,10 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            pickFirsts += "lib/*/libtermux.so"
+        }
+        resources {
+            // BouncyCastle 的 Picnic 后量子签名查找表（约 1.2MB），JSch 用不到
+            excludes += "org/bouncycastle/pqc/crypto/picnic/**"
         }
     }
     tasks.withType<KotlinCompile>().configureEach {
@@ -131,6 +147,13 @@ android {
     }
 }
 
+// 两个渠道的启动路径一样，profile 合并到 src/main 共用，不按变体各存一份
+baselineProfile {
+    mergeIntoMain = true
+}
+
+// baselineprofile 插件按 release 复制出 nonMinifiedRelease 时只关掉 isMinifyEnabled，关不掉 optimization，
+// 不手动关的话生成用的包会被 R8 内联、合并类，profile 里记下的是优化后的类和方法
 androidComponents {
     // Keep baseline profile generation unoptimized, independently of Debug ABI filtering.
     finalizeDsl { extension ->
@@ -152,8 +175,8 @@ composeCompiler {
 }
 
 tasks.register("buildAll") {
-    dependsOn("assembleRelease", "bundleRelease")
-    description = "Build both APK and AAB"
+    dependsOn("assembleGithubRelease", "bundlePlayRelease")
+    description = "Build GitHub APK and Play AAB"
 }
 
 ksp {
@@ -164,6 +187,14 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+// kotlin-reflect 只由 ktor-server-core 传递引入，用到它的只有按配置加载模块、开发模式热重载等用不到的路径。
+// 它在 classpath 上时 stdlib 的 Reflection 会 Class.forName 加载 ReflectionFactoryImpl，R8 因此保留整个实现（约 0.7MB dex）
+configurations.matching {
+    it.name.endsWith("RuntimeClasspath") && !it.name.contains("UnitTest")
+}.configureEach {
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
 }
 
 // Local JVM tests need the desktop native library instead of the Android AAR.
@@ -182,7 +213,10 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.profileinstaller)
-    implementation(libs.termux.terminal.view)
+    implementation(libs.termux.terminal.view) {
+        // terminal-emulator 由仓库内的 :terminal 模块提供, 不再引入上游 aar
+        exclude(group = "com.termux.termux-app", module = "terminal-emulator")
+    }
     implementation(libs.guava.listenablefuture)
 
     // Compose
@@ -209,6 +243,9 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // EXIF orientation for picked images
+    implementation(libs.androidx.exifinterface)
+
     // Image metadata extractor
     // https://github.com/drewnoakes/metadata-extractor
     implementation(libs.metadata.extractor)
@@ -217,6 +254,8 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.haze.blur)
     implementation(libs.haze.blur.material3)
+    implementation(libs.haze.glass)
+    implementation(libs.haze.glass.material3)
 
     // koin
     implementation(platform(libs.koin.bom))
@@ -235,9 +274,6 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
-
-    // ucrop
-    implementation(libs.ucrop)
 
     // pebble (template engine)
     implementation(libs.pebble)
@@ -258,13 +294,11 @@ dependencies {
     // YAML front matter
     implementation(libs.snakeyaml)
 
-    // zxing
+    // zxing + CameraX (qrcode scanner)
     implementation(libs.zxing.core)
-
-    // quickie (qrcode scanner)
-    implementation(libs.quickie.bundled)
-    implementation(libs.barcode.scanning)
-    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.compose)
 
     // Room
     implementation(libs.androidx.room.runtime)
@@ -325,9 +359,9 @@ dependencies {
     implementation(project(":ui"))
     implementation(project(":liquidglass"))
     implementation(project(":workspace"))
+    implementation(project(":terminal"))
     implementation(project(":oauth"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
-    implementation(kotlin("reflect"))
 
     // Leak Canary
     // debugImplementation(libs.leakcanary.android)
@@ -335,6 +369,7 @@ dependencies {
     // tests
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(kotlin("reflect"))
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

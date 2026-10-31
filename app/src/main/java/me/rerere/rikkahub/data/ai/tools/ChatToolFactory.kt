@@ -15,12 +15,12 @@ import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.FileFolders
-import me.rerere.rikkahub.data.skills.SkillManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
+import me.rerere.rikkahub.data.skills.SkillManager
 import me.rerere.workspace.WorkspaceShellStatus
 import java.io.File
 import kotlin.uuid.Uuid
@@ -115,7 +115,10 @@ class ChatToolFactory(
                 })
             }
         } else scoped
-        val prepared = if (allowed.none { it.name == "workspace_shell" }) allowed else allowed.map(::withOutputTruncation)
+        // 截断后的文件落在本机 /tool_outputs，只有本地 Rootfs 工作区能再次读取。
+        val canReadToolOutputs = workspaceTools.isNotEmpty() &&
+            assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.capabilities()?.rootfs == true
+        val prepared = if (!canReadToolOutputs) allowed else allowed.map(::withOutputTruncation)
         return applyApprovalMode(prepared, assistant.toolApprovalMode)
     }
 

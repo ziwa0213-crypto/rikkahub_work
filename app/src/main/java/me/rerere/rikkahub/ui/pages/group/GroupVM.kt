@@ -517,6 +517,10 @@ class GroupVM(
         }
     }
 
+    fun updateSearchService(index: Int) = viewModelScope.launch {
+        settingsStore.update { it.copy(searchServiceSelected = index) }
+    }
+
     fun deleteGroup(id: Uuid) = viewModelScope.launch {
         try {
             conversationMutex.withLock {

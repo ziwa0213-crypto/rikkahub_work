@@ -16,6 +16,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.UiMode
+import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
@@ -26,6 +28,7 @@ import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import androidx.compose.material3.Icon
@@ -34,6 +37,12 @@ import androidx.compose.material3.Icon
 fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navController = LocalNavController.current
+    val settings = LocalSettings.current
+    val workspaceScope = if (settings.uiMode == UiMode.GROUP) {
+        WorkspaceOwnerScope.GROUP.value
+    } else {
+        WorkspaceOwnerScope.CHAT.value
+    }
 
     Scaffold(
         topBar = {
@@ -77,7 +86,7 @@ fun ExtensionsPage() {
                         supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
                     )
                     item(
-                        onClick = { navController.navigate(Screen.Workspaces()) },
+                        onClick = { navController.navigate(Screen.Workspaces(workspaceScope)) },
                         leadingContent = { Icon(HugeIcons.Folder01, null) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },

@@ -58,7 +58,7 @@ import me.rerere.rikkahub.utils.JsonInstant
         TranslationHistoryEntity::class,
         UsageRecordEntity::class,
     ],
-    version = 32,
+    version = 33,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -82,6 +82,8 @@ import me.rerere.rikkahub.utils.JsonInstant
         AutoMigration(from = 25, to = 26),
         AutoMigration(from = 28, to = 29, spec = Migration_28_29::class),
         AutoMigration(from = 29, to = 30),
+        AutoMigration(from = 31, to = 32),
+        AutoMigration(from = 32, to = 33),
     ]
 )
 @TypeConverters(TokenUsageConverter::class)

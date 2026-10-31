@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.pages.setting.components
 
 import android.webkit.CookieManager
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,7 +36,10 @@ import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.ai.ui.UIMessage
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Brain02
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.Clock01
+import me.rerere.hugeicons.stroke.ClipboardPaste
 import me.rerere.hugeicons.stroke.Cookie
 import me.rerere.hugeicons.stroke.Key01
 import me.rerere.hugeicons.stroke.Login03
@@ -41,6 +47,7 @@ import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.UserCircle
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.DeepSeekWebRequestParser
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.CardGroupIcon
 import me.rerere.rikkahub.ui.components.ui.switchItem
@@ -58,7 +65,13 @@ internal fun ProviderConfigureDeepSeekWeb(
     var selectedModel by remember { mutableStateOf(deepSeekModels.first()) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
+    var paste by remember { mutableStateOf("") }
+    var pasteResult by remember { mutableStateOf<String?>(null) }
+    var advanced by remember { mutableStateOf(false) }
     val testSuccessText = stringResource(R.string.deepseek_web_test_success)
+    val pasteEmptyText = stringResource(R.string.deepseek_web_paste_empty)
+    val pasteNoAuthText = stringResource(R.string.deepseek_web_paste_no_auth)
+    val pasteOkFormat = stringResource(R.string.deepseek_web_paste_ok)
 
     provider.description()
 
@@ -102,28 +115,90 @@ internal fun ProviderConfigureDeepSeekWeb(
 
     CardGroup(title = { Text(stringResource(R.string.deepseek_web_manual_title)) }) {
         item(
-            leadingContent = { CardGroupIcon(HugeIcons.Key01) },
+            leadingContent = { CardGroupIcon(HugeIcons.ClipboardPaste) },
             headlineContent = {
                 OutlinedTextField(
-                    value = provider.token,
-                    onValueChange = { onEdit(provider.copy(token = it.trim())) },
-                    label = { Text(stringResource(R.string.deepseek_web_token)) },
-                    supportingText = { Text(stringResource(R.string.deepseek_web_token_hint)) },
-                    visualTransformation = PasswordVisualTransformation(),
+                    value = paste,
+                    onValueChange = { paste = it; pasteResult = null },
+                    label = { Text(stringResource(R.string.deepseek_web_paste_title)) },
+                    placeholder = { Text(stringResource(R.string.deepseek_web_paste_label)) },
                     modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
                 )
             },
+            supportingContent = {
+                TextButton(
+                    onClick = {
+                        val parsed = DeepSeekWebRequestParser.parse(paste)
+                        pasteResult = when {
+                            !parsed.authorizationFound && parsed.isEmpty ->
+                                pasteEmptyText
+                            !parsed.authorizationFound || parsed.token.isBlank() ->
+                                pasteNoAuthText
+                            else -> {
+                                onEdit(
+                                    provider.copy(
+                                        token = parsed.token,
+                                        cookie = parsed.cookie,
+                                        fingerprintHeaders = parsed.headers,
+                                        capturedAt = System.currentTimeMillis(),
+                                    ),
+                                )
+                                pasteOkFormat.format(
+                                    if (parsed.token.isNotBlank()) "✓" else "—",
+                                    if (parsed.cookie.isNotBlank()) "✓" else "—",
+                                    parsed.headers.size,
+                                )
+                            }
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.deepseek_web_paste_import))
+                }
+            },
+        )
+        pasteResult?.let { result ->
+            item(
+                leadingContent = { CardGroupIcon(HugeIcons.Search01) },
+                headlineContent = { Text(result) },
+            )
+        }
+        item(
+            leadingContent = { CardGroupIcon(HugeIcons.Brain02) },
+            headlineContent = { Text(stringResource(R.string.deepseek_web_manual_steps)) },
         )
         item(
-            leadingContent = { CardGroupIcon(HugeIcons.Cookie) },
-            headlineContent = {
-                OutlinedTextField(
-                    value = provider.cookie,
-                    onValueChange = { onEdit(provider.copy(cookie = it.trim())) },
-                    label = { Text(stringResource(R.string.deepseek_web_cookie)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                )
+            onClick = { advanced = !advanced },
+            leadingContent = { CardGroupIcon(HugeIcons.Settings03) },
+            headlineContent = { Text(stringResource(R.string.deepseek_web_manual_advanced)) },
+            trailingContent = {
+                IconButton(onClick = { advanced = !advanced }) {
+                    Icon(
+                        imageVector = if (advanced) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
+                        contentDescription = null,
+                    )
+                }
+            },
+            supportingContent = {
+                AnimatedVisibility(visible = advanced) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = provider.token,
+                            onValueChange = { onEdit(provider.copy(token = it.trim())) },
+                            label = { Text(stringResource(R.string.deepseek_web_token)) },
+                            supportingText = { Text(stringResource(R.string.deepseek_web_token_hint)) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = provider.cookie,
+                            onValueChange = { onEdit(provider.copy(cookie = it.trim())) },
+                            label = { Text(stringResource(R.string.deepseek_web_cookie)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                        )
+                    }
+                }
             },
         )
         switchItem(

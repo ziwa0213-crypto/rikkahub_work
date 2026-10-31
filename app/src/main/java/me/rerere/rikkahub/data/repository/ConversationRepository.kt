@@ -15,13 +15,13 @@ import kotlinx.coroutines.flow.map
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.datastore.ConversationSortOrder
 import me.rerere.rikkahub.data.db.AppDatabase
-import me.rerere.rikkahub.data.db.fts.MessageFtsManager
-import me.rerere.rikkahub.data.db.fts.MessageSearchSort
 import me.rerere.rikkahub.data.db.dao.ConversationDAO
 import me.rerere.rikkahub.data.db.dao.FavoriteDAO
 import me.rerere.rikkahub.data.db.dao.MessageNodeDAO
 import me.rerere.rikkahub.data.db.entity.ConversationEntity
 import me.rerere.rikkahub.data.db.entity.MessageNodeEntity
+import me.rerere.rikkahub.data.db.fts.MessageFtsManager
+import me.rerere.rikkahub.data.db.fts.MessageSearchSort
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
@@ -75,6 +75,9 @@ class ConversationRepository(
                 }
             }
     }
+
+    suspend fun getTitlesOfAssistant(assistantId: Uuid): Set<String> =
+        conversationDAO.getTitlesOfAssistant(assistantId.toString()).toSet()
 
     fun getConversationsOfAssistantPaging(assistantId: Uuid): Flow<PagingData<Conversation>> = Pager(
         config = PagingConfig(
@@ -304,7 +307,9 @@ class ConversationRepository(
         return if (entity != null) {
             val nodes = loadMessageNodes(entity.id)
             conversationEntityToConversation(entity, nodes)
-        } else null
+        } else {
+            null
+        }
     }
 
     suspend fun existsConversationById(uuid: Uuid): Boolean {
@@ -390,7 +395,7 @@ class ConversationRepository(
         return ConversationEntity(
             id = conversation.id.toString(),
             title = conversation.title,
-            nodes = "[]",  // nodes 现在存储在单独的表中
+            nodes = "[]", // nodes 现在存储在单独的表中
             createAt = conversation.createAt.toEpochMilli(),
             updateAt = conversation.updateAt.toEpochMilli(),
             assistantId = conversation.assistantId.toString(),
@@ -471,7 +476,6 @@ class ConversationRepository(
 
     suspend fun updateTitle(conversationId: Uuid, title: String) {
         conversationDAO.updateTitle(conversationId.toString(), title)
-        messageFtsManager.updateTitle(conversationId.toString(), title)
     }
 
     suspend fun updateCustomSystemPrompt(conversationId: Uuid, customSystemPrompt: String?) {
