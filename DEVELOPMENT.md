@@ -7,32 +7,28 @@
 
 ## English Summary
 
-**`3.1.1-work.1` (versionCode 200, database 33) shipped on 31 October 2026** — upstream 3.1.1 merged,
-stage three closed out, APK down from about 47 MB to about 16 MB.
+**`3.1.1-work.2` (versionCode 201, database 33) shipped on 3 November 2026**, on top of
+**`3.1.1-work.1` (200)** which merged upstream 3.1.1 and cut the APK from about 47 MB to about 16 MB.
 
-Since then two things are in flight on top of it, neither released yet:
+The 3.1.1 line brought SSH remote workspaces with a built-in terminal, image/video generation,
+the two-track memory system and dual distribution flavors.
 
-1. **Workspace Linux environments** are rebuilt. Instead of one hardcoded Ubuntu base image, the app now
-   reads an index from a public repository and can install any of **12 distributions** built for it
-   (Ubuntu / Debian / Alpine / AlmaLinux / OpenCloudOS / Void / openSUSE / Arch / Kali NetHunter …),
-   each in three sizes. Downloads are SHA-256 verified, mirror-fallback, and restore the previous
-   environment if the install fails.
-2. **Pulse mode** is the third mode next to Chat and Groups: an assistant that acts on its own schedule.
-   Heartbeat self-checks, scheduled tasks, and change-only watchers, with layered keep-alive so Android
-   does not freeze it. Design is settled; implementation is in progress.
+**The workspace Linux environment is now rebuilt.** Instead of one hardcoded Ubuntu base image,
+the app reads an index from a public repository and can install any of **12 distributions**
+(Ubuntu, Debian, Alpine, AlmaLinux, OpenCloudOS, Void, openSUSE, Arch, Kali NetHunter …),
+each in three sizes. Downloads are SHA-256 verified with mirror fallback, and a failed install
+restores the previous environment.
+
+**In progress: Pulse mode** — the third mode next to Chat and Groups. An assistant that acts on its
+own schedule: heartbeat self-checks, scheduled tasks, and change-only watchers, with layered
+keep-alive so Android does not freeze it. Design is settled; implementation is underway.
 
 ## 1. 当前状态
 
-**已发布**：`3.1.1-work.1` / versionCode **200**（2026-10-31），数据库 **33**。
+**已发布**：**`3.1.1-work.2`** / versionCode **201**（2026-11-03），数据库 **33**。
+上一版 `3.1.1-work.1`（200）于 2026-11-01 发布。
 
-**开发中（未发布）**：
-
-| 版本 | 内容 | 状态 |
-|---|---|---|
-| `3.1.1-work.2` / 201 | 工作区 Linux 环境改造（§7） | ✅ 已实现，等一起发 |
-| `3.1.1-work.3` / 201 | 脉搏模式（§8） | 🔧 实施中 |
-
-两个版本**不与上游合并绑定**——都是本 fork 自己的功能，做完一起发，不发「先占位」的版本。
+**开发中（未发布）**：`3.1.1-work.3` / 201 —— **脉搏模式**（§8），做完再发。
 
 阶段 0~4（合并 / 数据 / 功能回归 / 入口与群组 / 收尾）全部完成并通过实机验收，过程记录保留在 §5。
 
@@ -97,7 +93,7 @@ Since then two things are in flight on top of it, neither released yet:
 | 3⑥ · 装包后修复 | ✅ 完成 | §5.7 四项 + 启动竞态；重启连续 5 次保持群组模式 |
 | 4 · 合并 3.1.1 | ✅ 完成 | 数据库 32→33；`assembleGithubRelease`；包体 47→16 MB |
 | 4 · 收尾与发布 | ✅ 完成 | `3.1.1-work.1` / 200，2026-10-31 发布 |
-| 5 · 工作区 Linux 环境改造 | ✅ 完成 | 12 个发行版 × 3 档；SHA-256 校验、失败回滚（§7） |
+| 5 · 工作区 Linux 环境改造 | ✅ 完成，已发布 | `3.1.1-work.2` / 201：12 个发行版 × 3 档（§7） |
 | 6 · 脉搏 · 后台与调度 | ✅ 完成 | 唤醒锁续租、常驻服务、Alarm + WorkManager（§8.3） |
 | 6 · 脉搏 · 地基与界面 | 🔧 进行中 | 模式切换、独立会话、记忆桶、工具分组（§8.4） |
 | 6 · 脉搏 · 心跳与任务 | ⏳ 未开始 | 到点自检、计划任务、临时上下文（§8.5） |
@@ -107,12 +103,10 @@ Since then two things are in flight on top of it, neither released yet:
 
 ## 4. 已经完成
 
-**合并层面（3.1.0 + 3.1.1）**
+**合并层面**
 
-- 上游的 `:ui`、`:mediagen`、`:terminal` 三个新模块接入，废弃的 `:videogen` 与旧玻璃模块移除
-- 数据库迁移链 26→31→32→33 全部就位：媒体创作 3 张表、文件式记忆 2 张表、用量记录、翻译历史、行式记忆表
-- fork 的既有改动逐项核对：思考模式的推理内容回传、提问工具的人机协作拦截、网页版的只读边界，均在
-- 移除群组模式时遗留在设置里的模式字段，已确认是玻璃失效的成因（§5.3），并已收口
+- 上游 `:ui` / `:mediagen` / `:terminal` 接入，废弃的 `:videogen` 与旧玻璃模块移除；数据库迁移链 26→33 就位
+- fork 的既有改动（推理回传、提问工具拦截、网页版只读边界）逐项核对，均在
 
 **功能层面**
 
@@ -262,7 +256,7 @@ Since then two things are in flight on top of it, neither released yet:
 
 ---
 
-## 7. 工作区：装 Linux 环境（✅ 已实现）
+## 7. 工作区：装 Linux 环境（✅ 已发布）
 
 ### 7.1 改成了什么
 
@@ -419,21 +413,13 @@ Android 会在息屏后冻结后台。四层叠着来，缺一层都会在国产
 
 ## 10. 3.x 带来的变化
 
-**`3.1.1-work.1`（已发布，200）**
+**`3.1.1-work.1`（已发布，200）** —— 合并上游 3.1.1：记忆双板块、图片与视频生成、群组完整回归、
+SSH 远程工作区与终端、浏览器与搜索服务商接回；安装包约 47 MB → 约 16 MB（**功能没减**）。
 
-- 🧠 记忆双板块（逐条 + 知识库）· 🎬 图片与视频生成 · 📝 图表工具、对话级设置、AI 翻译入口
-- 💎 液态玻璃两档 · 🛠 工具审批可直接切档 · 🌐 内置浏览器、DeepSeek 网页版、搜索服务商全部接回
-- 👥 群组完整回归（组员库、群配置、群聊、引用与反驳、记忆迁移选择器）
-- 🖥️ SSH 远程工作区与内置终端 · 🪟 后台生成悬浮窗
-- 📦 安装包约 47 MB → 约 16 MB（删了 muPDF 原生库、分词词典与多余语言，**功能没减**）
+**`3.1.1-work.2`（已发布，201）** —— 工作区可装 **12 个发行版 × 3 档**，SHA-256 校验、镜像自动回退、
+装失败恢复原环境；也能从本地压缩包装。
 
-**工作区改造（已实现，未发布）**
-
-- 🐧 可装 **12 个发行版**，极简 / 标准 / 开发三档
-- 🔐 SHA-256 校验、镜像自动回退、装失败恢复原环境
-- 📦 也能从本地压缩包装（先看风险说明、手输确认句）
-
-**脉搏模式（开发中，未发布）**
+**脉搏模式（开发中，未发布）** —— 第三个模式：
 
 - 🫀 **心跳**：按间隔自检，没事完全安静、有事才来找你
 - ⏰ **计划任务**：到点执行；一次性任务错过 6 小时内补一次，周期任务不补
@@ -448,6 +434,7 @@ Android 会在息屏后冻结后台。四层叠着来，缺一层都会在国产
 
 | 版本 | versionCode | 内容 |
 |---|---|---|
+| `3.1.1-work.2` | 201 | 工作区 Linux 环境改造：12 个发行版 × 3 档、SHA-256 校验、镜像回退、装失败恢复原环境、本地压缩包安装 |
 | `3.1.1-work.1` | 200 | 合并上游 3.1.1（SSH 远程工作区、终端、双渠道构建、包体 47→16 MB）；阶段三收尾（群组回归、启动竞态、玻璃 NPE、设置行统一）；DeepSeek 网页版粘贴登录；工作区归属按模式隔离；数据库 33 |
 | `2.5.6-work.5` | 198 | 浏览器设置页、Cookies 管理、电脑模式、悬浮球；记忆双向导入；DeepSeek 官方搜索与 AnySearch；后台超时修复 |
 | `2.5.6-work.4` | 197 | 凭据隔离内置浏览器、浏览器迷你对话面板（浏览器设置入口在下一版补齐） |
