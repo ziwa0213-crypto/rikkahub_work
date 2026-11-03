@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -134,6 +135,10 @@ import me.rerere.workspace.RootfsInstallStage
 import me.rerere.workspace.WorkspaceFileEntry
 import me.rerere.workspace.WorkspaceShellStatus
 import me.rerere.workspace.WorkspaceStorageArea
+import me.rerere.workspace.rootfs.BuiltinRootfs
+import me.rerere.workspace.rootfs.CatalogState
+import me.rerere.workspace.rootfs.RootfsId
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
@@ -161,8 +166,13 @@ fun WorkspaceDetailPage(id: String) {
     val pagerState = rememberPagerState { WorkspaceDetailTab.entries.size }
     var deleteTarget by remember { mutableStateOf<WorkspaceFileEntry?>(null) }
     var showInstallDialog by remember { mutableStateOf(false) }
+    var showLocalInstallDialog by remember { mutableStateOf(false) }
     var previewImageUri by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val catalogState by vm.rootfsCatalog.state.collectAsStateWithLifecycle()
+    val rootfsFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.installLocalRootfs(uri, context.contentResolver)
+    }
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -254,6 +264,10 @@ fun WorkspaceDetailPage(id: String) {
                     WorkspaceDetailTab.BASIC -> WorkspaceBasicPage(
                         workspace = state.workspace,
                         installProgress = installProgress,
+                        rootfsInfo = state.rootfsInfo,
+                        catalogState = catalogState,
+                        lastInstallVerified = state.lastInstallVerified,
+                        lastInstallLocal = state.lastInstallLocal,
                         onInstallRootfs = { showInstallDialog = true },
                         onToolApprovalChange = vm::setToolApproval,
                         onShellCompatibilityModeChange = vm::setShellCompatibilityMode,
@@ -348,16 +362,23 @@ fun WorkspaceDetailPage(id: String) {
 
     state.workspace?.let { workspace ->
         if (showInstallDialog) {
-            InstallRootfsDialog(
-                workspace = workspace,
+            RootfsPickerSheet(
+                freeBytes = state.rootfsInfo?.freeBytes ?: 0,
                 onDismiss = { showInstallDialog = false },
-                onConfirm = { url ->
-                    vm.installRootfs(url)
-                    showInstallDialog = false
-                },
+                onPick = vm::installRootfs,
+                onCustom = vm::installRootfs,
+                onLocal = { showLocalInstallDialog = true },
             )
         }
     }
+
+    if (showLocalInstallDialog) RootfsLocalInstallDialog(
+        onDismiss = { showLocalInstallDialog = false },
+        onConfirm = {
+            showLocalInstallDialog = false
+            rootfsFilePicker.launch(arrayOf("application/gzip", "application/x-tar", "*/*"))
+        },
+    )
 
     installError?.let { message ->
         AlertDialog(
@@ -413,6 +434,10 @@ fun WorkspaceDetailPage(id: String) {
 private fun WorkspaceBasicPage(
     workspace: WorkspaceEntity?,
     installProgress: RootfsInstallProgress?,
+    rootfsInfo: WorkspaceRepository.RootfsInfo?,
+    catalogState: CatalogState,
+    lastInstallVerified: Boolean?,
+    lastInstallLocal: Boolean,
     onInstallRootfs: () -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
     onShellCompatibilityModeChange: (Boolean) -> Unit,
@@ -470,6 +495,30 @@ private fun WorkspaceBasicPage(
                         supportingContent = { Text(stringResource(R.string.workspace_detail_enable_shell_desc)) },
                         leadingContent = { CardGroupIcon(HugeIcons.Bash) },
                     ) {
+                        val stamp = rootfsInfo?.stamp
+                        val installedLabel = when {
+                            rootfsInfo == null -> stringResource(R.string.workspace_detail_loading)
+                            !rootfsInfo.installed -> stringResource(R.string.rootfs_not_installed)
+                            stamp == null -> stringResource(R.string.rootfs_legacy)
+                            else -> {
+                                val id = RootfsId(stamp.distroId)
+                                val known = id in BuiltinRootfs.ids || (catalogState as? CatalogState.Ready)?.all?.any { it.id == id } == true
+                                listOf(
+                                    if (known) rootfsDisplayName(id) else id.value,
+                                    stamp.arch, stamp.tier,
+                                    if (!known) stringResource(R.string.rootfs_unknown) else stamp.built.takeIf { it.isNotBlank() }?.let {
+                                        stringResource(R.string.rootfs_built_on, it.substringBefore('T'))
+                                    }.orEmpty(),
+                                ).filter { it.isNotBlank() }.joinToString(" · ")
+                            }
+                        }
+                        Text(installedLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = !installing && workspace != null && (stamp == null || rootfsInfo?.installed != true), onClick = onInstallRootfs).padding(vertical = 6.dp))
+                        if (lastInstallVerified != null) Text(
+                            stringResource(if (lastInstallLocal) R.string.rootfs_local_source else if (lastInstallVerified) R.string.rootfs_verified else R.string.rootfs_unverified),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (rootfsInfo?.installed == true) Text(stringResource(R.string.rootfs_upgrade_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(
                             onClick = onInstallRootfs,
                             enabled = workspace != null && !installing,
@@ -642,7 +691,8 @@ private fun RootfsProgress(progress: RootfsInstallProgress) {
             text = when (progress.stage) {
                 RootfsInstallStage.DOWNLOADING -> {
                     val total = progress.totalBytes?.let { " / ${it.fileSizeToString()}" }.orEmpty()
-                    stringResource(R.string.workspace_detail_downloading, progress.bytesRead.fileSizeToString(), total)
+                    if (progress.copyingLocalFile) stringResource(R.string.rootfs_local_copying) + " " + progress.bytesRead.fileSizeToString() + total
+                    else stringResource(R.string.workspace_detail_downloading, progress.bytesRead.fileSizeToString(), total)
                 }
 
                 RootfsInstallStage.EXTRACTING -> {
@@ -651,6 +701,9 @@ private fun RootfsProgress(progress: RootfsInstallProgress) {
                 }
 
                 RootfsInstallStage.INSTALLED -> stringResource(R.string.workspace_detail_install_complete)
+                RootfsInstallStage.VERIFYING -> stringResource(R.string.workspace_install_stage_verifying)
+                RootfsInstallStage.CHECKING -> stringResource(R.string.workspace_install_stage_checking)
+                RootfsInstallStage.CONFIGURING -> stringResource(R.string.workspace_install_stage_configuring)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -658,49 +711,6 @@ private fun RootfsProgress(progress: RootfsInstallProgress) {
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-@Composable
-private fun InstallRootfsDialog(
-    workspace: WorkspaceEntity,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var url by rememberSaveable(workspace.id) { mutableStateOf(DEFAULT_ROOTFS_URL) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.workspace_detail_install_rootfs)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.workspace_detail_install_rootfs_desc, workspace.name),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.workspace_detail_download_url)) },
-                    maxLines = 5,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(url.trim()) },
-                enabled = url.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.common_install))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
 }
 
 @Composable
@@ -1172,9 +1182,6 @@ private fun ErrorCard(message: String) {
         }
     }
 }
-
-private const val DEFAULT_ROOTFS_URL =
-    "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.3-base-arm64.tar.gz"
 
 /** 加载超过 [delayMillis] 才显示指示器, 本地工作区瞬间完成的加载不会闪一下 */
 @Composable

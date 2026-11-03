@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+## F017 当前约定（2026-11-02，优先于历史版本和 Debug-only 交付口径）
+
+- 最新依据为维护者的 `RikkaHub Work-F017工作区Rootfs改造-20261102(1).zip`（v2.3）。版本 `3.1.1-work.2 / 201`；维护者要求 Release，覆盖附件 Debug 建议。交付三个 GitHub Release APK、精简源码 ZIP 和根 DELIVERY；不提交、tag、推送、发布或操作设备。
+- 默认 Ubuntu 26.04、Debian 13、Alpine 3.24；索引固定 raw → jsDelivr，复用 Ktor，文件缓存先显示后刷新。保留 min/base/dev 原 token 与 arm64/amd64；无版本 ID 不追加连字符。缺 URL/SHA 的条目不可用。最新 v2.1 兜底规则优先于旧 A7：全无索引时默认项可走原始 URL，明确标未校验，代理下载必须有校验值。
+- 不在 App 自动装基础包。安装保留旧环境至新环境验证和配置成功；校验失败换源；配置失败、取消和 staging rename 失败均回滚。清理不能跟随 rootfs 软链；不改 isUsableRootfs 判据。
+- 本地确认文案按双架构及回滚事实修正旧 ARM64-only/失败清空文字，其余说明保留；无不再提示。来源/校验状态只展示本次会话记录，不写数据库或伪造镜像标识。
+- 上游永久重套：RootfsInstaller、RootfsPatcher、WorkspaceManager、Workspace、WorkspaceRepository、WorkspaceDetailVM/Page、RepositoryModule/ViewModelModule 和三语资源；保留新增 rootfs/ 包、RootfsPickerSheet/VM/LocalInstallDialog。ProotShellRunner 挂载表无需改动且本批未改，不可为重套说明擅自改它。
+- 只保留 values/values-zh/values-zh-rTW，不动 jniLibs、Room/schema、files 和路径解析、F004/F009、群组归属、原 launcher/about 图标。自动测试与真实包主机解压不能标为 Android PRoot 实机通过；P0 apt/apk、UI 和覆盖安装待维护者验收。
+
 ## Project Overview
 
 RikkaHub is a native Android LLM chat client that supports switching between different AI providers

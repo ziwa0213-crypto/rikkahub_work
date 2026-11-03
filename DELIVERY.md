@@ -1,4 +1,38 @@
-# 阶段三⑥交付记录
+# F017 交付记录 — 3.1.1-work.2 / 201
+
+实施日期：2026-11-02；交付核验日期：2026-11-03（Asia/Shanghai）。源码基线：master `4a346a03`；本批变更未提交。
+
+依据最新 `RikkaHub Work-F017工作区Rootfs改造-20261102(1).zip`（v2.3）实施。维护者指定 Release，故不生成任务书中的 Debug 包。交付 ARM64、x86_64、Universal 三个签名 GitHub Release APK，以及含本文件的精简源码 ZIP。
+
+交付目录：`artifacts/3.1.1-work.2/F017-rootfs-release-20261102/`。
+
+改动：工作区发行版/档位选择、固定索引与离线缓存、多地址校验回退、架构和桌面检查、可靠替换/回滚、自定义链接和本地包安装、镜像标识展示、三语文案。完整条目见本批 CHANGES（本文件随源码包交付）。
+
+自动检查：P1～P4 的工作区 JVM 测试和 App Kotlin 编译均通过；最终工作区 9 个测试套件、72 个用例，App 102 个测试套件、714 个用例，均为 0 失败、0 错误、0 跳过。新增用例验证坏包失败后旧环境仍为 READY、终端可用且文件保留，空环境仍为 BROKEN。GitHub Release Kotlin 编译通过。最终 Release 构建及包体验证结果见下方交付记录。
+
+真实包检查：Ubuntu 26.04、Debian 13、Alpine 3.24 的 ARM64 base 压缩包均与索引 SHA-256 一致，并通过 Linux 主机上的实际安装器拷贝、解包、ELF 检查、配置与镜像标识读取；详细耗时和未验清单见 `docs/f017-rootfs-validation.md`。本次索引没有 amd64 镜像，x86_64 APK 会显示对应镜像暂不可用，不能将 ARM64 镜像安装到 x86_64。
+
+未进行：设备/模拟器操作、Android PRoot 中的 apt/apk 实测、真实 UI 截图和覆盖安装；没有提交、标签、推送或 GitHub 发布。真实包在 Linux 主机上校验/解包也不代表在 Android 上运行通过。
+
+源码 ZIP 排除 `.git`（包括子模块指针）、构建目录、缓存、APK、镜像包、签名与本机配置；保留源码、资源、子模块源文件、构建脚本与本文件。最终 SHA-256 清单放在交付目录外层，避免源码 ZIP 自引用。
+
+## 最终构建与包体验证（2026-11-03）
+
+- `:workspace:testDebugUnitTest :app:testGithubDebugUnitTest :app:assembleGithubRelease`：`BUILD SUCCESSFUL in 12m 1s`，836 个任务，28 个执行、808 个复用。测试复用已通过结果，Release Lint、代码/资源压缩和签名均通过。日志：交付目录 `release-build-20261103.log`。
+- 三个 APK 均核验为 `me.rerere.rikkahub.plus`、`3.1.1-work.2 / 201`、不可调试；APK v2 签名及 ZIP CRC 通过。签名证书 SHA-256 为 `671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`，与已有 Release 相同。
+- 语言仅默认英文、简体中文和繁体中文；DeepSeek WASM 存在，未打入 Rootfs 压缩包、keystore 或本机配置。桌面与关于页的应用图标仍使用最初版本。
+
+| APK | 字节数 | 架构 |
+| --- | ---: | --- |
+| `RikkaHub.Work-3.1.1-work.2-arm64-v8a-release.apk` | 16,133,140 | arm64-v8a |
+| `RikkaHub.Work-3.1.1-work.2-x86_64-release.apk` | 16,232,069 | x86_64 |
+| `RikkaHub.Work-3.1.1-work.2-universal-release.apk` | 18,964,248 | arm64-v8a + x86_64 |
+
+源码文件名：`RikkaHub.Work-3.1.1-work.2-F017-source.zip`。逐文件清单、源码校验报告和 APK 校验报告分别为 `SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json`、`APK-VERIFICATION.json`；最终哈希以交付目录 `SHA256SUMS` 为准。
+
+---
+
+# 阶段三⑥交付记录（历史）
 
 # 阶段三⑥三交付记录
 

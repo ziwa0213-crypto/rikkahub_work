@@ -6,6 +6,7 @@ import java.io.OutputStream
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import me.rerere.workspace.rootfs.RootfsStamp
 
 class WorkspaceManager(
     private val baseDir: File,
@@ -53,6 +54,8 @@ class WorkspaceManager(
     fun hasRootfs(root: String): Boolean = isUsableRootfs(linuxDir(root))
 
     fun rootfsShell(root: String): String = rootfsShell(linuxDir(root))
+
+    fun rootfsStamp(root: String): RootfsStamp? = RootfsStamp.readFrom(linuxDir(root))
 
     fun deleteWorkspace(root: String): Boolean = workspaceDir(root).deleteRecursively()
 

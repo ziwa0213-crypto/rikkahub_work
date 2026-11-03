@@ -1,7 +1,9 @@
 package me.rerere.rikkahub.ui.pages.extensions.workspace
 
 import android.content.ContentResolver
+import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.lifecycle.ViewModel
@@ -24,6 +26,8 @@ import me.rerere.workspace.WorkspaceCommandResult
 import me.rerere.workspace.WorkspaceFileEntry
 import me.rerere.workspace.WorkspaceLayout
 import me.rerere.workspace.WorkspaceStorageArea
+import me.rerere.workspace.rootfs.RootfsCatalog
+import me.rerere.workspace.rootfs.RootfsEntry
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -32,6 +36,8 @@ class WorkspaceDetailVM(
     private val id: String,
     private val repository: WorkspaceRepository,
     private val terminalSessionManager: WorkspaceTerminalSessionManager,
+    val rootfsCatalog: RootfsCatalog,
+    private val context: Context,
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkspaceDetailState())
     val state = _state.asStateFlow()
@@ -302,22 +308,48 @@ class WorkspaceDetailVM(
         }
     }
 
-    fun installRootfs(url: String) {
-        viewModelScope.launch {
+    private var installJob: Job? = null
+
+    fun installRootfs(entry: RootfsEntry) = launchInstall(entry.sha256.isNotBlank(), local = false) { workspace ->
+        repository.installRootfs(workspace.id, entry) { _installProgress.value = it }
+    }
+
+    fun installRootfs(url: String, sha256: String?) = launchInstall(!sha256.isNullOrBlank(), local = false) { workspace ->
+        repository.installRootfsUrl(workspace.id, url, sha256) { _installProgress.value = it }
+    }
+
+    fun installLocalRootfs(uri: Uri, resolver: ContentResolver) = launchInstall(verified = false, local = true) { workspace ->
+        val (name, size) = withContext(Dispatchers.IO) {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex).takeIf { it >= 0 } else null
+                (name ?: "") to size
+            } ?: ("" to null)
+        }
+        repository.installLocalRootfs(workspace.id, name, size, {
+            resolver.openInputStream(uri) ?: error("Unable to read archive")
+        }) { _installProgress.value = it }
+    }
+
+    private fun launchInstall(verified: Boolean, local: Boolean, operation: suspend (WorkspaceEntity) -> Boolean) {
+        if (installJob?.isActive == true) return
+        val workspace = state.value.workspace ?: return
+        _installProgress.value = RootfsInstallProgress(stage = RootfsInstallStage.DOWNLOADING)
+        installJob = viewModelScope.launch {
             _installError.value = null
-            val workspace = state.value.workspace ?: return@launch
-            _installProgress.value = RootfsInstallProgress(stage = RootfsInstallStage.DOWNLOADING)
             try {
                 terminalSessionManager.closeWorkspace(workspace.root)
-                repository.installRootfs(workspace.id, url) { progress ->
-                    _installProgress.value = progress
-                }
+                check(operation(workspace)) { "Workspace no longer exists" }
+                _state.update { it.copy(lastInstallVerified = verified, lastInstallLocal = local) }
                 loadWorkspace()
                 refresh()
             } catch (e: CancellationException) {
                 throw e
             } catch (error: Throwable) {
-                _installError.value = error.message ?: "Rootfs 安装失败"
+                _installError.value = rootfsErrorMessage(context, error)
             } finally {
                 _installProgress.value = null
             }
@@ -377,7 +409,8 @@ class WorkspaceDetailVM(
         viewModelScope.launch {
             val workspace = repository.getById(id)
             val layout = repository.layout(id)
-            _state.update { it.copy(workspace = workspace, layout = layout) }
+            val info = repository.rootfsInfo(id)
+            _state.update { it.copy(workspace = workspace, layout = layout, rootfsInfo = info) }
         }
     }
 }
@@ -394,6 +427,9 @@ data class WorkspaceDetailState(
     val exportCompleted: Int = 0,
     val exportTotal: Int = 0,
     val exportResult: String? = null,
+    val rootfsInfo: WorkspaceRepository.RootfsInfo? = null,
+    val lastInstallVerified: Boolean? = null,
+    val lastInstallLocal: Boolean = false,
 )
 
 data class WorkspaceTerminalState(

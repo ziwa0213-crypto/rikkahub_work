@@ -61,9 +61,14 @@ class ExampleUnitTest {
     fun rootfsInstallerDownloadsAndExtractsTarGz() {
         val baseDir = Files.createTempDirectory("workspace-manager-test").toFile()
         val manager = WorkspaceManager(baseDir)
-        val installer = RootfsInstaller(manager)
+        val installer = RootfsInstaller(manager, deviceArch = { me.rerere.workspace.rootfs.RootfsArch.ARM64 })
+        val shellElf = ByteArray(64).apply {
+            byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 2, 1).copyInto(this)
+            this[18] = 183.toByte()
+        }
         val archive = tarGz(
             TarTestEntry("bin/", type = '5'),
+            TarTestEntry("bin/sh", content = shellElf, mode = 493),
             TarTestEntry("bin/hello", content = "echo hello\n".toByteArray(), mode = 493),
             TarTestEntry("usr/bin/hello-link", type = '2', linkName = "../../bin/hello"),
         )

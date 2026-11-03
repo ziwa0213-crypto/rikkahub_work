@@ -2,20 +2,21 @@ package me.rerere.workspace
 
 import java.io.File
 import java.nio.file.Files
+import me.rerere.workspace.rootfs.rootfsPath
 
 class RootfsPatcher {
     fun patch(
         linuxDir: File,
         options: RootfsPatchOptions = RootfsPatchOptions(),
     ) {
-        val etcDir = File(linuxDir, "etc")
+        val etcDir = rootfsPath(linuxDir, "etc")
         if (!etcDir.isDirectory) return
 
-        ensureRootfsDns(etcDir, options.nameservers)
-        ensureHosts(etcDir, options.hostname)
-        ensureHostname(etcDir, options.hostname)
-        ensureLocale(etcDir, options.locale)
-        ensureGroupNames(etcDir, options.groupIds.ifEmpty { currentSupplementaryGroupIds() })
+        ensureRootfsDns(linuxDir, options.nameservers)
+        ensureHosts(linuxDir, options.hostname)
+        ensureHostname(linuxDir, options.hostname)
+        ensureLocale(linuxDir, options.locale)
+        ensureGroupNames(linuxDir, options.groupIds.ifEmpty { currentSupplementaryGroupIds() })
         ensureTempDirs(linuxDir)
     }
 
@@ -23,7 +24,7 @@ class RootfsPatcher {
         etcDir: File,
         nameservers: List<String>,
     ) {
-        val resolvConf = File(etcDir, "resolv.conf")
+        val resolvConf = rootfsPath(etcDir, "etc/resolv.conf", followFinal = false)
         val shouldWrite = when {
             Files.isSymbolicLink(resolvConf.toPath()) -> true
             !resolvConf.exists() -> true
@@ -58,7 +59,7 @@ class RootfsPatcher {
     }
 
     private fun ensureHosts(etcDir: File, hostname: String) {
-        val hosts = File(etcDir, "hosts")
+        val hosts = rootfsPath(etcDir, "etc/hosts")
         val lines = if (hosts.isFile) hosts.readLines() else emptyList()
         val hasIpv4Localhost = lines.any { line ->
             val normalized = line.substringBefore('#').trim().split(WHITESPACE_REGEX)
@@ -92,14 +93,13 @@ class RootfsPatcher {
     }
 
     private fun ensureHostname(etcDir: File, hostname: String) {
-        val target = File(etcDir, "hostname")
+        val target = rootfsPath(etcDir, "etc/hostname")
         if (target.isFile && target.readText().trim().isNotBlank()) return
         target.writeText("${hostname.ifBlank { DEFAULT_HOSTNAME }}\n")
     }
 
     private fun ensureLocale(etcDir: File, locale: String) {
-        val defaultDir = File(etcDir, "default").apply { mkdirs() }
-        val target = File(defaultDir, "locale")
+        val target = rootfsPath(etcDir, "etc/default/locale").apply { parentFile?.mkdirs() }
         val lines = if (target.isFile) target.readLines().toMutableList() else mutableListOf()
         if (lines.any { it.trim().startsWith("LANG=") }) return
         lines += "LANG=$locale"
@@ -107,7 +107,7 @@ class RootfsPatcher {
     }
 
     private fun ensureGroupNames(etcDir: File, groupIds: List<Long>) {
-        val target = File(etcDir, "group")
+        val target = rootfsPath(etcDir, "etc/group")
         if (!target.exists()) {
             target.writeText("root:x:0:\n")
         }
@@ -140,14 +140,14 @@ class RootfsPatcher {
 
     private fun ensureTempDirs(linuxDir: File) {
         listOf("tmp", "var/tmp", "root").forEach { path ->
-            File(linuxDir, path).mkdirs()
+            rootfsPath(linuxDir, path).mkdirs()
         }
-        listOf(File(linuxDir, "tmp"), File(linuxDir, "var/tmp")).forEach { dir ->
+        listOf(rootfsPath(linuxDir, "tmp"), rootfsPath(linuxDir, "var/tmp")).forEach { dir ->
             dir.setReadable(true, false)
             dir.setWritable(true, false)
             dir.setExecutable(true, false)
         }
-        File(linuxDir, "root").apply {
+        rootfsPath(linuxDir, "root").apply {
             setReadable(true, true)
             setWritable(true, true)
             setExecutable(true, true)

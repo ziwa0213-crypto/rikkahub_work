@@ -59,7 +59,7 @@ class WorkspaceBasicTest {
         val manager = WorkspaceManager(baseDir = temp.newFolder())
         val dao = Dao()
         var settings = Settings()
-        val repository = WorkspaceRepository(dao, manager, RootfsInstaller(manager)) { settings = it(settings) }
+        val repository = WorkspaceRepository(dao, manager, RootfsInstaller(manager, deviceArch = { me.rerere.workspace.rootfs.RootfsArch.ARM64 })) { settings = it(settings) }
 
         suspend fun ready(): WorkspaceEntity {
             val workspace = repository.create("Source", "chat")
@@ -179,6 +179,37 @@ class WorkspaceBasicTest {
         assertFalse(f.manager.hasRootfs(consumer.root))
         assertEquals(source, f.repository.getById(source.id))
         assertTrue(f.manager.hasRootfs(source.root))
+    }
+
+    @Test fun `failed install keeps restored environment ready and empty environment broken`() = runBlocking {
+        val f = Fixture()
+        val ready = f.ready()
+        val empty = f.repository.create("Empty", "group")
+        f.repository.writeText(ready.id, "keep.txt", "keep", true)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/invalid.tar.gz") { exchange ->
+            val bytes = "not a gzip archive".toByteArray()
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            for (workspace in listOf(ready, empty)) {
+                val failure = runCatching {
+                    f.repository.installRootfs(workspace.id, "http://127.0.0.1:${server.address.port}/invalid.tar.gz")
+                }.exceptionOrNull()
+                assertNotNull(failure)
+                assertTrue("Original archive error must be preserved: $failure", failure is java.io.IOException)
+            }
+        } finally {
+            server.stop(0)
+        }
+        assertEquals(WorkspaceShellStatus.READY.name, f.repository.getById(ready.id)!!.shellStatus)
+        assertTrue(f.manager.hasRootfs(ready.root))
+        assertTrue(f.repository.prepareTerminalEnvironment(ready.root) {})
+        assertEquals("keep", f.repository.readText(ready.id, "keep.txt"))
+        assertEquals(WorkspaceShellStatus.BROKEN.name, f.repository.getById(empty.id)!!.shellStatus)
+        assertFalse(f.manager.hasRootfs(empty.root))
     }
 
     @Test fun `deletion cleans assistant and group bindings but preserves other workspaces`() = runBlocking {

@@ -1,5 +1,15 @@
 # RikkaHub 二次开发功能台账
 
+## [F017 工作区 Rootfs] 3.1.1-work.2 / 201（2026-11-02，本地 Release）
+
+- 数据目录：`workspace/rootfs/` 提供 ID、档位、架构、条目、索引缓存、目录、安装规格、镜像标识和验证器；发行版开放扩展。只有 `configureFor` 按发行版分流，未知发行版通用配置。
+- 索引复用 DI 的 Ktor HttpClient，raw → jsDelivr，8 秒单源上限；文件缓存先显示后刷新。缺 URL、缺有效校验值、未知架构或档位的条目丢弃。全无索引时仅默认三项提供原始地址兜底，显式提示未校验，不经第三方代理。
+- 安装：多源校验回退、空间预检、tar.gz/xz、本地复制、5 万条目上限、ELF 架构和桌面检查；先备份再切换，配置成功才清备份，失败或取消回滚。tar 读写及清理按 guest 软链边界处理，不跟随到主机目录。
+- UI：单个 RootfsPickerSheet 在 MAIN/ADVANCED/TIERS 内切换；详情读 `/etc/android-proot-release`，旧环境不补 marker。自定义 URL 可填 SHA-256，本地导入每次严格文字确认。
+- 上游重套：RootfsInstaller、RootfsPatcher、WorkspaceManager、Workspace、WorkspaceRepository、WorkspaceDetailVM/Page、DI 注册及三语资源；保留新增 rootfs 包与三个 UI 文件。ProotShellRunner 及挂载表本批不改。
+- 兼容边界：无 Room 字段/迁移，无 Settings 字段变更，不改工作区归属、files 路径、F004/F009、jniLibs 或原应用身份图标。RootfsPackageManager 本期不调用。
+- 交付：三个 GitHub Release APK 与精简源码 ZIP；未经维护者确认不推送。设备上的三种发行版 apt/apk、命令执行和 UI 验收必须单独记录，不能用 JVM/主机解包代替。
+
 ## [阶段三⑥三 启动竞态修复] 3.1.0-work.1 / 199（2026-10-30，本地开发，未发布）
 
 - **设置加载闸门**：`RouteActivity.AppRoutes()` 在 `Settings.init == true`（`Settings.dummy()` 占位值）时只渲染空容器并提前返回，禁止在真实设置读盘前创建 `rememberNavBackStack`。

@@ -19,6 +19,7 @@ import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailVM
+import me.rerere.rikkahub.ui.pages.extensions.workspace.RootfsPickerVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceSshEditorVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceVM
 import me.rerere.rikkahub.ui.pages.setting.SettingVM
@@ -101,11 +102,14 @@ val viewModelModule = module {
     viewModelOf(::SkillsVM)
     viewModelOf(::SkillDetailVM)
     viewModelOf(::WorkspaceVM)
+    viewModelOf(::RootfsPickerVM)
     viewModel<WorkspaceDetailVM> {
         WorkspaceDetailVM(
             id = it.get(),
             repository = get(),
             terminalSessionManager = get(),
+            rootfsCatalog = get(),
+            context = get(),
         )
     }
     viewModel<WorkspaceSshEditorVM> {

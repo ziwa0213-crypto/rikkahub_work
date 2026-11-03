@@ -30,6 +30,9 @@ import me.rerere.workspace.WorkspaceManager
 import me.rerere.workspace.WorkspaceShellStatus
 import me.rerere.workspace.WorkspaceStorageArea
 import me.rerere.workspace.WorkspaceType
+import me.rerere.workspace.rootfs.EntrySpec
+import me.rerere.workspace.rootfs.RootfsEntry
+import me.rerere.workspace.rootfs.RootfsStamp
 import me.rerere.workspace.ssh.SshAuthType
 import me.rerere.workspace.ssh.SshConnectionConfig
 import me.rerere.workspace.ssh.SshConnectionPool
@@ -261,13 +264,41 @@ class WorkspaceRepository private constructor(
         id: String,
         url: String,
         onProgress: (RootfsInstallProgress) -> Unit = {},
-    ): Boolean = lifecycleMutex.withLock {
+    ): Boolean = installRootfsUrl(id, url, null, onProgress)
+
+    suspend fun installRootfsUrl(id: String, url: String, sha256: String?, onProgress: (RootfsInstallProgress) -> Unit = {}): Boolean =
+        installRootfsWith(id) { rootfsInstaller.installUrl(it.root, url, sha256, onProgress) }
+
+    suspend fun installRootfs(id: String, entry: RootfsEntry, onProgress: (RootfsInstallProgress) -> Unit = {}): Boolean =
+        installRootfsWith(id) {
+            if (entry.sha256.isBlank()) Log.w(TAG, "rootfs index unavailable, using builtin fallback; verified=0")
+            rootfsInstaller.install(it.root, EntrySpec(entry), entry.sizeBytes, onProgress)
+            Log.i(TAG, "rootfs installed id=${entry.id.value} verified=${if (entry.sha256.isBlank()) 0 else 1}")
+        }
+
+    suspend fun installLocalRootfs(
+        id: String, fileName: String, sizeBytes: Long?, openStream: () -> InputStream,
+        onProgress: (RootfsInstallProgress) -> Unit = {},
+    ): Boolean = installRootfsWith(id) {
+        rootfsInstaller.installLocal(it.root, fileName, sizeBytes, openStream, onProgress = onProgress)
+        Log.i(TAG, "local rootfs installed; verified=0")
+    }
+
+    data class RootfsInfo(val installed: Boolean, val stamp: RootfsStamp?, val freeBytes: Long)
+
+    suspend fun rootfsInfo(id: String): RootfsInfo = withContext(Dispatchers.IO) {
+        val workspace = dao.getById(id)
+        if (workspace == null || !workspace.capabilities().rootfs) return@withContext RootfsInfo(false, null, 0)
+        RootfsInfo(manager.hasRootfs(workspace.root), manager.rootfsStamp(workspace.root), manager.workspaceDir(workspace.root).usableSpace)
+    }
+
+    private suspend fun installRootfsWith(id: String, install: (WorkspaceEntity) -> Unit): Boolean = lifecycleMutex.withLock {
         val workspace = dao.getById(id) ?: return@withLock false
         require(workspace.capabilities().rootfs) { "Rootfs is not available for ${workspace.type} workspaces" }
         updateShellState(workspace, WorkspaceShellStatus.INSTALLING.name)
         try {
             runInterruptible(Dispatchers.IO) {
-                rootfsInstaller.install(workspace.root, url, onProgress)
+                install(workspace)
             }
             updateShellState(workspace, WorkspaceShellStatus.READY.name)
             true
@@ -278,8 +309,15 @@ class WorkspaceRepository private constructor(
             withContext(NonCancellable) { restoreShellState(workspace) }
             throw CancellationException("Rootfs install cancelled").also { it.initCause(e) }
         } catch (e: Throwable) {
-            Log.e(TAG, "installRootfs failed: workspace=${workspace.id}, root=${workspace.root}, url=$url", e)
-            updateShellState(workspace, WorkspaceShellStatus.BROKEN.name)
+            withContext(NonCancellable + Dispatchers.IO) {
+                updateShellState(
+                    workspace,
+                    if (manager.hasRootfs(workspace.root)) WorkspaceShellStatus.READY.name
+                    else WorkspaceShellStatus.BROKEN.name,
+                )
+            }
+            // Diagnostics must not prevent recovery or replace the original installation error.
+            runCatching { Log.e(TAG, "installRootfs failed: workspace=${workspace.id}", e) }
             throw e
         }
     }

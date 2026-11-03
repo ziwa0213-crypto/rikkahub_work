@@ -8,43 +8,198 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.FileVisitResult
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.Locale
 import java.util.zip.GZIPInputStream
+import kotlinx.coroutines.CancellationException
+import me.rerere.workspace.rootfs.*
 import org.tukaani.xz.XZInputStream
 
 class RootfsInstaller(
     private val manager: WorkspaceManager,
     private val patcher: RootfsPatcher = RootfsPatcher(),
+    private val deviceArch: () -> RootfsArch? = { RootfsArch.current() },
+    private val moveDirectory: (File, File) -> Boolean = { from, to -> from.renameTo(to) },
 ) {
     fun install(
         root: String,
         url: String,
         onProgress: (RootfsInstallProgress) -> Unit = {},
     ) {
-        require(url.isNotBlank()) { "Rootfs download url is required" }
+        installUrl(root, url, null, onProgress)
+    }
+
+    fun installUrl(root: String, url: String, sha256: String?, onProgress: (RootfsInstallProgress) -> Unit = {}) {
+        install(root, GenericPosixSpec(requireArch(), url, sha256), onProgress = onProgress)
+    }
+
+    fun install(
+        root: String,
+        spec: RootfsSpec,
+        sizeBytes: Long = 0,
+        onProgress: (RootfsInstallProgress) -> Unit = {},
+    ) {
+        val actualArch = requireArch()
+        if (spec.arch != actualArch) throw RootfsInstallException(RootfsError.ARCH_MISMATCH, listOf(spec.arch.token, actualArch.token))
+        validateChecksum(spec.sha256())
+        require(spec.urls().isNotEmpty()) { "Rootfs download url is required" }
+        val format = ArchiveFormat.fromUrl(spec.urls().first())
+        withStaging(root, format, spec, onProgress) { archive ->
+            RootfsVerifier.checkSpace(archive.parentFile!!, sizeBytes)
+            var lastError: Exception? = null
+            var checksumFailed = false
+            val urls = spec.urls()
+            for ((index, url) in urls.withIndex()) {
+                checkInterrupted()
+                try {
+                    require(URL(url).protocol in listOf("http", "https")) { "Unsupported URL scheme" }
+                    download(url, archive, onProgress)
+                    verifyChecksum(archive, spec.sha256(), onProgress)
+                    return@withStaging
+                } catch (error: InterruptedException) {
+                    throw error
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (error is RootfsInstallException && error.code == RootfsError.NO_SPACE) throw error
+                    lastError = error
+                    checksumFailed = checksumFailed || (error as? RootfsInstallException)?.code == RootfsError.CHECKSUM
+                    archive.delete()
+                    if (index == urls.lastIndex) throw RootfsInstallException(
+                        if (checksumFailed) RootfsError.CHECKSUM else RootfsError.DOWNLOAD,
+                        listOf(urls.size.toString()), lastError,
+                    )
+                }
+            }
+        }
+    }
+
+    fun installLocal(
+        root: String,
+        fileName: String,
+        sizeBytes: Long?,
+        openStream: () -> InputStream,
+        sha256: String? = null,
+        onProgress: (RootfsInstallProgress) -> Unit = {},
+    ) {
+        val format = ArchiveFormat.fromUrl(fileName)
+        validateChecksum(sha256)
+        val spec = GenericPosixSpec(requireArch(), checksum = sha256)
+        withStaging(root, format, spec, onProgress) { archive ->
+            RootfsVerifier.checkSpace(archive.parentFile!!, sizeBytes ?: 0)
+            openStream().use { input ->
+                archive.outputStream().use { output ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    var count = 0L
+                    var reported = -PROGRESS_STEP_BYTES.toLong()
+                    while (true) {
+                        checkInterrupted()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        count += read
+                        if (count - reported >= PROGRESS_STEP_BYTES) {
+                            reported = count
+                            RootfsVerifier.checkSpace(archive.parentFile!!, count, 4)
+                            onProgress(RootfsInstallProgress(RootfsInstallStage.DOWNLOADING, count, sizeBytes, copyingLocalFile = true))
+                        }
+                    }
+                }
+            }
+            verifyChecksum(archive, sha256, onProgress)
+        }
+    }
+
+    private fun requireArch() = deviceArch() ?: throw RootfsInstallException(RootfsError.UNSUPPORTED_ARCH)
+
+    private fun validateChecksum(checksum: String?) {
+        require(checksum == null || checksum.matches(Regex("(?i)[a-f0-9]{64}"))) { "Invalid SHA-256 checksum" }
+    }
+
+    private fun verifyChecksum(archive: File, checksum: String?, progress: (RootfsInstallProgress) -> Unit) {
+        progress(RootfsInstallProgress(RootfsInstallStage.VERIFYING))
+        if (checksum != null && !RootfsVerifier.sha256(archive).equals(checksum, ignoreCase = true)) {
+            throw RootfsInstallException(RootfsError.CHECKSUM)
+        }
+    }
+
+    private fun withStaging(
+        root: String,
+        format: ArchiveFormat,
+        spec: RootfsSpec,
+        onProgress: (RootfsInstallProgress) -> Unit,
+        acquire: (File) -> Unit,
+    ) {
         manager.ensureWorkspace(root)
-        val format = ArchiveFormat.fromUrl(url)
         val tempDir = manager.tempDir(root)
         val archive = File(tempDir, "rootfs.${format.extension}")
         val stagingDir = File(tempDir, "rootfs-staging")
         val linuxDir = manager.linuxDir(root)
-
+        val old = File(tempDir, "linux.old")
+        val discarded = File(tempDir, "rootfs-discard")
+        check(deleteTree(discarded)) { "Could not clean previous rootfs backup" }
+        // Recover an interrupted swap before touching another archive. Never discard the backup first.
+        if (old.exists()) {
+            check(deleteTree(linuxDir) && moveDirectory(old, linuxDir)) { "Could not recover previous rootfs" }
+        }
         try {
-            stagingDir.deleteRecursively()
-            stagingDir.mkdirs()
-            download(url, archive, onProgress)
+            check(deleteTree(stagingDir)) { "Could not clean rootfs staging directory" }
+            check(stagingDir.mkdirs()) { "Could not create rootfs staging directory" }
+            acquire(archive)
+            RootfsVerifier.checkSpace(tempDir, archive.length(), 4)
             extractTar(archive, stagingDir, format, onProgress)
-            linuxDir.deleteRecursively()
-            require(stagingDir.renameTo(linuxDir)) {
-                "Failed to move rootfs into workspace"
+            checkInterrupted()
+            onProgress(RootfsInstallProgress(RootfsInstallStage.CHECKING))
+            RootfsVerifier.verify(stagingDir, spec.arch, spec.desktopEvidence)
+            var backedUp = false
+            var swapped = false
+            try {
+                if (linuxDir.exists()) {
+                    check(moveDirectory(linuxDir, old)) { "Could not preserve previous rootfs" }
+                    backedUp = true
+                }
+                checkInterrupted()
+                check(moveDirectory(stagingDir, linuxDir)) { "Failed to move rootfs into workspace" }
+                swapped = true
+                onProgress(RootfsInstallProgress(RootfsInstallStage.CONFIGURING))
+                spec.configure(linuxDir)
+                checkInterrupted()
+                onProgress(RootfsInstallProgress(stage = RootfsInstallStage.INSTALLED))
+                // Rename the committed backup out of the recovery slot before best-effort cleanup.
+                // A failed/partial cleanup must never restore an incomplete old tree next time.
+                if (backedUp) check(moveDirectory(old, discarded)) { "Could not finish rootfs transaction" }
+            } catch (error: Throwable) {
+                // This also covers a failed staging rename and cancellation after the old tree moved.
+                if (swapped && !deleteTree(linuxDir)) error.addSuppressed(IOException("Could not remove incomplete rootfs"))
+                if (backedUp && !moveDirectory(old, linuxDir)) error.addSuppressed(IOException("Previous rootfs retained in linux.old"))
+                throw error
             }
-            patcher.patch(linuxDir)
-            onProgress(RootfsInstallProgress(stage = RootfsInstallStage.INSTALLED))
+            deleteTree(discarded)
         } finally {
             archive.delete()
-            stagingDir.deleteRecursively()
+            deleteTree(stagingDir)
         }
     }
+
+    /** Rootfs links are guest paths: cleanup must never traverse them on the host. */
+    private fun deleteTree(file: File): Boolean = runCatching {
+        if (!Files.exists(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) return@runCatching true
+        Files.walkFileTree(file.toPath(), object : SimpleFileVisitor<Path>() {
+            override fun visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult {
+                Files.delete(path)
+                return FileVisitResult.CONTINUE
+            }
+            override fun postVisitDirectory(path: Path, error: IOException?): FileVisitResult {
+                if (error != null) throw error
+                Files.delete(path)
+                return FileVisitResult.CONTINUE
+            }
+        })
+        true
+    }.getOrDefault(false)
 
     private fun download(
         url: String,
@@ -59,6 +214,7 @@ class RootfsInstaller(
             val code = connection.responseCode
             require(code in 200..299) { "Rootfs download failed: HTTP $code" }
             val totalBytes = connection.contentLengthLong.takeIf { it > 0 }
+            RootfsVerifier.checkSpace(target.parentFile!!, totalBytes ?: 0)
             target.parentFile?.mkdirs()
             connection.inputStream.use { input ->
                 target.outputStream().use { output ->
@@ -108,6 +264,7 @@ class RootfsInstaller(
             var entries = 0
             var pendingName: String? = null
             var pendingLinkName: String? = null
+            val pendingHardLinks = mutableListOf<Pair<File, String>>()
             while (true) {
                 checkInterrupted()
                 val rawHeader = input.readTarHeader() ?: break
@@ -138,13 +295,15 @@ class RootfsInstaller(
                     input.skipFully(header.size.paddingSize())
                     continue
                 }
+                if (++entries > RootfsVerifier.MAX_ENTRIES) throw RootfsInstallException(RootfsError.TOO_MANY_FILES)
                 val target = targetDir.safeResolve(header.name)
                 target.parentFile?.mkdirs()
                 when (header.type) {
-                    TarEntryType.DIRECTORY -> target.mkdirs()
+                    TarEntryType.DIRECTORY -> rootfsPath(targetDir, header.name).mkdirs()
                     TarEntryType.SYMLINK -> createSymlink(targetDir, target, header.linkName)
-                    TarEntryType.HARDLINK -> createHardLink(targetDir, target, header.linkName)
+                    TarEntryType.HARDLINK -> if (!createHardLink(targetDir, target, header.linkName)) pendingHardLinks += target to header.linkName
                     TarEntryType.FILE -> {
+                        if (Files.isSymbolicLink(target.toPath())) Files.delete(target.toPath())
                         target.outputStream().use { output ->
                             input.copyExactly(output, header.size)
                         }
@@ -165,7 +324,6 @@ class RootfsInstaller(
                 if (header.modTime > 0 && header.type != TarEntryType.SYMLINK) {
                     target.setLastModified(header.modTime * 1000)
                 }
-                entries++
                 onProgress(
                     RootfsInstallProgress(
                         stage = RootfsInstallStage.EXTRACTING,
@@ -173,6 +331,10 @@ class RootfsInstaller(
                         currentEntry = header.name,
                     )
                 )
+            }
+            while (pendingHardLinks.isNotEmpty()) {
+                val resolved = pendingHardLinks.removeAll { (target, source) -> createHardLink(targetDir, target, source) }
+                require(resolved) { "Unresolved rootfs hard link" }
             }
         }
     }
@@ -182,8 +344,8 @@ class RootfsInstaller(
         val linkTarget = if (File(linkName).isAbsolute) {
             File(linkName)
         } else {
-            val resolved = File(target.parentFile ?: root, linkName).canonicalFile
-            val rootFile = root.canonicalFile
+            val resolved = File(target.parentFile ?: root, linkName).absoluteFile.normalize()
+            val rootFile = root.absoluteFile.normalize()
             require(resolved.path == rootFile.path || resolved.path.startsWith(rootFile.path + File.separator)) {
                 "Symlink escapes rootfs: ${target.name}"
             }
@@ -193,10 +355,10 @@ class RootfsInstaller(
         Files.createSymbolicLink(target.toPath(), linkTarget.toPath())
     }
 
-    private fun createHardLink(root: File, target: File, linkName: String) {
-        if (linkName.isBlank()) return
-        val source = root.safeResolve(linkName)
-        if (!source.exists()) return
+    private fun createHardLink(root: File, target: File, linkName: String): Boolean {
+        require(linkName.isNotBlank()) { "Empty rootfs hard link" }
+        val source = rootfsPath(root, normalizeTarPath(linkName))
+        if (!source.exists()) return false
         target.delete()
         runCatching {
             Files.createLink(target.toPath(), source.toPath())
@@ -212,6 +374,7 @@ class RootfsInstaller(
             target.setWritable(source.canWrite(), true)
             target.setExecutable(source.canExecute(), false)
         }.getOrThrow()
+        return true
     }
 
     private fun InputStream.readTarHeader(): TarHeader? {
@@ -252,6 +415,7 @@ class RootfsInstaller(
             val space = text.indexOf(' ', index)
             if (space < 0) break
             val length = text.substring(index, space).toIntOrNull() ?: break
+            require(length > space - index + 1 && index + length <= text.length) { "Malformed tar PAX record" }
             val end = (index + length).coerceAtMost(text.length)
             val record = text.substring(space + 1, end).trimEnd('\n')
             val equals = record.indexOf('=')
@@ -284,7 +448,7 @@ class RootfsInstaller(
     }
 
     private fun InputStream.readExactly(bytes: Long): ByteArray {
-        require(bytes <= Int.MAX_VALUE) { "Tar entry is too large to buffer: $bytes" }
+        require(bytes in 0..(1024 * 1024)) { "Tar metadata is too large to buffer: $bytes" }
         val buffer = ByteArray(bytes.toInt())
         val read = readFullyOrEnd(buffer)
         if (read != buffer.size) throw EOFException("Unexpected EOF while reading tar entry")
@@ -318,12 +482,7 @@ class RootfsInstaller(
 
     private fun File.safeResolve(path: String): File {
         val normalized = normalizeTarPath(path)
-        val root = canonicalFile
-        val target = File(root, normalized).canonicalFile
-        require(target.path == root.path || target.path.startsWith(root.path + File.separator)) {
-            "Rootfs entry escapes target directory: $path"
-        }
-        return target
+        return rootfsPath(this, normalized, followFinal = false)
     }
 
     private fun File.applyMode(mode: Int) {
@@ -399,8 +558,9 @@ class RootfsInstaller(
             fun fromUrl(url: String): ArchiveFormat {
                 val path = url.substringBefore('?').substringBefore('#')
                 return when {
-                    path.endsWith(".tar.xz") || path.endsWith(".txz") -> TAR_XZ
-                    else -> TAR_GZ
+                    path.endsWith(".tar.xz", true) || path.endsWith(".txz", true) -> TAR_XZ
+                    path.endsWith(".tar.gz", true) || path.endsWith(".tgz", true) -> TAR_GZ
+                    else -> throw RootfsInstallException(RootfsError.INVALID_EXTENSION)
                 }
             }
 

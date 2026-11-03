@@ -17,12 +17,17 @@ import me.rerere.workspace.ProotShellRunner
 import me.rerere.workspace.RootfsInstaller
 import me.rerere.workspace.WorkspaceBindMount
 import me.rerere.workspace.WorkspaceManager
+import me.rerere.rikkahub.AppScope
+import me.rerere.workspace.rootfs.RootfsCatalog
+import me.rerere.workspace.rootfs.RootfsIndexClient
 import me.rerere.workspace.ssh.SshConnectionPool
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 import java.io.File
 
 val repositoryModule = module {
+    single { RootfsIndexClient(get(), File(get<Context>().cacheDir, "rootfs-index.json")) }
+    single { RootfsCatalog(get(), get<AppScope>()) }
     single {
         ConversationRepository(get(), get(), get(), get(), get(), get())
     }

@@ -48,7 +48,10 @@ enum class WorkspaceStorageArea {
 
 enum class RootfsInstallStage {
     DOWNLOADING,
+    VERIFYING,
     EXTRACTING,
+    CHECKING,
+    CONFIGURING,
     INSTALLED,
 }
 
@@ -58,6 +61,7 @@ data class RootfsInstallProgress(
     val totalBytes: Long? = null,
     val entriesExtracted: Int = 0,
     val currentEntry: String? = null,
+    val copyingLocalFile: Boolean = false,
 )
 
 data class WorkspaceConfig(
