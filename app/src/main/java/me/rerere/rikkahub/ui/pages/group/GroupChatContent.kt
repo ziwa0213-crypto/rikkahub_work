@@ -42,6 +42,7 @@ import me.rerere.rikkahub.ui.pages.group.components.NewGroupDialog
 import me.rerere.rikkahub.ui.pages.group.components.GroupBackground
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.ui.pages.chat.ChatList
+import me.rerere.rikkahub.ui.pages.chat.rememberChatSelectionState
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.rikkahub.data.model.compressionThreshold
@@ -153,8 +154,10 @@ fun GroupChatContent(
                 key(conversationId) {
                     CompositionLocalProvider(LocalGroupChatContext provides group) {
                     ChatList(innerPadding = contentPadding, conversation = conversation!!,
-                        state = listState, loading = loadingJob != null, processingStatus = processingStatus,
-                        previewMode = false, settings = settings, hazeState = hazeState,
+                        state = listState, previewListState = rememberLazyListState(),
+                        selectionState = rememberChatSelectionState(), loading = loadingJob != null,
+                        processingStatus = processingStatus, previewMode = false, onPreviewModeChange = {},
+                        settings = settings, hazeState = hazeState,
                         errors = errors.filter { it.conversationId == conversationId },
                         onDismissError = vm::dismissError, onClearAllErrors = vm::clearErrors,
                         onRegenerate = vm::regenerate, onDelete = vm::deleteMessage,

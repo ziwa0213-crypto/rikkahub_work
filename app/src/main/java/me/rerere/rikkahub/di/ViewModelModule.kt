@@ -41,6 +41,7 @@ val viewModelModule = module {
             analytics = get(),
             filesManager = get(),
             favoriteRepository = get(),
+            backgroundShellManager = get(),
         )
     }
     viewModelOf(::ChatDrawerVM)
@@ -110,6 +111,7 @@ val viewModelModule = module {
             terminalSessionManager = get(),
             rootfsCatalog = get(),
             context = get(),
+            backgroundShellManager = get(),
         )
     }
     viewModel<WorkspaceSshEditorVM> {

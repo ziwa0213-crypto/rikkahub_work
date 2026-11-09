@@ -40,6 +40,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -96,6 +98,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
@@ -104,7 +107,7 @@ import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
-import me.rerere.rikkahub.service.MessageQueueState
+import me.rerere.rikkahub.service.InboxState
 import me.rerere.rikkahub.service.QueuedMessage
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
@@ -144,11 +147,13 @@ fun ChatInput(
     onCancelClick: () -> Unit,
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
-    messageQueue: MessageQueueState = MessageQueueState(),
+    messageQueue: InboxState = InboxState(),
     onRemoveQueuedMessage: (Uuid) -> Unit = {},
     onBeginEditQueuedMessage: (Uuid) -> QueuedMessage? = { null },
     onFinishEditQueuedMessage: (Uuid, List<UIMessagePart>?) -> Unit = { _, _ -> },
-    onResumeMessageQueue: () -> Unit = {},
+    onResumeInbox: () -> Unit = {},
+    runningBackgroundTasks: Int = 0,
+    onShowBackgroundTasks: () -> Unit = {},
     onStartVoiceMode: (() -> Unit)? = null,
     voiceState: VoiceSessionState = VoiceSessionState(),
     onStopVoiceMode: () -> Unit = {},
@@ -261,7 +266,7 @@ fun ChatInput(
                 onRemove = onRemoveQueuedMessage,
                 onBeginEdit = onBeginEditQueuedMessage,
                 onFinishEdit = onFinishEditQueuedMessage,
-                onResume = onResumeMessageQueue,
+                onResume = onResumeInbox,
             )
             Surface(
                 modifier = Modifier
@@ -315,29 +320,34 @@ fun ChatInput(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            // Model Picker
-                            if (!groupMode && !pulseMode) {
-                                ModelSelectorButton(
-                                    state = modelListState,
-                                    onlyIcon = true,
-                                    modifier = Modifier,
-                                )
-                            }
-
-                            // Reasoning
-                            if (reasoningAvailable ?: (chatModel?.abilities?.contains(ModelAbility.REASONING) == true)) {
-                                ReasoningButton(
-                                    reasoningLevel = assistant.reasoningLevel,
-                                    onUpdateReasoningLevel = {
-                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
-                                    },
-                                    onlyIcon = true,
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                // Model Picker
+                                if (!groupMode && !pulseMode) {
+                                    ModelSelectorButton(
+                                        state = modelListState,
+                                        onlyIcon = true,
+                                        modifier = Modifier,
+                                    )
+                                }
+                                // Reasoning
+                                if (reasoningAvailable ?: (chatModel?.abilities?.contains(ModelAbility.REASONING) == true)) {
+                                    ReasoningButton(
+                                        reasoningLevel = assistant.reasoningLevel,
+                                        onUpdateReasoningLevel = {
+                                            onUpdateAssistant(assistant.copy(reasoningLevel = it))
+                                        },
+                                        onlyIcon = true,
+                                    )
+                                }
                             }
 
                             // Tool approval (F004)
@@ -346,6 +356,12 @@ fun ChatInput(
                                 onUpdateMode = { onUpdateAssistant(assistant.copy(toolApprovalMode = it)) },
                                 onlyIcon = true,
                             )
+                            if (runningBackgroundTasks > 0) {
+                                BackgroundTasksButton(
+                                    running = runningBackgroundTasks,
+                                    onClick = onShowBackgroundTasks,
+                                )
+                            }
                         }
 
                         ActionIconButton(
@@ -454,6 +470,29 @@ private fun SendButton(
             tint = contentColor,
             modifier = Modifier.size(18.dp)
         )
+    }
+}
+
+@Composable
+private fun BackgroundTasksButton(
+    running: Int,
+    onClick: () -> Unit,
+) {
+    BadgedBox(
+        modifier = Modifier.padding(horizontal = 5.dp),
+        badge = {
+            Badge(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) { Text(running.toString()) }
+        },
+    ) {
+        ActionIconButton(onClick = onClick) {
+            Icon(
+                imageVector = HugeIcons.ComputerTerminal01,
+                contentDescription = stringResource(R.string.background_tasks_running, running),
+            )
+        }
     }
 }
 

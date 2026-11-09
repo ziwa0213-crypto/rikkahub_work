@@ -59,20 +59,25 @@ data class LiquidGlassInputBounds(
     val height: Int,
 )
 
+data class LiquidGlassRegion(
+    val key: String,
+    val bounds: LiquidGlassInputBounds,
+    val cornerRadiusPx: Float,
+    val tintColor: Color,
+    val alpha: Float = 1f,
+    val refractionScale: Float = 1f,
+)
+
 @Composable
 fun LiquidGlassChatHost(
     sourceContent: @Composable () -> Unit,
     inputContent: @Composable () -> Unit,
-    inputBounds: LiquidGlassInputBounds?,
-    tintColor: Color,
+    regions: List<LiquidGlassRegion>,
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 28.dp,
 ) {
     val parentCompositionContext = rememberCompositionContext()
     val sourceContentState = remember { mutableStateOf<@Composable () -> Unit>({}) }
     val inputContentState = remember { mutableStateOf<@Composable () -> Unit>({}) }
-    val density = LocalDensity.current
-    val cornerRadiusPx = with(density) { cornerRadius.toPx() }
     SideEffect {
         sourceContentState.value = sourceContent
         inputContentState.value = inputContent
@@ -101,32 +106,6 @@ fun LiquidGlassChatHost(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     ),
                 )
-                val glassView = try {
-                    LiquidGlassView(context).apply {
-                        isClickable = false
-                        isFocusable = false
-                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        setDraggableEnabled(false)
-                        setElasticEnabled(false)
-                        setTouchEffectEnabled(false)
-                        setCornerRadius(cornerRadiusPx)
-                        setTintAlpha(0.18f)
-                        setTintColorRed(tintColor.red)
-                        setTintColorGreen(tintColor.green)
-                        setTintColorBlue(tintColor.blue)
-                        setTag(R.id.liquid_glass_tint, floatArrayOf(tintColor.red, tintColor.green, tintColor.blue))
-                        setRenderFailureListener(LiquidGlassCircuitBreaker::disable)
-                        visibility = View.GONE
-                        bind(sourceView)
-                    }
-                } catch (error: RuntimeException) {
-                    LiquidGlassCircuitBreaker.disable(error)
-                    null
-                }
-                if (glassView != null) {
-                    addView(glassView, FrameLayout.LayoutParams(0, 0))
-                    setTag(R.id.liquid_glass_surface, glassView)
-                }
                 addView(
                     inputView,
                     FrameLayout.LayoutParams(
@@ -137,25 +116,54 @@ fun LiquidGlassChatHost(
                 )
                 setTag(R.id.liquid_glass_source, sourceView)
                 setTag(R.id.liquid_glass_input, inputView)
+                setTag(R.id.liquid_glass_surface, HashMap<String, LiquidGlassView>())
             }
         },
         update = { host ->
             val sourceView = host.getTag(R.id.liquid_glass_source) as? ViewGroup
-            val glassView = host.getTag(R.id.liquid_glass_surface) as? LiquidGlassView
-            if (sourceView != null && glassView != null && !LiquidGlassCircuitBreaker.unavailable.value) {
-                try {
-                    val tint = floatArrayOf(tintColor.red, tintColor.green, tintColor.blue)
-                    val previousTint = glassView.getTag(R.id.liquid_glass_tint) as? FloatArray
-                    if (previousTint == null || !previousTint.contentEquals(tint)) {
-                        glassView.setTintColorRed(tint[0])
-                        glassView.setTintColorGreen(tint[1])
-                        glassView.setTintColorBlue(tint[2])
-                        glassView.setTag(R.id.liquid_glass_tint, tint)
+            @Suppress("UNCHECKED_CAST")
+            val glassViews = host.getTag(R.id.liquid_glass_surface) as? HashMap<String, LiquidGlassView>
+            if (sourceView != null && glassViews != null && !LiquidGlassCircuitBreaker.unavailable.value) {
+                val activeRegions = regions.filter { it.alpha > 0.01f }
+                val activeKeys = activeRegions.mapTo(HashSet()) { it.key }
+                glassViews.keys.filterNot(activeKeys::contains).toList().forEach { key ->
+                    host.removeView(glassViews.remove(key))
+                }
+                activeRegions.forEach { region ->
+                    val glassView = glassViews[region.key] ?: try {
+                        LiquidGlassView(host.context).apply {
+                            isClickable = false
+                            isFocusable = false
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                            setDraggableEnabled(false)
+                            setElasticEnabled(false)
+                            setTouchEffectEnabled(false)
+                            setTintAlpha(0.18f)
+                            setRenderFailureListener(LiquidGlassCircuitBreaker::disable)
+                            visibility = View.GONE
+                            bind(sourceView)
+                        }.also { view ->
+                            host.addView(view, FrameLayout.LayoutParams(0, 0))
+                            glassViews[region.key] = view
+                        }
+                    } catch (error: RuntimeException) {
+                        LiquidGlassCircuitBreaker.disable(error)
+                        return@forEach
                     }
-                    updateGlassBounds(host, glassView, inputBounds)
-                } catch (error: RuntimeException) {
-                    LiquidGlassCircuitBreaker.disable(error)
-                    glassView.visibility = View.GONE
+                    try {
+                        val tint = floatArrayOf(region.tintColor.red, region.tintColor.green, region.tintColor.blue)
+                        val previousTint = glassView.getTag(R.id.liquid_glass_tint) as? FloatArray
+                        if (previousTint == null || !previousTint.contentEquals(tint)) {
+                            glassView.setTintColorRed(tint[0])
+                            glassView.setTintColorGreen(tint[1])
+                            glassView.setTintColorBlue(tint[2])
+                            glassView.setTag(R.id.liquid_glass_tint, tint)
+                        }
+                        updateGlassBounds(host, glassView, region)
+                    } catch (error: RuntimeException) {
+                        LiquidGlassCircuitBreaker.disable(error)
+                        glassView.visibility = View.GONE
+                    }
                 }
             }
         },
@@ -165,8 +173,9 @@ fun LiquidGlassChatHost(
 private fun updateGlassBounds(
     host: FrameLayout,
     glass: LiquidGlassView,
-    bounds: LiquidGlassInputBounds?,
+    region: LiquidGlassRegion,
 ) {
+    val bounds = region.bounds
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) {
         glass.visibility = View.GONE
         return
@@ -185,9 +194,11 @@ private fun updateGlassBounds(
 
     val density = glass.resources.displayMetrics.density
     val heightDp = bounds.height / density
-    glass.setRefractionHeight((heightDp * 0.45f).coerceIn(16f, 32f) * density)
-    glass.setRefractionOffset((heightDp * 0.35f).coerceIn(14f, 28f) * density)
+    glass.setCornerRadius(region.cornerRadiusPx)
+    glass.setRefractionHeight((heightDp * 0.45f).coerceIn(16f, 32f) * region.refractionScale * density)
+    glass.setRefractionOffset((heightDp * 0.35f).coerceIn(14f, 28f) * region.refractionScale * density)
     glass.setBlurRadius(0f)
+    glass.alpha = region.alpha
     glass.visibility = View.VISIBLE
     glass.refreshConfig()
     glass.doOnPreDraw {

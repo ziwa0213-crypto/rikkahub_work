@@ -22,7 +22,7 @@ import kotlinx.coroutines.withTimeout
 import me.rerere.asr.ASRController
 import me.rerere.asr.ASRStatus
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.service.MessageQueuePausedException
+import me.rerere.rikkahub.service.InboxPausedException
 
 enum class VoicePhase { Off, Connecting, Listening, Transcribing, Waiting, Speaking, Error }
 
@@ -71,7 +71,7 @@ class VoiceSessionController(
                         phase = VoicePhase.Error,
                         error = when (e) {
                             is TimeoutCancellationException -> "Speech recognition timed out. Restart voice mode."
-                            is MessageQueuePausedException -> getString(R.string.chat_page_voice_queue_paused)
+                            is InboxPausedException -> getString(R.string.chat_page_voice_queue_paused)
                             else -> e.message ?: getString(R.string.chat_page_voice_failed)
                         },
                     )

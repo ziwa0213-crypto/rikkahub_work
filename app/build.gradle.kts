@@ -28,7 +28,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 201
-        versionName = "3.1.1-work.3"
+        versionName = "3.1.2-work.1"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
@@ -328,10 +328,12 @@ dependencies {
     implementation(libs.image.viewer)
 
     // JLatexMath
-    // https://github.com/rikkahub/jlatexmath-android
-    implementation(libs.jlatexmath)
-    implementation(libs.jlatexmath.font.greek)
-    implementation(libs.jlatexmath.font.cyrillic)
+    // https://github.com/re-ovo/bettertext
+    implementation(platform(libs.bettertext.bom))
+    implementation(libs.bettertext.text)
+    implementation(libs.bettertext.markdown)
+    implementation(libs.bettertext.latex)
+    implementation(libs.bettertext.highlight)
 
     // mcp
     implementation(libs.modelcontextprotocol.kotlin.sdk)
@@ -350,7 +352,6 @@ dependencies {
     implementation(project(":ai"))
     implementation(project(":web"))
     implementation(project(":document"))
-    implementation(project(":highlight"))
     implementation(project(":search"))
     implementation(project(":speech"))
     implementation(project(":mediagen"))

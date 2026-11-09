@@ -10,7 +10,7 @@ import me.rerere.rikkahub.data.model.normalizeGroupData
 internal fun Settings.normalized(): Settings =
     withBuiltInDefaults().withoutInvalidReferences().withValuesInRange().normalizeGroupData()
 
-// 补齐缺失的内置提供商/助手/TTS，内置提供商的描述信息始终以代码里的为准
+// 补齐缺失的内置提供商/助手/TTS，内置提供商和推荐提供商的描述信息始终以代码里的为准
 internal fun Settings.withBuiltInDefaults(): Settings {
     var providers = this.providers.ifEmpty { DEFAULT_PROVIDERS }.toMutableList()
     DEFAULT_PROVIDERS.forEach { defaultProvider ->
@@ -20,13 +20,22 @@ internal fun Settings.withBuiltInDefaults(): Settings {
     }
     providers = providers.map { provider ->
         val defaultProvider = DEFAULT_PROVIDERS.find { it.id == provider.id }
-        if (defaultProvider != null) {
-            provider.copyProvider(
+        val recommendedProvider = RECOMMENDED_PROVIDERS.find { it.id == provider.id }
+        when {
+            defaultProvider != null -> provider.copyProvider(
                 builtIn = defaultProvider.builtIn,
                 description = defaultProvider.description,
                 shortDescription = defaultProvider.shortDescription,
             )
-        } else provider
+
+            // 描述不落盘，从推荐列表添加的提供商读盘后按 id 补回
+            recommendedProvider != null -> provider.copyProvider(
+                description = recommendedProvider.description,
+                shortDescription = recommendedProvider.shortDescription,
+            )
+
+            else -> provider
+        }
     }.toMutableList()
     val assistants = this.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
     DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
@@ -91,7 +100,7 @@ internal fun Settings.withoutInvalidReferences(): Settings {
         selectedASRProviderId = settings.selectedASRProviderId
             ?.takeIf { id -> asrProviders.any { provider -> provider.id == id } }
             ?: asrProviders.firstOrNull()?.id,
-        favoriteModels = settings.favoriteModels.filter { it in validModelIds },
+        favoriteModels = settings.favoriteModels.filter { it in validModelIds }.distinct(),
         modeInjections = settings.modeInjections.distinctBy { it.id },
         lorebooks = settings.lorebooks.distinctBy { it.id },
         quickMessages = settings.quickMessages.distinctBy { it.id },

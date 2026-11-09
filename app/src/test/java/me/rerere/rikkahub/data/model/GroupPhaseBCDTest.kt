@@ -5,7 +5,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.service.MessageQueue
+import me.rerere.rikkahub.service.ConversationInbox
+import me.rerere.rikkahub.service.InboxTurn
 import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.*
 import org.junit.Test
@@ -128,7 +129,7 @@ class GroupPhaseBCDTest {
     }
 
     @Test fun queuedQuoteSurvivesPauseAndEditAndSingleChatDefaultStaysEmpty() {
-        val queue = MessageQueue()
+        val queue = ConversationInbox()
         val quote = UIMessage.user("target").groupQuote("Owner")
         queue.pause()
         queue.enqueue(listOf(UIMessagePart.Text("body")), annotations = listOf(quote))
@@ -137,8 +138,8 @@ class GroupPhaseBCDTest {
         queue.finishEdit(pending.id, listOf(UIMessagePart.Text("edited")))
         assertNull(queue.takeNext())
         queue.resume()
-        assertEquals(listOf(quote), queue.takeNext()!!.annotations)
+        assertEquals(listOf(quote), (queue.takeNext() as InboxTurn.Message).message.annotations)
         queue.enqueue(listOf(UIMessagePart.Text("single chat")))
-        assertTrue(queue.takeNext()!!.annotations.isEmpty())
+        assertTrue((queue.takeNext() as InboxTurn.Message).message.annotations.isEmpty())
     }
 }

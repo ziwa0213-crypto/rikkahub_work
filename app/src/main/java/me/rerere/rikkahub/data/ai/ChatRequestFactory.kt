@@ -7,6 +7,7 @@ import me.rerere.ai.agent.AgentHooks
 import me.rerere.ai.agent.AgentRequest
 import me.rerere.ai.agent.RetryPolicy
 import me.rerere.ai.agent.StepRequest
+import me.rerere.ai.agent.expandNotices
 import me.rerere.ai.agent.withRetry
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
@@ -17,6 +18,7 @@ import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
@@ -149,13 +151,14 @@ class ChatRequestFactory(
 
     /**
      * 本轮交给 runAgent 的请求和钩子。[messages] 的最后一条是助手消息时从它继续，否则新建一条助手消息。
-     * [processingStatus] 用来显示 OCR 这类输入转换的进度。
+     * [processingStatus] 用来显示 OCR 这类输入转换的进度；[takePendingParts] 取出要在请求模型前写进助手消息的通知。
      */
     fun createAgent(
         turn: ChatTurnContext,
         messages: List<UIMessage>,
         processingStatus: MutableStateFlow<String?>,
         finishTransform: (UIMessage) -> UIMessage = { it },
+        takePendingParts: suspend () -> List<UIMessagePart> = { emptyList() },
     ): Pair<AgentRequest, AgentHooks> {
         // Approval resumption can start with existing tools, before prepareStep/finishStep run.
         messages.lastOrNull()?.let { validateDeepSeekWebToolCalls(turn.providerSetting, it) }
@@ -193,6 +196,8 @@ class ChatRequestFactory(
                         .onGenerationFinish(outputTransformers, context, turn.model, turn.assistant, turn.settings)
                 })
             }
+
+            override suspend fun pendingParts() = takePendingParts()
         }
         return request to hooks
     }
@@ -290,7 +295,7 @@ class ChatRequestFactory(
             settings = turn.settings,
             processingStatus = processingStatus,
             workspaceCwd = turn.workspaceCwd,
-        )
+        ).expandNotices()
         val params = TextGenerationParams(
             model = turn.model,
             temperature = assistant.temperature,

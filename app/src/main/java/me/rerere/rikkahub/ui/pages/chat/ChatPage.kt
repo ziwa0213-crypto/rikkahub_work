@@ -9,18 +9,26 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
@@ -37,7 +45,9 @@ import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,12 +60,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.rerere.ui.components.RikkaConfirmDialog
 import me.rerere.ui.toast.ToastType
+import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Job
@@ -67,10 +80,13 @@ import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
+import me.rerere.hugeicons.stroke.MoreVertical
+import me.rerere.hugeicons.stroke.Share04
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
@@ -88,13 +104,17 @@ import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.toInputAssistant
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.service.BackgroundShellStatus
 import me.rerere.rikkahub.service.ChatError
+import me.rerere.rikkahub.ui.components.ai.BackgroundTasksSheet
 import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassChatHost
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassCircuitBreaker
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassInputBounds
+import me.rerere.rikkahub.ui.components.ai.LiquidGlassRegion
 import me.rerere.rikkahub.ui.components.ai.shouldUseNativeLiquidGlass
+import me.rerere.rikkahub.ui.components.ai.ChatTopBarCapsule
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
 import me.rerere.rikkahub.ui.components.ai.SearchMode
 import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
@@ -438,7 +458,7 @@ private fun GroupChatHost(
             onRemoveQueuedMessage = { groupVm.removeQueuedMessage(it) },
             onBeginEditQueuedMessage = { groupVm.beginEditQueuedMessage(it) },
             onFinishEditQueuedMessage = { id, parts -> groupVm.finishEditQueuedMessage(id, parts) },
-            onResumeMessageQueue = { groupVm.resumeMessageQueue() },
+            onResumeInbox = { groupVm.resumeInbox() },
             forceLiquidGlass = drawLiquidGlass,
             onInputHeightChanged = { height -> inputHeightPx = height },
             onInputPanelBoundsChanged = if (drawLiquidGlass) { { x, y, size ->
@@ -468,8 +488,16 @@ private fun GroupChatHost(
                         )
                     },
                     inputContent = { inputContent(true) },
-                    inputBounds = inputPanelBounds,
-                    tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    regions = inputPanelBounds?.let {
+                        listOf(
+                            LiquidGlassRegion(
+                                key = "input",
+                                bounds = it,
+                                cornerRadiusPx = with(LocalDensity.current) { 28.dp.toPx() },
+                                tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            )
+                        )
+                    }.orEmpty(),
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -654,6 +682,8 @@ private fun ChatPageContent(
     val pulseWorkspaceSetup = if (conversation.isPulseChat()) rememberPulseWorkspaceSetup(setting.pulse) else null
 
     var previewMode by rememberSaveable { mutableStateOf(false) }
+    val selectionState = rememberChatSelectionState()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val hazeState = rememberHazeState()
     var showFilesSheet by remember { mutableStateOf(false) }
     val attachmentPickerActions = rememberChatAttachmentPickerActions(
@@ -679,6 +709,15 @@ private fun ChatPageContent(
     pulseWorkspaceSetup?.overlays?.invoke()
     if (!conversation.isPulseChat()) TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
+    // 上游消息概览只用于普通聊天；脉搏模式继续使用原有顶栏与输入交互。
+    val previewListState = rememberLazyListState()
+    val listScrolledUnderTopBar by remember(chatListState, previewListState) {
+        derivedStateOf {
+            if (previewMode) previewListState.canScrollBackward else chatListState.canScrollBackward
+        }
+    }
+    BackHandler(previewMode) { previewMode = false }
+
     val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
     val useLiquidHost = shouldUseNativeLiquidGlass(
         apiLevel = Build.VERSION.SDK_INT,
@@ -689,6 +728,23 @@ private fun ChatPageContent(
     val layoutDirection = LocalLayoutDirection.current
     var inputPanelBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
     var inputHeightPx by remember { mutableStateOf(0) }
+    var topStartBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var topEndBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var topStartAlpha by remember { mutableFloatStateOf(0f) }
+    var topEndAlpha by remember { mutableFloatStateOf(0f) }
+    val backgroundTasks by vm.backgroundTasks.collectAsStateWithLifecycle()
+    var showBackgroundTasks by remember { mutableStateOf(false) }
+
+    LaunchedEffect(bigScreen, conversation.isPulseChat()) {
+        if (bigScreen || conversation.isPulseChat()) {
+            topStartBounds = null
+            topStartAlpha = 0f
+        }
+        if (conversation.isPulseChat()) {
+            topEndBounds = null
+            topEndAlpha = 0f
+        }
+    }
 
     val inputContent: @Composable (Boolean) -> Unit = { drawLiquidGlass ->
         val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
@@ -702,7 +758,9 @@ private fun ChatPageContent(
             onRemoveQueuedMessage = vm::removeQueuedMessage,
             onBeginEditQueuedMessage = vm::beginEditQueuedMessage,
             onFinishEditQueuedMessage = vm::finishEditQueuedMessage,
-            onResumeMessageQueue = vm::resumeMessageQueue,
+            onResumeInbox = vm::resumeInbox,
+            runningBackgroundTasks = backgroundTasks.count { it.status == BackgroundShellStatus.RUNNING },
+            onShowBackgroundTasks = { showBackgroundTasks = true },
             loading = loadingJob != null,
             settings = setting,
             assistant = assistant,
@@ -775,12 +833,33 @@ private fun ChatPageContent(
                     conversation = conversation,
                     bigScreen = bigScreen,
                     drawerState = drawerState,
+                    hazeState = hazeState,
+                    showCapsuleBackground = listScrolledUnderTopBar && !conversation.isPulseChat(),
+                    forceLiquidGlass = useLiquidHost && !conversation.isPulseChat(),
                     previewMode = previewMode,
+                    onTogglePreview = { previewMode = !previewMode },
+                    onTopStartGlassChanged = { bounds, alpha ->
+                        if (topStartBounds != bounds) topStartBounds = bounds
+                        if (topStartAlpha != alpha) topStartAlpha = alpha
+                    },
+                    onTopEndGlassChanged = { bounds, alpha ->
+                        if (topEndBounds != bounds) topEndBounds = bounds
+                        if (topEndAlpha != alpha) topEndAlpha = alpha
+                    },
                     onNewChat = {
                         navigateToChatPage(navController)
                     },
-                    onClickMenu = {
-                        previewMode = !previewMode
+                    onShowOverview = {
+                        selectionState.selecting = false
+                        previewMode = true
+                    },
+                    onExport = {
+                        // 跟消息上的分享一样进入多选，默认全选，用户可以再挑
+                        previewMode = false
+                        selectionState.start(conversation.messageNodes.map { it.id })
+                    },
+                    onDelete = {
+                        showDeleteConfirm = true
                     },
                     onUpdateTitle = {
                         vm.updateTitle(it)
@@ -807,9 +886,12 @@ private fun ChatPageContent(
                 ) else innerPadding,
                 conversation = conversation,
                 state = chatListState,
+                previewListState = previewListState,
+                selectionState = selectionState,
                 loading = loadingJob != null,
                 processingStatus = processingStatus,
                 previewMode = previewMode,
+                onPreviewModeChange = { previewMode = it },
                 settings = setting,
                 hazeState = hazeState,
                 errors = errors,
@@ -874,14 +956,55 @@ private fun ChatPageContent(
     }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         if (useLiquidHost) {
+            val regions = buildList {
+                inputPanelBounds?.let {
+                    add(
+                        LiquidGlassRegion(
+                            key = "input",
+                            bounds = it,
+                            cornerRadiusPx = with(density) { 28.dp.toPx() },
+                            tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        )
+                    )
+                }
+                if (!conversation.isPulseChat()) {
+                    if (topStartAlpha > 0.01f) topStartBounds?.let {
+                        add(LiquidGlassRegion("topStart", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topStartAlpha, 0.45f))
+                    }
+                    if (topEndAlpha > 0.01f) topEndBounds?.let {
+                        add(LiquidGlassRegion("topEnd", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topEndAlpha, 0.45f))
+                    }
+                }
+            }
             LiquidGlassChatHost(
                 sourceContent = body,
                 inputContent = { inputContent(true) },
-                inputBounds = inputPanelBounds,
-                tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                regions = regions,
                 modifier = Modifier.fillMaxSize(),
             )
         } else body()
+        if (showBackgroundTasks) {
+            BackgroundTasksSheet(
+                tasks = backgroundTasks,
+                onStop = vm::stopBackgroundTask,
+                onDismiss = { showBackgroundTasks = false },
+            )
+        }
+        RikkaConfirmDialog(
+            show = showDeleteConfirm,
+            title = stringResource(R.string.confirm_delete),
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
+            onConfirm = {
+                showDeleteConfirm = false
+                scope.launch {
+                    vm.deleteConversation(conversation).join()
+                    navigateToChatPage(navController)
+                }
+            },
+            onDismiss = { showDeleteConfirm = false },
+            text = { Text(stringResource(R.string.chat_page_delete_conversation_confirm)) },
+        )
         if (showFilesSheet) {
             ChatFilesPickerSheet(
                 inputState = inputState,
@@ -979,9 +1102,17 @@ private fun TopBar(
     conversation: Conversation,
     drawerState: DrawerState,
     bigScreen: Boolean,
+    hazeState: HazeState,
+    showCapsuleBackground: Boolean,
+    forceLiquidGlass: Boolean,
     previewMode: Boolean,
-    onClickMenu: () -> Unit,
+    onTogglePreview: () -> Unit,
+    onTopStartGlassChanged: (LiquidGlassInputBounds?, Float) -> Unit,
+    onTopEndGlassChanged: (LiquidGlassInputBounds?, Float) -> Unit,
     onNewChat: () -> Unit,
+    onShowOverview: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
     onUpdateTitle: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -993,12 +1124,25 @@ private fun TopBar(
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
         navigationIcon = {
-            if (!bigScreen) {
-                IconButton(
-                    onClick = {
-                        scope.launch { drawerState.open() }
-                    }
+            if (!bigScreen && !conversation.isPulseChat()) {
+                ChatTopBarCapsule(
+                    hazeState = hazeState,
+                    displaySetting = settings.displaySetting,
+                    showBackground = showCapsuleBackground,
+                    forceLiquidGlass = forceLiquidGlass,
+                    onGlassBoundsChanged = onTopStartGlassChanged,
+                    modifier = Modifier.padding(start = 8.dp, end = 4.dp),
                 ) {
+                    IconButton(
+                        onClick = {
+                            scope.launch { drawerState.open() }
+                        }
+                    ) {
+                        Icon(HugeIcons.Menu03, "Messages")
+                    }
+                }
+            } else if (!bigScreen) {
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
                     Icon(HugeIcons.Menu03, "Messages")
                 }
             }
@@ -1045,16 +1189,34 @@ private fun TopBar(
             }
         },
         actions = {
-            IconButton(
-                onClick = {
-                    onClickMenu()
+            if (conversation.isPulseChat()) {
+                IconButton(
+                    onClick = onTogglePreview,
+                ) {
+                    Icon(
+                        if (previewMode) HugeIcons.Cancel01 else HugeIcons.LeftToRightListBullet,
+                        "Chat Options",
+                    )
                 }
-            ) {
-                Icon(if (previewMode) HugeIcons.Cancel01 else HugeIcons.LeftToRightListBullet, "Chat Options")
-            }
-
-            if (!conversation.isPulseChat()) IconButton(onClick = onNewChat) {
-                Icon(HugeIcons.MessageAdd01, "New Message")
+            } else {
+                ChatTopBarCapsule(
+                    hazeState = hazeState,
+                    displaySetting = settings.displaySetting,
+                    showBackground = showCapsuleBackground,
+                    forceLiquidGlass = forceLiquidGlass,
+                    onGlassBoundsChanged = onTopEndGlassChanged,
+                    modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+                ) {
+                    IconButton(onClick = onNewChat) {
+                        Icon(HugeIcons.MessageAdd01, "New Message")
+                    }
+                    ChatPageMenu(
+                        enabled = conversation.messageNodes.isNotEmpty(),
+                        onShowOverview = onShowOverview,
+                        onExport = onExport,
+                        onDelete = onDelete,
+                    )
+                }
             }
         },
     )
@@ -1093,5 +1255,81 @@ private fun TopBar(
                 }
             }
         )
+    }
+}
+
+// 顶栏右侧的会话菜单；空对话没有内容可概览、导出或删除，菜单项全部置灰
+@Composable
+private fun ChatPageMenu(
+    enabled: Boolean,
+    onShowOverview: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    @Composable
+    fun MenuItem(
+        text: String,
+        icon: ImageVector,
+        index: Int,
+        count: Int,
+        destructive: Boolean = false,
+        onClick: () -> Unit,
+    ) {
+        DropdownMenuItem(
+            text = { Text(text) },
+            onClick = {
+                expanded = false
+                onClick()
+            },
+            shape = MenuDefaults.itemShape(index = index, count = count).shape,
+            leadingIcon = { Icon(icon, contentDescription = null) },
+            enabled = enabled,
+            colors = if (destructive) {
+                val errorColor = MaterialTheme.colorScheme.error
+                MenuDefaults.itemColors(textColor = errorColor, leadingIconColor = errorColor)
+            } else {
+                MenuDefaults.itemColors()
+            },
+        )
+    }
+
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(HugeIcons.MoreVertical, stringResource(R.string.more_options))
+        }
+        DropdownMenuPopup(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 0, count = 2)) {
+                MenuItem(
+                    text = stringResource(R.string.chat_page_conversation_map),
+                    icon = HugeIcons.LeftToRightListBullet,
+                    index = 0,
+                    count = 2,
+                    onClick = onShowOverview,
+                )
+                MenuItem(
+                    text = stringResource(R.string.export_title),
+                    icon = HugeIcons.Share04,
+                    index = 1,
+                    count = 2,
+                    onClick = onExport,
+                )
+            }
+            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 1, count = 2)) {
+                MenuItem(
+                    text = stringResource(R.string.delete),
+                    icon = HugeIcons.Delete01,
+                    index = 0,
+                    count = 1,
+                    destructive = true,
+                    onClick = onDelete,
+                )
+            }
+        }
     }
 }

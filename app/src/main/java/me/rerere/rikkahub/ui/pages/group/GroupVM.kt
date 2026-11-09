@@ -103,8 +103,8 @@ class GroupVM(
         if (id == null) flowOf(null) else chatService.getProcessingStatusFlow(id)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val messageQueue = selectedConversationId.flatMapLatest { id ->
-        if (id == null) flowOf(me.rerere.rikkahub.service.MessageQueueState()) else chatService.getMessageQueueFlow(id)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, me.rerere.rikkahub.service.MessageQueueState())
+        if (id == null) flowOf(me.rerere.rikkahub.service.InboxState()) else chatService.getInboxFlow(id)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, me.rerere.rikkahub.service.InboxState())
     val conversations = combine(settings, selection) { settings, id -> settings.selectedGroup(id)?.conversationIds.orEmpty() }
         .distinctUntilChanged().flatMapLatest { conversationRepository.getGroupConversations(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -391,11 +391,11 @@ class GroupVM(
             catch (error: Exception) { chatService.addError(error, id) }
         }
     }
-    fun removeQueuedMessage(id: Uuid) = selectedConversationId.value?.let { chatService.removeQueuedMessage(it, id) }
+    fun removeQueuedMessage(id: Uuid) = selectedConversationId.value?.let { chatService.removeInboxItem(it, id) }
     fun beginEditQueuedMessage(id: Uuid) = selectedConversationId.value?.let { chatService.beginEditQueuedMessage(it, id) }
     fun finishEditQueuedMessage(id: Uuid, parts: List<me.rerere.ai.ui.UIMessagePart>?) =
         selectedConversationId.value?.let { chatService.finishEditQueuedMessage(it, id, parts) }
-    fun resumeMessageQueue() = selectedConversationId.value?.let { if (isAvailable(it)) chatService.resumeMessageQueue(it) }
+    fun resumeInbox() = selectedConversationId.value?.let { if (isAvailable(it)) chatService.resumeInbox(it) }
 
     fun selectGroup(id: Uuid) { selection.value = id }
 

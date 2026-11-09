@@ -21,6 +21,7 @@ import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
 import me.rerere.rikkahub.data.skills.SkillManager
+import me.rerere.rikkahub.service.BackgroundShellManager
 import me.rerere.workspace.WorkspaceShellStatus
 import java.io.File
 import kotlin.uuid.Uuid
@@ -49,6 +50,7 @@ class ChatToolFactory(
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
     private val pulseTasks: me.rerere.rikkahub.data.repository.PulseTaskRepository,
+    private val backgroundShellManager: BackgroundShellManager,
 ) {
     suspend fun createTools(
         settings: Settings,
@@ -67,6 +69,7 @@ class ChatToolFactory(
                 memoryScope != null -> setOf(null, "group")
                 else -> setOf(null, "chat")
             },
+            conversationId = conversationId,
         )
         val tools = buildList {
             if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID && settings.pulse.enableScheduledTasks) {
@@ -177,11 +180,12 @@ class ChatToolFactory(
     private suspend fun createWorkspaceToolsIfReady(
         workspaceId: String?,
         cwd: String?,
-        allowedOwners: Set<String?>,
+        allowedOwners: Set<String?>? = null,
+        conversationId: Uuid? = null,
     ): List<Tool> {
         if (workspaceId.isNullOrBlank()) return emptyList()
         val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
-        if (workspace.owner !in allowedOwners) {
+        if (allowedOwners != null && workspace.owner !in allowedOwners) {
             Log.w(TAG, "createWorkspaceToolsIfReady: skip workspace with wrong owner, workspace=$workspaceId")
             return emptyList()
         }
@@ -192,6 +196,6 @@ class ChatToolFactory(
             )
             return emptyList()
         }
-        return createWorkspaceTools(workspaceId, workspaceRepository, cwd)
+        return createWorkspaceTools(workspaceId, workspaceRepository, cwd, conversationId, backgroundShellManager)
     }
 }
