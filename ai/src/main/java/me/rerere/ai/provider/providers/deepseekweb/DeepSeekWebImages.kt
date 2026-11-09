@@ -7,6 +7,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.util.encodeBase64
 import me.rerere.ai.util.json
 import me.rerere.common.http.await
@@ -29,10 +30,14 @@ internal class DeepSeekWebImages(
     data class ImageData(val bytes: ByteArray, val mimeType: String)
     data class UploadedImages(val fileIds: List<String>, val references: Map<String, Int>)
 
-    suspend fun prepare(messages: List<UIMessage>, headers: Map<String, String>): UploadedImages {
+    suspend fun prepare(
+        messages: List<UIMessage>,
+        headers: Map<String, String>,
+        unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED,
+    ): UploadedImages {
         val images = messages.flatMap { message -> message.parts.flatMap { part ->
             if (part is UIMessagePart.Tool && DeepSeekWebToolPolicy.allows(part.toolName,
-                    part.inputAsJson() as? JsonObject ?: JsonObject(emptyMap()))) part.output
+                    part.inputAsJson() as? JsonObject ?: JsonObject(emptyMap()), unlock)) part.output
             else listOf(part)
         } }.filterIsInstance<UIMessagePart.Image>().distinctBy { it.url }
         if (images.size > MAX_IMAGES) throw DeepSeekWebImageException("At most $MAX_IMAGES image attachments per request")

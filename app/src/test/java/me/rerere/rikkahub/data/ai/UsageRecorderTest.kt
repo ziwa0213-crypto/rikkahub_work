@@ -108,6 +108,16 @@ private class FakeUsageRecordDAO : UsageRecordDAO {
 
     override suspend fun getTotals(since: Long) = UsageTotals()
 
+    override suspend fun getConversationTotals(conversationId: String, since: Long) = UsageTotals(
+        promptTokens = records.filter { it.conversationId == conversationId && it.createdAt >= since }.sumOf { it.promptTokens.toLong() },
+        completionTokens = records.filter { it.conversationId == conversationId && it.createdAt >= since }.sumOf { it.completionTokens.toLong() },
+        cachedTokens = records.filter { it.conversationId == conversationId && it.createdAt >= since }.sumOf { it.cachedTokens.toLong() },
+    )
+
+    override fun observeConversationTotals(conversationId: String, since: Long): Flow<UsageTotals> = flow {
+        emit(getConversationTotals(conversationId, since))
+    }
+
     override suspend fun getTotalsByBucket(format: String, since: Long) = emptyList<UsageBucket>()
 
     override suspend fun getTotalsByModel(since: Long) = emptyList<ModelUsage>()

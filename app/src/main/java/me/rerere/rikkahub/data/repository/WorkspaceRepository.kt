@@ -157,7 +157,7 @@ class WorkspaceRepository private constructor(
     suspend fun create(name: String, owner: String? = null): WorkspaceEntity =
         withContext(Dispatchers.IO) {
             lifecycleMutex.withLock {
-                require(owner == null || owner == "chat" || owner == "group") { "Invalid workspace owner" }
+                require(owner == null || owner == "chat" || owner == "group" || owner == "pulse") { "Invalid workspace owner" }
                 val finalName = name.trim().ifBlank { "Workspace" }
                 require(!isNameTaken(finalName, excludeId = null)) {
                     "Workspace name already exists: $finalName"
@@ -254,7 +254,7 @@ class WorkspaceRepository private constructor(
     }
 
     suspend fun setOwner(id: String, owner: String?): Boolean = lifecycleMutex.withLock {
-        require(owner == null || owner == "chat" || owner == "group") { "Invalid workspace owner" }
+        require(owner == null || owner == "chat" || owner == "group" || owner == "pulse") { "Invalid workspace owner" }
         val workspace = dao.getById(id) ?: return@withLock false
         dao.upsert(workspace.copy(owner = owner, updatedAt = System.currentTimeMillis()))
         true
@@ -467,6 +467,12 @@ class WorkspaceRepository private constructor(
     private suspend fun cleanupAssistantReferences(workspaceId: String) {
         updateSettings { settings ->
             settings.copy(
+                pulse = settings.pulse.copy(
+                    workspaceId = settings.pulse.workspaceId?.takeUnless { it.toString() == workspaceId },
+                    workspaceInitialized = if (settings.pulse.workspaceId?.toString() == workspaceId) false else settings.pulse.workspaceInitialized,
+                    enableFileWrite = if (settings.pulse.workspaceId?.toString() == workspaceId) false else settings.pulse.enableFileWrite,
+                    enableShell = if (settings.pulse.workspaceId?.toString() == workspaceId) false else settings.pulse.enableShell,
+                ),
                 assistants = settings.assistants.map { assistant ->
                     if (assistant.workspaceId?.toString() == workspaceId) assistant.copy(workspaceId = null) else assistant
                 },

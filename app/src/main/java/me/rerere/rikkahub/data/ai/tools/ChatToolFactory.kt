@@ -48,6 +48,7 @@ class ChatToolFactory(
     private val mcpManager: McpManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
+    private val pulseTasks: me.rerere.rikkahub.data.repository.PulseTaskRepository,
 ) {
     suspend fun createTools(
         settings: Settings,
@@ -58,8 +59,19 @@ class ChatToolFactory(
         conversationScopeAssistantId: Uuid? = assistant.id,
         conversationId: Uuid? = null,
     ): List<Tool> {
-        val workspaceTools = createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), workspaceCwd)
+        val workspaceTools = createWorkspaceToolsIfReady(
+            assistant.workspaceId?.toString(),
+            workspaceCwd,
+            allowedOwners = when {
+                assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID -> setOf("pulse")
+                memoryScope != null -> setOf(null, "group")
+                else -> setOf(null, "chat")
+            },
+        )
         val tools = buildList {
+            if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID && settings.pulse.enableScheduledTasks) {
+                add(me.rerere.rikkahub.data.ai.tools.pulse.pulseTaskTool(pulseTasks))
+            }
             if (assistant.enableMemory) {
                 addAll(buildMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
                 // Register even for an empty store, so the first explicit request can be saved.
@@ -70,7 +82,8 @@ class ChatToolFactory(
             }
             addAll(localTools.getTools(assistant.localTools, conversationId))
             if (assistant.enableRecentChatsReference) {
-                addAll(createConversationTools(conversationRepository, conversationScopeAssistantId))
+                addAll(createConversationTools(conversationRepository, conversationScopeAssistantId,
+                    pulse = assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID))
             }
             addAll(workspaceTools)
             if (assistant.enabledSkills.isNotEmpty()) {
@@ -104,11 +117,16 @@ class ChatToolFactory(
         }
         // 过长的输出存成文件让模型用 shell 按需读取；没有 shell 时模型读不到文件，只能原样返回
         val scoped = if (memoryScope == null) tools else tools.filterNot { it.name.startsWith("browser_") }
-        val allowed = if (model.findProvider(settings.providers) is ProviderSetting.DeepSeekWeb) {
-            scoped.filter { it.name in DeepSeekWebToolPolicy.allowedNames }.map { tool ->
+        val deepSeekWeb = model.findProvider(settings.providers, checkOverwrite = false) as? ProviderSetting.DeepSeekWeb
+        val allowed = if (deepSeekWeb != null) {
+            val unlock = deepSeekWeb.unlock
+            val allowedNames = DeepSeekWebToolPolicy.allowedNames(unlock)
+            scoped.filter {
+                it.name in allowedNames || (unlock.active.mcp && it.name.startsWith("mcp__", ignoreCase = true))
+            }.map { tool ->
                 val execute = tool.execute
                 tool.copy(execute = { args ->
-                    if (!DeepSeekWebToolPolicy.allows(tool.name, args.jsonObject)) {
+                    if (!DeepSeekWebToolPolicy.allows(tool.name, args.jsonObject, unlock)) {
                         throw DeepSeekWebCapabilityRefusalException(blockedToolName = tool.name)
                     }
                     execute(args)
@@ -119,7 +137,10 @@ class ChatToolFactory(
         val canReadToolOutputs = workspaceTools.isNotEmpty() &&
             assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.capabilities()?.rootfs == true
         val prepared = if (!canReadToolOutputs) allowed else allowed.map(::withOutputTruncation)
-        return applyApprovalMode(prepared, assistant.toolApprovalMode)
+        val modeTools = if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID) {
+            me.rerere.rikkahub.data.ai.tools.pulse.applyPulseToolPolicy(prepared, settings.pulse)
+        } else prepared
+        return applyApprovalMode(modeTools, assistant.toolApprovalMode)
     }
 
     private fun withOutputTruncation(tool: Tool): Tool {
@@ -153,9 +174,17 @@ class ChatToolFactory(
         ) + output.filter { it !is UIMessagePart.Text }
     }
 
-    private suspend fun createWorkspaceToolsIfReady(workspaceId: String?, cwd: String?): List<Tool> {
+    private suspend fun createWorkspaceToolsIfReady(
+        workspaceId: String?,
+        cwd: String?,
+        allowedOwners: Set<String?>,
+    ): List<Tool> {
         if (workspaceId.isNullOrBlank()) return emptyList()
         val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
+        if (workspace.owner !in allowedOwners) {
+            Log.w(TAG, "createWorkspaceToolsIfReady: skip workspace with wrong owner, workspace=$workspaceId")
+            return emptyList()
+        }
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) {
             Log.d(
                 TAG,

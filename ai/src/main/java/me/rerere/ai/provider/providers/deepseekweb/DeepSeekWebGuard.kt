@@ -1,6 +1,7 @@
 package me.rerere.ai.provider.providers.deepseekweb
 
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.DeepSeekWebUnlock
 
 class DeepSeekWebCapabilityRefusalException(
     val blockedToolName: String? = null,
@@ -48,25 +49,40 @@ object DeepSeekWebGuard {
     )
 
     fun refusal(provider: ProviderSetting?, text: String): DeepSeekWebCapabilityRefusalException? =
-        if (provider is ProviderSetting.DeepSeekWeb) refusal(text) else null
+        if (provider is ProviderSetting.DeepSeekWeb) refusal(text, provider.unlock) else null
 
-    internal fun refusal(text: String): DeepSeekWebCapabilityRefusalException? {
+    internal fun refusal(
+        text: String,
+        unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED,
+    ): DeepSeekWebCapabilityRefusalException? {
         val normalized = text.trim().lowercase()
         if (normalized.isBlank()) return null
         // A knowledge question cannot exempt a separate request to change local state.
         normalized.split(Regex("[。！？!?;；\\n]")).forEach { clause ->
             if (knowledgeQuestion.containsMatchIn(clause)) return@forEach
             namedToolRequest.find(clause)?.let {
-                return DeepSeekWebCapabilityRefusalException(blockedToolName = it.groupValues[1])
+                val name = it.groupValues[1]
+                if (!DeepSeekWebToolPolicy.isUnlocked(name, unlock)) {
+                    return DeepSeekWebCapabilityRefusalException(blockedToolName = name)
+                }
             }
             toolRequests.firstOrNull { (_, pattern) -> pattern.containsMatchIn(clause) }?.let { (tool, _) ->
-                return DeepSeekWebCapabilityRefusalException(blockedToolName = tool)
+                if (!DeepSeekWebToolPolicy.isUnlocked(tool, unlock)) {
+                    return DeepSeekWebCapabilityRefusalException(blockedToolName = tool)
+                }
             }
             if (executionRequest.containsMatchIn(clause)) {
-                return DeepSeekWebCapabilityRefusalException(isLocalExecution = true)
+                val tool = if (Regex("javascript|\\bjs\\b|网页代码|浏览器代码").containsMatchIn(clause)) {
+                    "eval_javascript"
+                } else "workspace_shell"
+                if (!DeepSeekWebToolPolicy.isUnlocked(tool, unlock)) {
+                    return DeepSeekWebCapabilityRefusalException(blockedToolName = tool, isLocalExecution = true)
+                }
             }
             if (strongPhrases.any(clause::contains) || actionWithTarget.any { it.containsMatchIn(clause) }) {
-                return DeepSeekWebCapabilityRefusalException()
+                if (!DeepSeekWebToolPolicy.isUnlocked("workspace_write_file", unlock)) {
+                    return DeepSeekWebCapabilityRefusalException(blockedToolName = "workspace_write_file")
+                }
             }
         }
         return null

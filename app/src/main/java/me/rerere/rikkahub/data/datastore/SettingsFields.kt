@@ -184,6 +184,7 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         json(GROUP_MEMBERS, Settings::groupMembers) { copy(groupMembers = it) },
         json(GROUPS, Settings::groups) { copy(groups = it) },
         json(GROUP_TAGS, Settings::groupTags) { copy(groupTags = it) },
+        json(PULSE, Settings::pulse) { copy(pulse = it) },
         SettingsField(UI_MODE, Settings::uiMode, { copy(uiMode = it) },
             encode = { it.name }, decode = { value -> UiMode.entries.find { it.name == value } ?: UiMode.CHAT }),
 

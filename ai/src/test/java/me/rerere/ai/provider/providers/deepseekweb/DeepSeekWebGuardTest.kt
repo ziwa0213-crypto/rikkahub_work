@@ -4,6 +4,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import org.junit.Test
 
 class DeepSeekWebGuardTest {
@@ -65,5 +66,19 @@ class DeepSeekWebGuardTest {
     @Test
     fun knowledgeQuestionDoesNotHideASeparateExecutionRequest() {
         assertNotNull(DeepSeekWebGuard.refusal("怎么执行 HTML？请帮我执行代码"))
+    }
+
+    @Test
+    fun localRefusalUsesTheSameIndependentCapabilityBoundaries() {
+        val calendarCreateOnly = DeepSeekWebUnlock(customEnabled = true, calendarCreate = true)
+        assertNull(DeepSeekWebGuard.refusal("新建一个日历事件", calendarCreateOnly))
+        assertNotNull(DeepSeekWebGuard.refusal("删除日历事件", calendarCreateOnly))
+
+        val shellOnly = DeepSeekWebUnlock(customEnabled = true, workspaceShell = true)
+        assertNull(DeepSeekWebGuard.refusal("帮我跑个脚本", shellOnly))
+        assertNotNull(DeepSeekWebGuard.refusal("帮我把结果存成 report.txt", shellOnly))
+
+        val mcpOnly = DeepSeekWebUnlock(customEnabled = true, mcp = true)
+        assertNull(DeepSeekWebGuard.refusal("调用 MCP 搜索 xxx", mcpOnly))
     }
 }

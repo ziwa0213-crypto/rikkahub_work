@@ -72,6 +72,7 @@ import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.data.datastore.findProvider
@@ -84,6 +85,7 @@ import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.compressionThreshold
 import me.rerere.rikkahub.data.model.enabledMembers
 import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.toInputAssistant
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.ChatError
@@ -106,6 +108,7 @@ import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.pages.group.GroupChatContent
 import me.rerere.rikkahub.ui.pages.group.GroupVM
 import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
+import me.rerere.rikkahub.ui.pages.pulse.rememberPulseWorkspaceSetup
 import me.rerere.rikkahub.utils.base64Decode
 import me.rerere.rikkahub.utils.navigateToChatPage
 import org.koin.androidx.compose.koinViewModel
@@ -223,7 +226,11 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     // 只在类型不一致时写一次，避免恢复阶段三⑥之前的无条件常量写回。
     LaunchedEffect(conversation.id, conversation.isGroupChat(), setting.uiMode, conversationLoaded) {
         if (!conversationLoaded || setting.init) return@LaunchedEffect
-        val target = if (conversation.isGroupChat()) UiMode.GROUP else UiMode.CHAT
+        val target = when {
+            conversation.isGroupChat() -> UiMode.GROUP
+            conversation.isPulseChat() -> UiMode.PULSE
+            else -> UiMode.CHAT
+        }
         if (setting.uiMode != target) {
             vm.updateSettings { current ->
                 if (current.uiMode == target) current else current.copy(uiMode = target)
@@ -644,6 +651,7 @@ private fun ChatPageContent(
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val workspaceRepository: WorkspaceRepository = koinInject()
+    val pulseWorkspaceSetup = if (conversation.isPulseChat()) rememberPulseWorkspaceSetup(setting.pulse) else null
 
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
@@ -668,7 +676,8 @@ private fun ChatPageContent(
         }.orEmpty()
     }
 
-    TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
+    pulseWorkspaceSetup?.overlays?.invoke()
+    if (!conversation.isPulseChat()) TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
     val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
     val useLiquidHost = shouldUseNativeLiquidGlass(
@@ -698,6 +707,7 @@ private fun ChatPageContent(
             settings = setting,
             assistant = assistant,
             chatModel = currentChatModel,
+            pulseMode = conversation.isPulseChat(),
             hazeState = hazeState,
             completionProviders = completionProviders,
             onCancelClick = {
@@ -757,6 +767,7 @@ private fun ChatPageContent(
         AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
         Scaffold(
             topBar = {
+                Column {
                 TopBar(
                     settings = setting,
                     assistant = assistant,
@@ -775,6 +786,12 @@ private fun ChatPageContent(
                         vm.updateTitle(it)
                     }
                 )
+                if (conversation.isPulseChat()) {
+                    me.rerere.rikkahub.ui.pages.pulse.PulseStatusRow(setting.pulse) {
+                        navController.navigate(Screen.PulseSettings(1))
+                    }
+                }
+                }
             },
             bottomBar = {
                 if (!useLiquidHost) inputContent(false)
@@ -798,6 +815,7 @@ private fun ChatPageContent(
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
+                pulseHeader = pulseWorkspaceSetup?.header,
                 onRegenerate = {
                     vm.regenerateAtMessage(it)
                 },
@@ -937,6 +955,7 @@ private fun ChatFilesPickerSheet(
             onPickAudio = attachmentPickerActions.onPickAudio,
             onPickFile = attachmentPickerActions.onPickFile,
             onSketch = attachmentPickerActions.onSketch,
+            pulseMode = conversation.isPulseChat(),
             onStartVoiceMode = if (
                 setting.getSelectedASRProvider()?.supportsServerVadVoiceMode == true &&
                 voiceState.phase == VoicePhase.Off
@@ -988,7 +1007,9 @@ private fun TopBar(
             val editTitleWarning = stringResource(R.string.chat_page_edit_title_warning)
             Surface(
                 onClick = {
-                    if (conversation.messageNodes.isNotEmpty()) {
+                    if (conversation.isPulseChat()) {
+                        return@Surface
+                    } else if (conversation.messageNodes.isNotEmpty()) {
                         titleState.open(conversation.title)
                     } else {
                         toaster.show(editTitleWarning, type = ToastType.Warning)
@@ -999,14 +1020,16 @@ private fun TopBar(
                 Column {
                     val provider = chatModel?.findProvider(providers = settings.providers, checkOverwrite = false)
                     Text(
-                        text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
+                        text = if (conversation.isPulseChat()) stringResource(R.string.group_mode_pulse)
+                            else conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
                         maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (chatModel != null && provider != null) {
                         Text(
-                            text = "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${chatModel.displayName} (${provider.name})",
+                            text = if (conversation.isPulseChat()) "${chatModel.displayName} (${provider.name})"
+                                else "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${chatModel.displayName} (${provider.name})",
                             overflow = TextOverflow.Ellipsis,
                             maxLines = 1,
                             color = LocalContentColor.current.copy(0.65f),
@@ -1014,6 +1037,9 @@ private fun TopBar(
                                 fontSize = 8.sp,
                             )
                         )
+                    } else if (conversation.isPulseChat()) {
+                        Text(stringResource(R.string.pulse_subtitle_unknown_model), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -1027,11 +1053,7 @@ private fun TopBar(
                 Icon(if (previewMode) HugeIcons.Cancel01 else HugeIcons.LeftToRightListBullet, "Chat Options")
             }
 
-            IconButton(
-                onClick = {
-                    onNewChat()
-                }
-            ) {
+            if (!conversation.isPulseChat()) IconButton(onClick = onNewChat) {
                 Icon(HugeIcons.MessageAdd01, "New Message")
             }
         },

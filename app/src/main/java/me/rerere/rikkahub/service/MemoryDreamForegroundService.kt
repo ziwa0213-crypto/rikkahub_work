@@ -31,7 +31,7 @@ class MemoryDreamForegroundService : Service() {
         private const val ACTION_RELEASE = "me.rerere.rikkahub.action.MEMORY_DREAM_RELEASE"
         private const val EXTRA_HOLD_ID = "hold_id"
 
-        const val NOTIFICATION_ID = 2004
+        const val NOTIFICATION_ID = 2006
 
         fun acquire(context: Context, holdId: String): Boolean {
             val intent = Intent(context, MemoryDreamForegroundService::class.java).apply {

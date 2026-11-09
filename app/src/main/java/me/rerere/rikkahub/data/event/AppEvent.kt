@@ -15,13 +15,14 @@ sealed class AppEvent {
         val senderName: String,
     ) : AppEvent()
 
-    /**
-     * 聊天生成结束（完成、失败或取消）。
-     * [contentPreview] 为 null 时仅取消 Live Update 通知，不发送完成通知。
-     */
+    /** Chat generation finished with an explicit outcome for notification policy. */
     data class ChatGenerationEnded(
         val conversationId: Uuid,
         val senderName: String,
         val contentPreview: String?,
+        val outcome: GenerationOutcome = GenerationOutcome.SUCCESS,
+        val failureMessage: String? = null,
     ) : AppEvent()
 }
+
+enum class GenerationOutcome { SUCCESS, CANCELLED, FAILED }

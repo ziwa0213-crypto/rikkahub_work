@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.ui.StreamChunk
 import me.rerere.ai.util.json
 
@@ -14,7 +15,8 @@ internal class DeepSeekWebSSE(
     private val responseId: String,
     private val model: String,
     private val thinkingEnabled: Boolean = false,
-    private val availableToolNames: Set<String> = DeepSeekWebToolPolicy.allowedNames,
+    private val availableToolNames: Set<String> = DeepSeekWebToolPolicy.baseAllowedNames,
+    private val unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED,
 ) {
     private enum class Sink { FRAGMENTS, THINKING, CONTENT }
 
@@ -264,7 +266,7 @@ internal class DeepSeekWebSSE(
         }
         if (!sawData) return chunks
 
-        val parsed = DeepSeekWebToolProtocol.parse(text)
+        val parsed = DeepSeekWebToolProtocol.parse(text, unlock)
         val parsedTool = parsed.result
         if (parsedTool is DeepSeekWebToolProtocol.Result.Blocked) {
             runCatching { Log.w(TAG, "DeepSeek Web blocked unsupported tool call: ${parsedTool.name}") }

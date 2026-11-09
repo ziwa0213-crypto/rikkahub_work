@@ -193,6 +193,7 @@ class SettingsStore internal constructor(
         val GROUP_MEMBERS = stringPreferencesKey("group_members")
         val GROUPS = stringPreferencesKey("groups")
         val GROUP_TAGS = stringPreferencesKey("group_tags")
+        val PULSE = stringPreferencesKey("pulse_config")
         val MEMORY_GROUPS = stringPreferencesKey("memory_groups")
         val LOADING_ANIMATION_HINT_DISMISSED = booleanPreferencesKey("loading_animation_hint_dismissed")
         val BROWSER_FILTER_ENABLED = booleanPreferencesKey("browser_filter_enabled")

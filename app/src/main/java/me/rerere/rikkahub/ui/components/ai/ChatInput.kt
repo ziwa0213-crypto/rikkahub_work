@@ -133,6 +133,7 @@ fun ChatInput(
     assistant: Assistant,
     chatModel: Model?,
     groupMode: Boolean = false,
+    pulseMode: Boolean = false,
     reasoningAvailable: Boolean? = null,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -320,7 +321,7 @@ fun ChatInput(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             // Model Picker
-                            if (!groupMode) {
+                            if (!groupMode && !pulseMode) {
                                 ModelSelectorButton(
                                     state = modelListState,
                                     onlyIcon = true,
@@ -340,7 +341,7 @@ fun ChatInput(
                             }
 
                             // Tool approval (F004)
-                            ToolApprovalButton(
+                            if (!pulseMode) ToolApprovalButton(
                                 mode = assistant.toolApprovalMode,
                                 onUpdateMode = { onUpdateAssistant(assistant.copy(toolApprovalMode = it)) },
                                 onlyIcon = true,

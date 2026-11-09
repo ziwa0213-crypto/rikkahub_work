@@ -201,6 +201,8 @@ private val SAMPLE = Settings(
     groupMembers = listOf(GroupMember(id = id(34), name = "member")),
     groups = listOf(Group(id = id(35), name = "group")),
     groupTags = listOf(Tag(id = id(36), name = "group tag")),
+    pulse = PulseConfig(enableHeartbeat = true, conversationId = id(37),
+        tasks = listOf(PulseTask(id = "stored-task", createdAt = 123))),
 )
 
 private val STORED_KEYS = setOf(
@@ -268,4 +270,5 @@ private val STORED_KEYS = setOf(
     "group_members",
     "groups",
     "group_tags",
+    "pulse_config",
 )

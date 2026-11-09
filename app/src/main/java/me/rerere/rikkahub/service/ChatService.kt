@@ -1,7 +1,6 @@
 package me.rerere.rikkahub.service
 
 import android.app.Application
-import android.os.SystemClock
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import me.rerere.ai.provider.ProviderSetting
@@ -15,12 +14,13 @@ import me.rerere.rikkahub.data.model.applyGroupQuotes
 import me.rerere.rikkahub.data.model.completedDispatchText
 import me.rerere.rikkahub.data.model.displayNameOf
 import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.resolveDispatch
 import me.rerere.rikkahub.data.model.speakingMembers
 import me.rerere.rikkahub.data.model.stripSelfSpeakerPrefix
 import me.rerere.rikkahub.data.model.toAssistant
 import me.rerere.rikkahub.data.model.withGroupSender
-import me.rerere.common.android.RequestClockSnapshot
+import me.rerere.rikkahub.service.pulse.isAwaitingPulseReply
 import java.util.concurrent.ConcurrentHashMap
 import android.util.Log
 import androidx.annotation.StringRes
@@ -73,6 +73,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.event.GenerationOutcome
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
@@ -89,6 +90,7 @@ import me.rerere.rikkahub.data.model.insertContextCheckpoint
 import me.rerere.rikkahub.data.model.isAwaitingToolApproval
 import me.rerere.rikkahub.data.model.localFileUrls
 import me.rerere.rikkahub.data.model.mapLocalFileUrls
+import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.replaceUserRegexes
 import me.rerere.rikkahub.data.model.selectBranch
 import me.rerere.rikkahub.data.model.toMessageNode
@@ -327,25 +329,11 @@ class ChatService(
                 generationId = generationId,
                 conversationId = conversationId,
             )
-            val activity = GenerationActivity {
-                RequestClockSnapshot(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis())
-            }
-            val watchdog = launchGenerationWatchdog(
-                clock = { RequestClockSnapshot(SystemClock.elapsedRealtime(), SystemClock.uptimeMillis()) },
-                lastActivity = { activity.lastActivity },
-                onDeadline = { timeout ->
-                    val message = context.getString(
-                        if (timeout.interruptedBySleep) R.string.error_generation_interrupted_by_sleep
-                        else R.string.error_generation_timeout,
-                        timeout.minutes,
-                    )
-                    addError(IllegalStateException(message), conversationId, title = message, autoDismiss = false)
-                },
-            )
             try {
-                withContext(activity) { block() }
+                // Completion, user cancellation and real failures own this job's lifetime.
+                // Device sleep and elapsed/idle time do not impose an app-level deadline.
+                block()
             } finally {
-                watchdog.cancel()
                 if (foregroundStarted) {
                     ChatGenerationForegroundService.release(context, generationId)
                 }
@@ -353,11 +341,109 @@ class ChatService(
         }
     }
 
+    /** Kai-style temporary history: no transcript writes until the caller accepts the result. */
+    suspend fun runPulseTurn(
+        conversationId: Uuid,
+        instruction: String,
+        toolContext: me.rerere.rikkahub.service.pulse.PulseToolContext? = null,
+        skipIfUnanswered: Boolean = false,
+        onStarted: suspend () -> Unit = {},
+    ): me.rerere.rikkahub.service.pulse.PulseTurnResult? = withLoadedSession(conversationId, createIfMissing = false) { session ->
+        check(session.state.value.isPulseChat())
+        val result = CompletableDeferred<me.rerere.rikkahub.service.pulse.PulseTurnResult?>()
+        val incarnation = session.incarnation
+        val job = launchGenerationJob(conversationId) {
+            try {
+                withContext(toolContext ?: kotlin.coroutines.EmptyCoroutineContext) {
+                    val conversation = session.state.value
+                    if (skipIfUnanswered && isAwaitingPulseReply(conversation.currentMessages)) {
+                        result.complete(null)
+                        return@withContext
+                    }
+                    onStarted()
+                    val turn = requestFactory.createContext(
+                        settingsStore.awaitLoaded(), conversation, pulseInstruction = instruction,
+                    )
+                    val (request, hooks) = requestFactory.createAgent(turn, conversation.currentMessages, session.processingStatus)
+                    var response: UIMessage? = null
+                    var reason: AgentFinishReason? = null
+                    runAgent(request, hooks).flowOn(Dispatchers.IO).collect { event ->
+                        when (event) {
+                            is AgentEvent.MessageUpdated -> {
+                                val checked = if (turn.providerSetting is ProviderSetting.DeepSeekWeb)
+                                    DeepSeekWebOutputGuard.sanitize(listOf(event.message), turn.providerSetting.unlock) else null
+                                checked?.let {
+                                    val match = it.matches.firstOrNull { entry -> entry.blocked } ?: it.matches.first()
+                                    throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
+                                }
+                                response = event.message
+                            }
+                            is AgentEvent.Retrying -> session.processingStatus.value = retryStatus(event.attempt)
+                            is AgentEvent.Finished -> {
+                                reason = event.reason
+                                response = event.message
+                            }
+                        }
+                    }
+                    check(reason == AgentFinishReason.Completed) { "Pulse generation did not complete" }
+                    val message = checkNotNull(response) { "Empty Pulse response" }
+                    if (turn.providerSetting is ProviderSetting.DeepSeekWeb) {
+                        DeepSeekWebOutputGuard.sanitize(listOf(message), (turn.providerSetting as ProviderSetting.DeepSeekWeb).unlock)?.let { checked ->
+                            val match = checked.matches.firstOrNull { it.blocked } ?: checked.matches.first()
+                            throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
+                        }
+                    }
+                    check(message.toText().isNotBlank()) { "Empty Pulse response" }
+                    result.complete(me.rerere.rikkahub.service.pulse.PulseTurnResult(conversationId, incarnation, message))
+                }
+            } catch (error: CancellationException) {
+                result.cancel(error)
+                throw error
+            } catch (error: Exception) {
+                addGenerationError(error, conversationId, context.getString(R.string.error_title_generation))
+                _errors.update { errors -> errors.map { if (it.conversationId == conversationId) it.copy(autoDismiss = false) else it } }
+                result.completeExceptionally(error)
+            } finally {
+                session.processingStatus.value = null
+            }
+        }
+        job.invokeOnCompletion { cause -> if (!result.isCompleted) result.completeExceptionally(cause ?: IllegalStateException("Pulse stopped")) }
+        synchronized(session) {
+            if (session.getJob()?.isCompleted == false) {
+                job.cancel()
+                error("Pulse is already generating")
+            }
+            session.setJob(job, cancelPrevious = false)
+        }
+        try {
+            result.await().also { job.join() }
+        } finally {
+            if (!job.isCompleted) job.cancel()
+        }
+    }
+
+    suspend fun persistPulseTurn(result: me.rerere.rikkahub.service.pulse.PulseTurnResult) {
+        withLoadedSession(result.conversationId, createIfMissing = false) { session ->
+            check(session.incarnation == result.incarnation && session.existsInDatabase) { "Pulse conversation was replaced" }
+            check(result.response.role == MessageRole.ASSISTANT) { "Pulse result must be an assistant message" }
+            session.update { latest ->
+                // Merge with the latest transcript; never replace a snapshot or truncate concurrent messages.
+                if (latest.currentMessages.any { it.id == result.response.id }) latest else latest.copy(
+                    messageNodes = latest.messageNodes + MessageNode(messages = listOf(result.response)),
+                    updateAt = java.time.Instant.now(),
+                )
+            }
+            session.flush()
+        }
+    }
+
     // ---- 初始化对话 ----
 
     suspend fun initializeConversation(conversationId: Uuid) {
         withLoadedSession(conversationId) { session ->
-            if (!session.state.value.isGroupChat()) settingsStore.selectAssistant(session.state.value.assistantId)
+            if (!session.state.value.isGroupChat() && !session.state.value.isPulseChat()) {
+                settingsStore.selectAssistant(session.state.value.assistantId)
+            }
         }
     }
 
@@ -743,13 +829,13 @@ class ChatService(
                     // 可能被取消了，或者意外结束，兜底保存
                     val finished = session.finishGeneration()
                     // 生成结束：取消 Live Update 通知，后台时发送完成通知
-                    appEventBus.emit(
+                    if (finishReason != null) appEventBus.emit(
                         AppEvent.ChatGenerationEnded(
                             conversationId = conversationId,
                             senderName = senderName,
-                            contentPreview = finished.currentMessages.lastOrNull()
-                                ?.toText()?.take(50)?.trim() ?: "",
-                        )
+                            contentPreview = finished.currentMessages.lastOrNull()?.toText()?.take(50)?.trim().orEmpty(),
+                            outcome = GenerationOutcome.SUCCESS,
+                        ),
                     )
                 }
             }
@@ -765,9 +851,12 @@ class ChatService(
             }
             return TurnResult.Finished(reason)
         } catch (e: CancellationException) {
-            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
+            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null, GenerationOutcome.CANCELLED))
             throw e
         } catch (e: InvalidMcpServerNamesException) {
+            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(
+                conversationId, senderName, null, GenerationOutcome.FAILED, e.message,
+            ))
             session.messageQueue.pause()
             addError(
                 error = IllegalStateException(
@@ -778,7 +867,9 @@ class ChatService(
             return TurnResult.Failed
         } catch (e: Exception) {
             // 兜底取消 Live Update 通知（生成开始前失败时上面的 finally 不会执行）
-            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
+            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(
+                conversationId, senderName, null, GenerationOutcome.FAILED, e.message,
+            ))
             session.messageQueue.pause()
             e.printStackTrace()
             addGenerationError(e, conversationId, title = context.getString(R.string.error_title_generation))
@@ -803,10 +894,9 @@ class ChatService(
         runAgent(request, hooks).flowOn(Dispatchers.IO).collect { event ->
             when (event) {
                 is AgentEvent.MessageUpdated -> {
-                    markGenerationProgress()
                     session.processingStatus.value = null
                     val sanitized = if (turn.providerSetting is ProviderSetting.DeepSeekWeb)
-                        DeepSeekWebOutputGuard.sanitize(listOf(event.message)) else null
+                        DeepSeekWebOutputGuard.sanitize(listOf(event.message), turn.providerSetting.unlock) else null
                     val message = transform(sanitized?.messages?.single() ?: event.message)
                     session.update { it.upsertMessage(replyNodeId, message) }
                     appEventBus.tryEmit(AppEvent.ChatGenerationUpdate(session.id, message, senderName))
@@ -828,6 +918,8 @@ class ChatService(
     private suspend fun runGroupTurn(session: ConversationSession, regenerateNodeId: Uuid?): TurnResult {
         val conversationId = session.id
         var senderName = ""
+        var outcome = GenerationOutcome.SUCCESS
+        var failureMessage: String? = null
         try {
             var regenerateSender: UIMessageAnnotation.GroupSender? = null
             if (regenerateNodeId != null) {
@@ -949,9 +1041,12 @@ class ChatService(
                     .mapTo(linkedSetOf()) { it.toolCallId }
             ))
         } catch (error: CancellationException) {
+            outcome = GenerationOutcome.CANCELLED
             groupRounds.remove(conversationId)
             throw error
         } catch (error: Exception) {
+            outcome = GenerationOutcome.FAILED
+            failureMessage = error.message
             groupRounds.remove(conversationId)
             session.messageQueue.pause()
             addGenerationError(error, conversationId, context.getString(R.string.error_title_generation))
@@ -960,8 +1055,13 @@ class ChatService(
             withContext(NonCancellable) {
                 session.processingStatus.value = null
                 val finished = session.finishGeneration()
-                appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName,
-                    finished.currentMessages.lastOrNull()?.toText()?.take(50)))
+                appEventBus.tryEmit(AppEvent.ChatGenerationEnded(
+                    conversationId,
+                    senderName,
+                    finished.currentMessages.lastOrNull()?.toText()?.take(50),
+                    outcome,
+                    failureMessage,
+                ))
             }
         }
     }
@@ -1196,6 +1296,18 @@ class ChatService(
             val settings = settingsStore.awaitLoaded()
             val conversation = session.state.value
             val stored = settings.getStoredAssistantOf(conversation)
+            if (conversation.isPulseChat()) {
+                settingsStore.update { latest ->
+                    val updated = update(latest.pulse.toAssistant(latest))
+                    latest.copy(pulse = latest.pulse.copy(
+                        chatModelId = updated.chatModelId,
+                        reasoningLevel = updated.reasoningLevel,
+                        enableWebSearch = updated.enableWebSearch,
+                        contextMessageLimit = updated.contextMessageLimit,
+                    ))
+                }
+                return@withLoadedSession
+            }
             val updated = update(settings.getAssistantOf(conversation))
             val assistant = updated.withoutConversationFields(conversation, stored)
             session.updateMetadata(
@@ -1221,6 +1333,12 @@ class ChatService(
     ) {
         withLoadedSession(conversationId) { session ->
             val conversation = session.state.value
+            if (conversation.isPulseChat()) {
+                settingsStore.update { current -> current.copy(pulse = current.pulse.copy(
+                    enableWebSearch = enableWebSearch ?: current.pulse.enableWebSearch,
+                )) }
+                return@withLoadedSession
+            }
             if (conversation.config != null) {
                 session.updateMetadata(
                     transform = {

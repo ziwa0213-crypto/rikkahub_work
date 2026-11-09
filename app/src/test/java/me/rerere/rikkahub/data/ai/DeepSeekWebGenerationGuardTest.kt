@@ -1,11 +1,13 @@
 package me.rerere.rikkahub.data.ai
 
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebCapabilityRefusalException
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -54,5 +56,40 @@ class DeepSeekWebGenerationGuardTest {
         val old = call("calendar_delete")
         val tool = old.getTools().single().copy(output = listOf(UIMessagePart.Text("old result")))
         validateDeepSeekWebToolCalls(web, old.copy(parts = listOf(tool)))
+    }
+
+    @Test fun localRefusalFollowsTheIndividualUnlocks() {
+        val fileWriteOnly = web.copy(unlock = DeepSeekWebUnlock(customEnabled = true, workspaceWrite = true))
+        assertEquals(null, me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard.refusal(fileWriteOnly, "帮我写个文件"))
+        assertNotNull(me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard.refusal(fileWriteOnly, "帮我跑个脚本"))
+    }
+
+    @Test fun executionGuardAllowsOnlyTheIndividuallyUnlockedCapabilities() {
+        val fileWriteOnly = web.copy(unlock = DeepSeekWebUnlock(customEnabled = true, workspaceWrite = true))
+        validateDeepSeekWebToolCalls(fileWriteOnly, call("workspace_write_file", """{"path":"note.txt","text":"ok"}"""))
+        assertThrows(DeepSeekWebCapabilityRefusalException::class.java) {
+            validateDeepSeekWebToolCalls(fileWriteOnly, call("workspace_shell", """{"command":"pwd"}"""))
+        }
+
+        val clipboardWriteOnly = web.copy(unlock = DeepSeekWebUnlock(customEnabled = true, clipboardWrite = true))
+        validateDeepSeekWebToolCalls(clipboardWriteOnly, call("clipboard_tool", """{"action":"write","text":"ok"}"""))
+        assertThrows(DeepSeekWebCapabilityRefusalException::class.java) {
+            validateDeepSeekWebToolCalls(web, call("clipboard_tool", """{"action":"write","text":"ok"}"""))
+        }
+
+        val mcp = web.copy(unlock = DeepSeekWebUnlock(customEnabled = true, mcp = true))
+        validateDeepSeekWebToolCalls(mcp, call("mcp__server__read"))
+        assertThrows(DeepSeekWebCapabilityRefusalException::class.java) {
+            validateDeepSeekWebToolCalls(web, call("mcp__server__read"))
+        }
+    }
+
+    @Test fun persistedChildFlagsStayInactiveWithoutTheMasterSwitch() {
+        val persistedButDisabled = web.copy(unlock = DeepSeekWebUnlock(workspaceWrite = true, mcp = true))
+        for (name in listOf("workspace_write_file", "mcp__server__read")) {
+            assertThrows(DeepSeekWebCapabilityRefusalException::class.java) {
+                validateDeepSeekWebToolCalls(persistedButDisabled, call(name))
+            }
+        }
     }
 }

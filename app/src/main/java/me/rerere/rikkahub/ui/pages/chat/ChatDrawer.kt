@@ -122,6 +122,7 @@ fun ChatDrawerContent(
     val context = LocalContext.current
     val toaster = LocalToaster.current
     val repo = koinInject<ConversationRepository>()
+    val pulseRepository = koinInject<me.rerere.rikkahub.data.repository.PulseRepository>()
 
     val activity = context as ComponentActivity
     val drawerVm: ChatDrawerVM = koinViewModel(viewModelStoreOwner = activity)
@@ -161,6 +162,7 @@ fun ChatDrawerContent(
         ?: settings.selectedGroup(null)
     val drawerMode = settings.uiMode
     val groupMode = drawerMode == UiMode.GROUP
+    val pulseMode = drawerMode == UiMode.PULSE
     val selectedGroupConversation = if (current.isGroupChat()) {
         groupRouteConversation ?: current
     } else {
@@ -239,7 +241,11 @@ fun ChatDrawerContent(
     fun switchMode(mode: UiMode) {
         if (mode == drawerMode) return
         vm.updateSettings { it.copy(uiMode = mode) }
-        if (mode == UiMode.GROUP) {
+        if (mode == UiMode.PULSE) {
+            scope.launch {
+                navigateToChatPage(navController, pulseRepository.ensurePulseConversation())
+            }
+        } else if (mode == UiMode.GROUP) {
             val group = selectedGroup
             if (group == null) {
                 navController.navigate(Screen.Groups)
@@ -338,9 +344,9 @@ fun ChatDrawerContent(
                 )
             }
 
-            DrawerActions(navController = navController)
+            if (!pulseMode) DrawerActions(navController = navController)
 
-            if (!groupMode) {
+            if (!groupMode && !pulseMode) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -388,7 +394,20 @@ fun ChatDrawerContent(
                 drawerHeader()
             }
 
-            if (groupMode) {
+            if (pulseMode) {
+                if (scrollableHeader) drawerHeader()
+                Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    me.rerere.rikkahub.ui.pages.pulse.PulseStatusRow(settings.pulse) {
+                        navController.navigate(Screen.PulseSettings(1))
+                    }
+                    TextButton(onClick = { navController.navigate(Screen.PulseSettings()) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.pulse_settings_title))
+                    }
+                    TextButton(onClick = { navController.navigate(Screen.PulseSettings(logs = true)) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.pulse_logs))
+                    }
+                }
+            } else if (groupMode) {
                 GroupConversationList(
                     settings = settings,
                     group = selectedGroup,
@@ -510,7 +529,7 @@ fun ChatDrawerContent(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
             ) {
-                DrawerAction(
+                if (!pulseMode) DrawerAction(
                     icon = {
                         Icon(
                             imageVector = HugeIcons.LookTop,
@@ -525,7 +544,7 @@ fun ChatDrawerContent(
                     },
                 )
 
-                Box {
+                if (!pulseMode) Box {
                     DrawerAction(
                         icon = {
                             Icon(HugeIcons.Sparkles, "Menu")

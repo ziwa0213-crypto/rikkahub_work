@@ -149,6 +149,7 @@ fun ChatList(
     groupMode: Boolean = false,
     onQuote: (me.rerere.ai.ui.UIMessageAnnotation.GroupQuote) -> Unit = {},
     onMention: (String) -> Unit = {},
+    pulseHeader: (@Composable () -> Unit)? = null,
 ) {
     AnimatedContent(
         targetState = previewMode,
@@ -192,6 +193,7 @@ fun ChatList(
                 onToggleFavorite = onToggleFavorite,
                 onConversationSystemPromptChange = onConversationSystemPromptChange,
                 groupMode = groupMode, onQuote = onQuote, onMention = onMention,
+                pulseHeader = pulseHeader,
             )
         }
     }
@@ -244,6 +246,7 @@ private fun ChatListNormal(
     groupMode: Boolean = false,
     onQuote: (me.rerere.ai.ui.UIMessageAnnotation.GroupQuote) -> Unit = {},
     onMention: (String) -> Unit = {},
+    pulseHeader: (@Composable () -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
@@ -362,6 +365,7 @@ private fun ChatListNormal(
                     .topFadingEdge(innerPadding.calculateTopPadding() + 24.dp)
                     .hazeSource(state = hazeState),
             ) {
+            pulseHeader?.let { header -> item(key = "PulseWorkspaceSetup") { header() } }
             itemsIndexed(
                 items = conversation.messageNodes,
                 key = { index, item -> item.id },

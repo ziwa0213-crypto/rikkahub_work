@@ -1,3 +1,117 @@
+# F015 阶段 B / F009 补充六 — 3.1.1-work.3 / 201（ARM64 GitHub Debug）
+
+交付日期：2026-11-06（Asia/Shanghai）。源码基线：`master` / `a5f2a4cb9f12bf06174cbc0b40702ba8d6f68d9c`；本批未提交。
+
+## 本批范围
+
+- 完成 F015 阶段 A+B（包 10/7/8/9，并含心跳提示词、常驻通知自证及心跳恢复/未回复跳过修正）和 F009 补充六。版本保持 `3.1.1-work.3 / versionCode 201`。
+- F015 包 10 提供 `owner=pulse` 独立工作区、F017 安装流程接入、六个不覆盖已有文件的简中模板，以及按工作区就绪状态开放的文件/命令能力。
+- 包 7 提供 BATTERY、URL、COMMAND 监视器；每轮最多采样 5 个、间隔限制 10–240 分钟；首次采样只建立基线，内容无变化不调用模型。URL 响应上限 256 KiB，命令输出保留上限 64 KiB，失败记录并尝试产生失败报告。工作区未就绪时 COMMAND 监视器禁用。
+- 包 8 提供独立脉搏通知、失败通知、最多保留 5 个自有命名 TXT 报告及最近 20 条活动。聊天生成失败通知由现有独立失败事件分支处理，不依赖成功消息预览。
+- 包 9 展示脉搏会话当日 token 用量、用户填写的人民币单价/倍率估算与最多 200 条运行日志。未改 UsageRecorder 或 Room schema，不记录运行日志正文。供应商对缓存 token 口径不同，估算按 `max(promptTokens-cachedTokens, 0)` 计普通输入，缓存部分按缓存单价单列，并标记为估算。
+- F009 DeepSeek Web 增加默认关闭的自定义工具总开关及九个独立权限项；开启前需在当前语言逐字输入风险确认。工具注册、MCP 前缀、clipboard action、协议/输出验证、本地预检和提示词都按权限生效；总开关关闭时保持原只读能力。
+- 保留仅英文、简体中文、繁体中文三种应用语言；保留维护者指定的最初应用图标。未构建 Release，未提交、打 tag、推送或发布。
+
+## Kai / PalmClaw 参考
+
+本批复核 Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff` 与 PalmClaw `75a42aeda0e580ebad0de4a38c00c94146148366` 的调度、临时会话、claim/租约与生命周期边界；保留 Kai 式临时轮次和独立调度结构、PalmClaw 式单一 claim/租约保护。本批不复制其源码文件，也不移植不适用于本应用的常驻网关或自动恢复方案。完整文件坐标和采用边界见 `docs/f015-keepalive-reference-review.md`。
+
+## 验证
+
+- 命令：`./gradlew :ai:testDebugUnitTest :app:testGithubDebugUnitTest :workspace:testDebugUnitTest :common:testDebugUnitTest :app:assembleGithubDebug --offline --no-daemon --max-workers=4 --console=plain`
+- 结果：`BUILD SUCCESSFUL`，耗时 1 分 42 秒；360 项任务中 18 项执行、342 项为 up-to-date。AI、Workspace、Common 测试任务复用 Gradle 已有结果；App GitHub Debug 单测与目标变体构建成功。
+- JUnit 报告：AI 47 套件/362 项，App GitHub Debug 117/800，Workspace 9/72，Common 3/9；合计 176 套件、1,243 项，0 失败、0 错误、0 跳过。
+- `git diff --check` 通过。三语字符串 key 集各 2,384 项且完全一致；资源目录仅 `values`、`values-zh`、`values-zh-rTW`（`values-night` 仅为主题限定资源）。
+- APK 经 Android SDK 工具核对：包名 `me.rerere.rikkahub.debug`，版本 `3.1.1-work.3 / 201`，仅 `arm64-v8a`，62,469,585 bytes；APK Signature Scheme v2 验证通过，证书 SHA-256 `853f0d3247da0e4aa363e821042b5cc43f253e6069f778b56c09bbd538d2588d`；ZIP CRC 与 DeepSeek WASM 条目检查通过。SHA-256：`3e790640f2fe94857daa48912bbbafd9e3809a85743b14fdb3df83d22169c4e0`。
+- 监视器失败路径、工具权限隔离、报告保留规则和源码打包排除项已做静态检查。未执行 Android 真机/模拟器验收；后台保活、系统通知、工作区安装、UI 与供应商联机行为需要维护者安装后验证。
+
+## 交付文件
+
+交付目录：`artifacts/3.1.1-work.3/F015-stage-B-F009-supplement6-debug-20261106/`。
+
+- `RikkaHub.Work-3.1.1-work.3-F015-stage-B-F009-supplement6-arm64-v8a-debug.apk`
+- `RikkaHub.Work-3.1.1-work.3-F015-stage-B-F009-supplement6-source.zip`（含根 `DELIVERY.md`；排除 `.git`、构建缓存、APK、签名/本机配置及交付目录）
+- 源码 ZIP 含 2,226 个文件，展开约 73.4 MB；`SHA256SUMS`、`SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json`、`APK-VERIFICATION.json`、`TEST-RESULTS.json` 均在交付目录外部，避免源码 ZIP 自引用。源码 ZIP CRC、UTF-8 文件名、逐文件哈希及敏感密钥模式扫描均通过。
+
+未执行设备操作、commit、tag、push 或 GitHub 发布。
+
+---
+
+# F015 包 0 参考复核交付 — 3.1.1-work.3 / 201（Debug）
+
+日期：2026-11-03（Asia/Shanghai）。基线：master `a5f2a4cb`；本批未提交。
+
+按维护者要求拉取并参考 Kai / PalmClaw，在包 0 初版基础上继续完善。仍只交付 ARM64 Debug，不构建 Release，不提交/tag/push/发布，不操作设备或账号。
+
+## 相对初版的补强
+
+- 生成首次开始立即获取电源锁；只要仍有活动生成，重复开始/结束其他任务不重建回调、不推迟下一次续租。
+- 空闲结束后再次开始可立即获取新租约；旧回调在停止、重启后均不能复活旧循环。
+- 将旧锁释放和新租约获取分别处理异常，释放失败也会继续尝试获取，获取失败不终止后续续租重试。
+- 保留包 0 已完成的全部应用层生成 watchdog 移除、原 Job/finally 归属和 UI 耗时显示。没有新增 5 分钟空闲、2 小时累计运行或休眠自动停止限制。
+- 保留 Android 原有 `dataSync` 服务类型和系统停止处理；未移植参考仓库的常驻网关、心跳调度或自动恢复。5 分钟仅为单次 WakeLock 租约，续租间隔 60 秒，不是生成上限。
+
+参考的固定 commit、具体源码路径和采用范围见 `docs/f015-keepalive-reference-review.md`：Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff`；PalmClaw `75a42aeda0e580ebad0de4a38c00c94146148366`。两份参考仓库位于 `/home/li/CDX/rikkahub-references/F015/`，不包含在产品源码 ZIP 内。
+
+## 本批验证与产物
+
+- 执行 `:app:testGithubDebugUnitTest :workspace:testDebugUnitTest :common:testDebugUnitTest :app:assembleGithubDebug --offline --no-daemon --console=plain --max-workers=4`，`BUILD SUCCESSFUL in 1m 13s`，351 个任务，19 个执行、332 个复用。
+- App 102 个套件 / 719 个用例，本轮实际执行；Workspace 9 / 72、Common 3 / 9 复用已通过报告。共 800 个用例，0 失败、0 错误、0 跳过。续租专项由 7 项增加为 11 项，覆盖即时获取、保持期限、频繁多任务更新、空闲后启动、晚到回调及回调内停止重启。
+- 静态边界审计通过：生成链路无旧 watchdog/进展 touch/应用层时限；common、数据库、三语资源、应用身份图标、F017 均未改动；三份字符串各 2,224 项。`git diff --check` 通过。
+- Debug 包名仍为 `me.rerere.rikkahub.debug`，版本 `3.1.1-work.3 / 201`，仅 `arm64-v8a`，大小 60,817,397 字节；v2 签名与 ZIP CRC 通过，DeepSeek WASM 存在，旧 watchdog 类缺席。SHA-256 为 `b2582530610c2e9caaf27beb71bd50681a7819e6964b6ef1cb522627af7585dd`。原始应用图标与 Debug 签名保持；证书 SHA-256 为 `853f0d3247da0e4aa363e821042b5cc43f253e6069f778b56c09bbd538d2588d`。
+
+交付目录：`artifacts/3.1.1-work.3/F015-package0-reference-review-debug-20261103/`。
+
+- APK：`RikkaHub.Work-3.1.1-work.3-F015-keepalive-arm64-v8a-debug.apk`。
+- 源码：`RikkaHub.Work-3.1.1-work.3-F015-keepalive-source.zip`，包含根 `DELIVERY.md` 和参考复核说明；排除 `.git`、APK、参考仓库、构建/缓存、签名和本地配置。
+- 证据：`build.log`、`TEST-RESULTS.json`、`APK-VERIFICATION.json`、`SOURCE-AUDIT.json`、`SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json`、`SHA256SUMS`。
+
+实机未测。请验证长时间生成/息屏后继续、多任务结束一条不影响另一条、结束全部任务后锁释放、空闲后再次生成；JVM 测试不替代系统 WakeLock 与厂商省电行为的设备验收。
+
+---
+
+# F015 包 0 初版记录 — 3.1.1-work.3 / 201（历史 Debug）
+
+日期：2026-11-03（Asia/Shanghai）。基线：master `a5f2a4cb`（F017 已提交）；本批暂未提交。
+
+## 执行依据与覆盖关系
+
+任务包：`RikkaHub Work-F015包0-后台保活收尾-20261103.zip`。维护者审阅后明确取消全部应用层生成超时及其检查 timer，覆盖附件的 5 分钟空闲 / 2 小时清醒限制方案；随后授权开始。任务包的旧版本基线和单独 commit 要求不覆盖维护者指定的 Debug 阶段与手动推送安排。
+
+本批 versionName 为 3.1.1-work.3，Debug 阶段 versionCode 暂沿用 201；只交付 ARM64 Debug APK 和含本文件的源码 ZIP。正式发布前再确定递增 versionCode。本批不构建 Release、不自行 commit/tag/push、不操作设备或真实账号，不扩展到 F015 包 1 或包 4。
+
+## 改动范围
+
+- `ChatService.kt`：删除创建 watchdog、GenerationActivity 和消息进展 touch；保持 launchGenerationJob 签名，生成 block 在原 Job 内直接执行，finally 继续释放前台服务。UI 耗时和 common/RequestTiming 不变。
+- 删除 `GenerationWatchdog.kt` 与只验证其旧语义的 `GenerationWatchdogTest.kt`；不存在 20 分钟 / 5 分钟 / 2 小时应用层自动停止规则，也没有为这些规则运行的检查定时器。保留历史语言 key，但不再在生成链路引用。
+- `ChatGenerationForegroundService.kt` 与新增 `GenerationWakeLockRenewal.kt`：5 分钟锁租约、60 秒调度续租；只有前台且有活动生成才续租。重复启动只保留一个回调；旧回调不能复活停止的循环。最后任务结束、onDestroy、onTimeout、stopService 清理续租并释放锁。Android 系统服务停止回调仍正常执行，不承诺绕过系统限制。
+- 新增续租调度 JVM 测试，覆盖长时间运行、无活动任务、重复启动、过时回调、停止和回调内重启。原 6 个 watchdog 测试随废弃功能移除，不以继续断言错误行为维持测试数量。
+- 同步 `AGENTS.md`、`CHANGES.md`、`FEATURES.md` 与本交付记录；仅改版本名，三语资源、图标、数据库、F017、审批与 DeepSeek 只读边界保持不变。
+
+## 验证与交付
+
+- `:app:testGithubDebugUnitTest :workspace:testDebugUnitTest :common:testDebugUnitTest :app:assembleGithubDebug --offline --no-daemon --max-workers=4` 构建成功，耗时 7 分 44 秒；356 个任务，101 个执行、255 个复用。仅构建 GitHub ARM64 Debug，没有构建 Release。
+- App：102 个套件 / 715 个用例；Workspace：9 个套件 / 72 个用例；Common：3 个套件 / 9 个用例。合计 796 个用例，0 失败、0 错误、0 跳过。App 用例从 714 变为 715（删除废弃 watchdog 的 6 个测试，新增续租的 7 个测试）；Workspace/Common 结果由 Gradle 复用已通过报告，App 本轮实际执行。
+- 已核验编译后的服务包含停止状态保护；APK 中含 GenerationWakeLockRenewal，不含 GenerationWatchdog 或 GenerationActivity。源代码检查无 watchdog/进展 touch/应用层时限残留，`git diff --check` 通过。
+- APK 包名 `me.rerere.rikkahub.debug`、版本 `3.1.1-work.3 / 201`、应用名 `RikkaHub Work`、仅 `arm64-v8a`、可调试；APK v2 签名与 ZIP CRC 校验通过。Debug 证书 SHA-256 为 `853f0d3247da0e4aa363e821042b5cc43f253e6069f778b56c09bbd538d2588d`，与历史阶段三 Debug 相同。
+- APK 大小 60,269,220 字节；SHA-256 为 `1457f5833e48e2c7239095ba8d92422470f69e2fd099aa999362ee248ca54355`。DeepSeek WASM 存在，未包含 rootfs 压缩包或 keystore；原 launcher 源资源对照初始基线一致。英文、简中、繁中各 2,224 条字符串保持不变，没有新增语言。
+- 没有进行 Android 真机/模拟器验证；不能将编译或 JVM 测试当作息屏保活、系统 WakeLock 续租和视觉效果实测通过。
+
+交付目录：`artifacts/3.1.1-work.3/F015-package0-debug-20261103/`。
+
+- APK：`RikkaHub.Work-3.1.1-work.3-F015-package0-arm64-v8a-debug.apk`
+- 源码：`RikkaHub.Work-3.1.1-work.3-F015-package0-source.zip`，含根 `DELIVERY.md`，排除 APK、构建/缓存、`.git`、签名文件和本机配置。
+- 证据：`build.log`、`TEST-RESULTS.json`、`APK-VERIFICATION.json`、`SOURCE-AUDIT.json`、`SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json`、`SHA256SUMS`；打包后核验 ZIP CRC、逐文件内容和外部 SHA-256 清单，不把源码 ZIP 自身哈希写入 ZIP。
+
+## 实机待验（本轮未执行）
+
+1. 正常发送、流式返回、正常结束与手动停止均正常；并行两条生成时，结束其中一条不停止另一条的保活。
+2. 长任务超过旧 20 分钟及息屏 40 分钟后，不出现由应用 watchdog 产生的停止卡片。真实连接断开仍按原错误流程呈现。
+3. 生成期间用 `adb shell dumpsys power` 查 `rikkahub:generation`；隔 60～90 秒再次采样检查锁仍有效，连续观察超过 5 分钟。若系统 dump 未展示租约截止时刻，不能仅凭 tag 存在就认定续租时刻滚动。
+4. 结束全部任务、停止或销毁服务后再次检查：该锁释放，随后没有续租恢复。实际系统服务超时仍遵循 Android 生命周期。
+
+---
+
 # F017 交付记录 — 3.1.1-work.2 / 201
 
 实施日期：2026-11-02；交付核验日期：2026-11-03（Asia/Shanghai）。源码基线：master `4a346a03`；本批变更未提交。

@@ -103,6 +103,7 @@ data class Settings(
     val groupMembers: List<GroupMember> = emptyList(),
     val groups: List<Group> = emptyList(),
     val groupTags: List<Tag> = emptyList(),
+    val pulse: PulseConfig = PulseConfig(),
 ) {
     companion object {
         // 构造一个用于初始化的settings, 但它不能用于保存，防止使用初始值存储
@@ -111,7 +112,7 @@ data class Settings(
 }
 
 @Serializable
-enum class UiMode { CHAT, GROUP }
+enum class UiMode { CHAT, GROUP, PULSE }
 
 @Serializable
 data class NetworkSetting(

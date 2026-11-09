@@ -26,6 +26,9 @@ import me.rerere.tts.provider.TTSManager
 import org.koin.dsl.module
 
 val appModule = module {
+    single(createdAtStart = true) {
+        me.rerere.rikkahub.service.pulse.PulseRuntime(get(), get(), get(), get(), get(), lazy { get<ChatService>() })
+    }
     single<Json> { JsonInstant }
 
     single {
@@ -112,6 +115,7 @@ val appModule = module {
             mcpManager = get(),
             skillManager = get(),
             workspaceRepository = get(),
+            pulseTasks = get(),
         )
     }
 

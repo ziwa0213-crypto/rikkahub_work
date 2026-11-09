@@ -70,13 +70,15 @@ fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
     val navController = LocalNavController.current
     val settings = LocalSettings.current
     val allWorkspaces by vm.workspaces.collectAsStateWithLifecycle()
-    val effectiveScope = scope ?: if (settings.uiMode == UiMode.GROUP) {
-        WorkspaceOwnerScope.GROUP.value
-    } else {
-        WorkspaceOwnerScope.CHAT.value
+    val effectiveScope = scope ?: when (settings.uiMode) {
+        UiMode.GROUP -> WorkspaceOwnerScope.GROUP.value
+        UiMode.PULSE -> WorkspaceOwnerScope.PULSE.value
+        UiMode.CHAT -> WorkspaceOwnerScope.CHAT.value
     }
     val workspaces = remember(allWorkspaces, effectiveScope) {
-        allWorkspaces.filter { it.owner == null || it.owner == effectiveScope }
+        val ownerScope = WorkspaceOwnerScope.entries.firstOrNull { it.value == effectiveScope }
+            ?: WorkspaceOwnerScope.CHAT
+        allWorkspaces.filter(ownerScope::includes)
     }
     val saving by vm.saving.collectAsStateWithLifecycle()
     val saveError by vm.saveError.collectAsStateWithLifecycle()
@@ -261,6 +263,7 @@ private fun WorkspaceItem(
                     text = stringResource(when (workspace.owner) {
                         "chat" -> R.string.workspace_owner_chat
                         "group" -> R.string.workspace_owner_group
+                        "pulse" -> R.string.workspace_owner_pulse
                         else -> R.string.workspace_owner_unassigned
                     }),
                     style = MaterialTheme.typography.labelSmall,
@@ -367,6 +370,7 @@ private fun WorkspaceOwnerSelect(owner: String?, onSelect: (String?) -> Unit) {
         optionToString = { value -> stringResource(when (value) {
             "chat" -> R.string.workspace_owner_chat
             "group" -> R.string.workspace_owner_group
+        "pulse" -> R.string.workspace_owner_pulse
             else -> R.string.workspace_owner_unassigned
         }) },
     )

@@ -47,6 +47,12 @@ class ConversationRepository(
     suspend fun hasFileReference(fileUrl: String): Boolean =
         messageNodeDAO.hasFileReference(JsonInstant.encodeToString(fileUrl))
 
+    /** Pulse may read group titles and dates, but never group message bodies. */
+    suspend fun getRecentPulseSummaries(limit: Int): List<Conversation> = conversationDAO.getAll().first()
+        .sortedWith(compareByDescending<ConversationEntity> { it.isPinned }.thenByDescending { it.updateAt })
+        .take(limit)
+        .map { conversationEntityToConversation(it, emptyList()) }
+
     fun getGroupConversations(ids: List<Uuid>): Flow<List<Conversation>> = conversationDAO.getAll()
         .map { entities -> entities.filter {
             it.assistantId == GROUP_CHAT_ASSISTANT_ID.toString() && it.id in ids.map(Uuid::toString)

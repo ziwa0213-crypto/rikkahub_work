@@ -93,10 +93,12 @@ fun Assistant.withoutConversationFields(conversation: Conversation, stored: Assi
 
 /** 会话所属助手自身的设置，不含会话上固定的配置；助手被删除后退回当前助手。 */
 fun Settings.getStoredAssistantOf(conversation: Conversation): Assistant =
-    getAssistantById(conversation.assistantId) ?: getCurrentAssistant()
+    if (conversation.isPulseChat()) pulse.toAssistant(this)
+    else getAssistantById(conversation.assistantId) ?: getCurrentAssistant()
 
 /** 会话所属的助手（会话视角）。 */
 fun Settings.getAssistantOf(conversation: Conversation): Assistant {
+    if (conversation.isPulseChat()) return pulse.toAssistant(this)
     val assistant = getStoredAssistantOf(conversation).withConversation(conversation)
     if (conversation.config == null) return assistant
     // 助手自身的失效引用在读取设置时已清理，会话上固定的这份在这里滤掉
@@ -111,6 +113,7 @@ fun Settings.getAssistantOf(conversation: Conversation): Assistant {
 /** 会话使用的聊天模型；会话开始后内置搜索以会话上固定的开关为准。 */
 fun Settings.getChatModelOf(conversation: Conversation): Model? {
     val assistantModel = findModelById(getStoredAssistantOf(conversation).chatModelId ?: chatModelId)
+    if (conversation.isPulseChat()) return assistantModel
     val config = conversation.config ?: return assistantModel
     // 固定的模型被删除后退回助手当前的模型，内置搜索也跟随该模型自身的开关
     val model = findModelById(config.chatModelId) ?: return assistantModel
@@ -125,7 +128,7 @@ fun Settings.getChatModelOf(conversation: Conversation): Model? {
  */
 fun Conversation.bindConfig(settings: Settings): Conversation {
     // Group turns resolve each member and the group's own resources, never the current chat assistant.
-    if (isGroupChat()) return this
+    if (isGroupChat() || isPulseChat()) return this
     val model = settings.getChatModelOf(this)
     val builtInSearch = model != null && BuiltInTools.Search in model.tools
     val config = config

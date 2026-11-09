@@ -20,6 +20,7 @@ import me.rerere.rikkahub.conversationIntent
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.event.GenerationOutcome
 import me.rerere.rikkahub.data.model.GenerationPhase
 import me.rerere.rikkahub.data.model.generationPhase
 import me.rerere.rikkahub.utils.cancelNotification
@@ -84,11 +85,33 @@ class ChatNotificationManager(
 
     private fun handleGenerationEnded(event: AppEvent.ChatGenerationEnded) {
         cancelLiveUpdateNotification(event.conversationId)
+        when (event.outcome) {
+            GenerationOutcome.CANCELLED -> Unit
+            GenerationOutcome.FAILED -> sendGenerationFailureNotification(event)
+            GenerationOutcome.SUCCESS -> {
+                val contentPreview = event.contentPreview?.takeIf { it.isNotBlank() } ?: return
+                if (isForeground.value) return
+                if (!settingsStore.settingsFlow.value.displaySetting.enableNotificationOnMessageGeneration) return
+                sendGenerationDoneNotification(event.conversationId, event.senderName, contentPreview)
+            }
+        }
+    }
 
-        val contentPreview = event.contentPreview ?: return
-        if (isForeground.value) return
-        if (!settingsStore.settingsFlow.value.displaySetting.enableNotificationOnMessageGeneration) return
-        sendGenerationDoneNotification(event.conversationId, event.senderName, contentPreview)
+    private fun sendGenerationFailureNotification(event: AppEvent.ChatGenerationEnded) {
+        context.sendNotification(
+            channelId = CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID,
+            notificationId = GENERATION_FAILURE_NOTIFICATION_ID,
+        ) {
+            title = context.getString(R.string.notification_generation_failed_title)
+            content = event.failureMessage?.takeIf { it.isNotBlank() }?.take(160)
+                ?: context.getString(R.string.notification_generation_failed_message)
+            subText = event.senderName
+            autoCancel = true
+            useDefaults = true
+            category = NotificationCompat.CATEGORY_ERROR
+            useBigTextStyle = true
+            contentIntent = getPendingIntent(context, event.conversationId)
+        }
     }
 
     private fun sendGenerationDoneNotification(
@@ -175,5 +198,9 @@ class ChatNotificationManager(
             conversationIntent(context, conversationId.toString()),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+    }
+
+    private companion object {
+        const val GENERATION_FAILURE_NOTIFICATION_ID = 2
     }
 }

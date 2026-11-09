@@ -82,6 +82,7 @@ internal fun WorkspaceSelectSheet(
                     val ownerLabel = stringResource(when (workspace.owner) {
                         "chat" -> R.string.workspace_owner_chat
                         "group" -> R.string.workspace_owner_group
+                        "pulse" -> R.string.workspace_owner_pulse
                         else -> R.string.workspace_owner_unassigned
                     })
                     WorkspaceSelectRow(

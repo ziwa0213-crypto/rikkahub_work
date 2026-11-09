@@ -7,15 +7,16 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.util.json
 
 internal object DeepSeekWebTools {
-    val allowedNames = DeepSeekWebToolPolicy.allowedNames
+    val allowedNames get() = DeepSeekWebToolPolicy.baseAllowedNames
 
-    const val policy = """
+    private const val policyReadOnly = """
 【DeepSeek 网页版使用范围】
 这是网页版登录态接入。为保护账号并降低风控风险，只允许聊天、知识问答、查询和读取工作区文件。
 只有下面列出的工具可用。不要调用未列出的工具，也不要输出未列出工具的 JSON 或 XML 工具调用格式。
@@ -24,6 +25,15 @@ internal object DeepSeekWebTools {
 需要交付代码或文件内容时，直接把内容贴在回复里；需要了解工作区内容时，使用可用的读取工具。
 允许的工具只能按下方 JSON 协议调用，并且每轮最多调用一个工具；需要多个工具时分轮进行。
 """
+
+    private const val policyCustom = """
+【DeepSeek 网页版 · 自定义工具】
+用户已主动开启自定义工具，并确认自行承担相应风险。下面列出的工具都是可用的，按需调用即可。
+每轮最多调用一个工具；需要多个工具时分轮进行。
+需要交付代码或文件内容时，优先使用可用的写入工具；写入失败时再把内容贴在回复里。
+"""
+
+    val policy get() = policyReadOnly
 
     private const val callFormat = """
 调用格式（严格照此输出，不要加代码围栏、不要在调用前后添加解释性文字）：
@@ -38,21 +48,31 @@ internal object DeepSeekWebTools {
 系统收到上述格式后会执行该工具并把结果返回给你，然后你再继续回答用户。
 """
 
-    fun prompt(messages: List<UIMessage>, tools: List<Tool>, model: Model, imageReferences: Map<String, Int> = emptyMap()): String {
-        val available = tools.filter { it.name in allowedNames }
+    fun prompt(
+        messages: List<UIMessage>,
+        tools: List<Tool>,
+        model: Model,
+        imageReferences: Map<String, Int> = emptyMap(),
+        unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED,
+    ): String {
+        val active = unlock.active
+        val activePolicy = if (active.customEnabled) policyCustom else policyReadOnly
+        val enabledNames = DeepSeekWebToolPolicy.allowedNames(active)
+        val available = tools.filter { it.name in enabledNames || (active.mcp && it.name.startsWith("mcp__", true)) }
         val text = buildString {
-            append(policy)
+            append(activePolicy)
             if (available.isNotEmpty()) {
                 append(callFormat)
                 append("\n可用工具：\n")
                 available.forEach { tool ->
                     append("- ").append(tool.name).append(": ")
                     if (tool.name == "clipboard_tool") {
-                        append("Read plain text from the device clipboard. Only action=read is available.\n")
+                        if (active.clipboardWrite) append("Read or write the device clipboard. action=read|write.\n")
+                        else append("Read plain text from the device clipboard. Only action=read is available.\n")
                     } else {
                         append(tool.description).append('\n')
                     }
-                    append("  参数: ").append(toolParameters(tool)).append('\n')
+                    append("  参数: ").append(toolParameters(tool, active)).append('\n')
                 }
             }
             append("\n对话记录：\n")
@@ -64,9 +84,9 @@ internal object DeepSeekWebTools {
                             is UIMessagePart.Text -> append(part.text)
                             is UIMessagePart.Reasoning -> append(part.reasoning)
                             is UIMessagePart.Tool -> {
-                                append(historyToolDescription(part.toolName))
+                                append(historyToolDescription(part.toolName, active))
                                 if (part.isExecuted && DeepSeekWebToolPolicy.allows(part.toolName,
-                                        part.inputAsJson() as? JsonObject ?: JsonObject(emptyMap()))) {
+                                        part.inputAsJson() as? JsonObject ?: JsonObject(emptyMap()), active)) {
                                     append("\n工具返回结果：\n")
                                     part.output.forEach { output ->
                                         when (output) {
@@ -88,13 +108,20 @@ internal object DeepSeekWebTools {
                 append(if (message.role == MessageRole.SYSTEM) sanitizeSystemPrompt(messageText) else messageText)
                 append('\n')
             }
-            append('\n').append(policy.trimIndent())
-            append("\n再次提醒：只能读取工作区文件，不能写入或修改；不能新建或删除日历事件、修改记忆或写入剪贴板；工具调用每轮最多一个。")
+            append('\n').append(activePolicy.trimIndent())
+            if (active.customEnabled) {
+                append("\n再次提醒：只调用上方清单中已启用的工具；每轮最多调用一个。")
+            } else {
+                append("\n再次提醒：只能读取工作区文件，不能写入或修改；不能新建或删除日历事件、修改记忆或写入剪贴板；工具调用每轮最多一个。")
+            }
         }
         return text
     }
 
-    private fun historyToolDescription(toolName: String): String = if (toolName in allowedNames) {
+    private fun historyToolDescription(toolName: String, unlock: DeepSeekWebUnlock): String = if (
+        toolName in DeepSeekWebToolPolicy.allowedNames(unlock) ||
+        (unlock.active.mcp && toolName.startsWith("mcp__", ignoreCase = true))
+    ) {
         "（历史）助手调用了 $toolName 工具"
     } else {
         "（历史）助手调用了一个当前网页版不提供的工具"
@@ -116,13 +143,13 @@ internal object DeepSeekWebTools {
         "workspace_shell", "eval_javascript", "use_skill",
     )
 
-    private fun toolParameters(tool: Tool): String = if (tool.name == "clipboard_tool") {
+    private fun toolParameters(tool: Tool, unlock: DeepSeekWebUnlock): String = if (tool.name == "clipboard_tool") {
         buildJsonObject {
             put("type", "object")
             put("properties", buildJsonObject {
                 put("action", buildJsonObject {
                     put("type", "string")
-                    put("enum", buildJsonArray { add("read") })
+                    put("enum", buildJsonArray { add("read"); if (unlock.active.clipboardWrite) add("write") })
                 })
             })
             put("required", buildJsonArray { add("action") })

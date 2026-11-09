@@ -53,19 +53,20 @@ internal class DeepSeekWebProvider(
     ): Flow<StreamChunk> = flow {
         require(providerSetting.token.isNotBlank()) { "DeepSeek 网页版尚未登录，请先保存 Token。" }
         val latestUser = messages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty()
-        DeepSeekWebGuard.refusal(latestUser)?.let { throw it }
+        DeepSeekWebGuard.refusal(latestUser, providerSetting.unlock)?.let { throw it }
         gate.withPermit(providerSetting.throttleMinMs, providerSetting.throttleMaxMs) {
             val requestMessages = messages.map { message ->
                 if (message.role == MessageRole.SYSTEM) UIMessage.system(message.toText()) else message
             }
             val headers = requestHeaders(providerSetting)
-            val uploadedImages = images.prepare(requestMessages, headers)
-            val prompt = DeepSeekWebTools.prompt(requestMessages, params.tools, params.model, uploadedImages.references)
+            val uploadedImages = images.prepare(requestMessages, headers, providerSetting.unlock)
+            val prompt = DeepSeekWebTools.prompt(requestMessages, params.tools, params.model,
+                uploadedImages.references, providerSetting.unlock)
             val sessionId = createSession(headers)
             try {
                 val pow = DeepSeekWebPoW.createHeader(client, appContext, headers)
                 completion(headers, pow, sessionId, prompt, params.model.modelId == "deepseek-web-thinking",
-                    uploadedImages.fileIds, params.tools.map { it.name }.toSet())
+                    uploadedImages.fileIds, params.tools.map { it.name }.toSet(), providerSetting.unlock)
                     .collect { emit(it) }
             } finally {
                 deleteSession(headers, sessionId)
@@ -119,6 +120,7 @@ internal class DeepSeekWebProvider(
         thinking: Boolean,
         refFileIds: List<String>,
         availableToolNames: Set<String>,
+        unlock: me.rerere.ai.provider.DeepSeekWebUnlock,
     ): Flow<StreamChunk> = callbackFlow {
         val body = deepSeekWebCompletionBody(sessionId, prompt, thinking, refFileIds)
         val requestHeaders = headers.toMutableMap().apply {
@@ -135,6 +137,7 @@ internal class DeepSeekWebProvider(
             model = if (thinking) "deepseek-web-thinking" else "deepseek-web",
             thinkingEnabled = thinking,
             availableToolNames = availableToolNames,
+            unlock = unlock,
         )
         val listener = object : EventSourceListener() {
             override fun onEvent(source: EventSource, id: String?, type: String?, data: String) {

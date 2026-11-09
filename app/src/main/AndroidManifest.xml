@@ -4,6 +4,9 @@
 
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
   <uses-permission android:name="android.permission.CAMERA" />
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission
@@ -121,6 +124,17 @@
           android:scheme="rikkahub" />
       </intent-filter>
     </activity>
+    <service android:name=".service.PulseDaemonService" android:exported="false" android:foregroundServiceType="specialUse">
+      <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled scheduled personal assistant tasks" />
+    </service>
+    <receiver android:name=".service.pulse.PulseAlarmReceiver" android:exported="false" />
+    <receiver android:name=".service.pulse.PulseBootReceiver" android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+    </receiver>
     <service
       android:name=".service.ChatGenerationForegroundService"
       android:exported="false"

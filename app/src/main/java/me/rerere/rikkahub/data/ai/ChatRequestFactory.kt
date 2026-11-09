@@ -48,6 +48,7 @@ import me.rerere.rikkahub.data.model.MemoryFile
 import me.rerere.rikkahub.data.model.RowMemory
 import me.rerere.rikkahub.data.model.getAssistantOf
 import me.rerere.rikkahub.data.model.getChatModelOf
+import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
@@ -74,6 +75,7 @@ class ChatTurnContext(
     val tools: List<Tool>,
     val isGroupChat: Boolean = false,
     val rowMemories: List<RowMemory> = emptyList(),
+    val pulseInstruction: String? = null,
 )
 
 /** 把会话变成发给模型的请求：系统提示词、上下文裁剪、输入输出转换都在这里 */
@@ -108,6 +110,7 @@ class ChatRequestFactory(
         conversation: Conversation,
         assistantOverride: Assistant? = null,
         memoryScope: String? = null,
+        pulseInstruction: String? = null,
     ): ChatTurnContext {
         // 模型、思考级别、搜索、工具等以会话上固定的配置为准
         val assistant = assistantOverride ?: settings.getAssistantOf(conversation)
@@ -124,7 +127,9 @@ class ChatRequestFactory(
             model = resolvedModel,
             providerSetting = provider,
             conversationId = conversation.id,
-            conversationSystemPrompt = conversation.customSystemPrompt.takeIf { assistantOverride == null },
+            conversationSystemPrompt = if (conversation.isPulseChat()) {
+                "## Context\nCurrent local time: ${java.time.ZonedDateTime.now()} (${java.time.ZoneId.systemDefault().id})"
+            } else conversation.customSystemPrompt.takeIf { assistantOverride == null },
             workspaceCwd = conversation.workspaceCwd,
             memories = if (assistant.enableMemory) memoryRepository.getFiles(memoryScope ?: assistant.memoryId) else emptyList(),
             rowMemories = if (assistant.enableMemory) memoryRepository.getRowMemories(memoryScope ?: assistant.memoryId) else emptyList(),
@@ -134,10 +139,11 @@ class ChatRequestFactory(
                 model = resolvedModel,
                 workspaceCwd = conversation.workspaceCwd,
                 memoryScope = memoryScope,
-                conversationScopeAssistantId = if (assistantOverride == null) assistant.id else null,
+                conversationScopeAssistantId = if (assistantOverride == null && !conversation.isPulseChat()) assistant.id else null,
                 conversationId = conversation.id,
             ),
             isGroupChat = assistantOverride != null,
+            pulseInstruction = pulseInstruction,
         )
     }
 
@@ -256,6 +262,8 @@ class ChatRequestFactory(
                     append(effectiveSystemPrompt)
                 }
 
+                appendPulseInstruction(this, turn.pulseInstruction)
+
                 // 记忆
                 if (assistant.enableMemory) {
                     appendLine()
@@ -301,6 +309,16 @@ class ChatRequestFactory(
             sessionId = turn.conversationId.toString(),
         )
         return StepRequest(requestMessages, params)
+    }
+}
+
+internal fun appendPulseInstruction(target: StringBuilder, instruction: String?) {
+    instruction?.takeIf(String::isNotBlank)?.let {
+        if (target.isNotEmpty()) {
+            target.appendLine()
+            target.appendLine()
+        }
+        target.append(it)
     }
 }
 

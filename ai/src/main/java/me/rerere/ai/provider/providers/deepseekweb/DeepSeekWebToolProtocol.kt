@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.util.json
 
 /** The text protocol is local to DeepSeek Web, not the shared provider tool wire format. */
@@ -24,7 +25,7 @@ object DeepSeekWebToolProtocol {
     private val fences = Regex("(?is)```(?:json)?[ \\t]*\\r?\\n?(.*?)```")
     private val dsml = Regex("(?s)<\\|\\|DSML\\|\\|(?:calls|invoke)\\b.*?(?:</\\|\\|DSML\\|\\|calls>|</\\|\\|DSML\\|\\|invoke>|$)")
 
-    fun scan(text: String): List<Candidate> {
+    fun scan(text: String, unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED): List<Candidate> {
         val dsmlRanges = dsml.findAll(text).map { it.range }.toList()
         return objectRanges(text).mapNotNull { range ->
             if (dsmlRanges.any { range.first in it }) return@mapNotNull null
@@ -35,13 +36,13 @@ object DeepSeekWebToolProtocol {
                     warn("Malformed tool JSON, length=${candidate.length}")
                     Result.Invalid()
                 } else Result.NotTool
-            } else classify(value)
+            } else classify(value, unlock)
             if (result == Result.NotTool) null else Candidate(range, result)
         }
     }
 
-    fun parse(text: String): Output {
-        val candidates = scan(text)
+    fun parse(text: String, unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED): Output {
+        val candidates = scan(text, unlock)
         val first = candidates.firstOrNull() ?: return Output(Result.NotTool, text)
         if (candidates.size > 1) warn("Discarded ${candidates.size - 1} additional tool calls")
         // Unknown examples and malformed calls stay visible; the application reports them.
@@ -60,7 +61,7 @@ object DeepSeekWebToolProtocol {
         return Output(first.result, removeRanges(text, removed))
     }
 
-    private fun classify(value: JsonObject): Result {
+    private fun classify(value: JsonObject, unlock: DeepSeekWebUnlock): Result {
         val argumentKey = listOf("arguments", "input", "parameters").firstOrNull(value::containsKey)
         if (!value.containsKey("tool") && !(value.containsKey("name") && argumentKey != null)) {
             if (argumentKey != null) {
@@ -72,13 +73,14 @@ object DeepSeekWebToolProtocol {
         val name = ((value["tool"] ?: value["name"]) as? JsonPrimitive)
             ?.takeIf { it.isString }?.contentOrNull?.takeIf { it.isNotBlank() }
             ?: return Result.Invalid().also { warn("Tool JSON has an invalid tool name") }
-        if (name !in DeepSeekWebToolPolicy.allowedNames) {
-            return if (DeepSeekWebToolPolicy.isBlockedName(name)) Result.Blocked(name)
+        if (name !in DeepSeekWebToolPolicy.allowedNames(unlock) &&
+            !(unlock.active.mcp && name.startsWith("mcp__", ignoreCase = true))) {
+            return if (DeepSeekWebToolPolicy.isBlockedName(name, unlock)) Result.Blocked(name)
             else Result.Unknown(name).also { warn("Unrecognized tool name in JSON") }
         }
         val arguments = argumentKey?.let { value[it] } as? JsonObject
             ?: return Result.Invalid(name).also { warn("Tool JSON arguments are missing or not an object") }
-        if (!DeepSeekWebToolPolicy.allows(name, arguments)) return Result.Blocked(name)
+        if (!DeepSeekWebToolPolicy.allows(name, arguments, unlock)) return Result.Blocked(name)
         return Result.Allowed(Call(name, arguments.toString()))
     }
 

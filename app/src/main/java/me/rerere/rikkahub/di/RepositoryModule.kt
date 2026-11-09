@@ -26,6 +26,8 @@ import org.koin.dsl.onClose
 import java.io.File
 
 val repositoryModule = module {
+    single { me.rerere.rikkahub.data.repository.PulseRepository(get(), get(), get()) }
+    single { me.rerere.rikkahub.data.repository.PulseTaskRepository(get()) }
     single { RootfsIndexClient(get(), File(get<Context>().cacheDir, "rootfs-index.json")) }
     single { RootfsCatalog(get(), get<AppScope>()) }
     single {

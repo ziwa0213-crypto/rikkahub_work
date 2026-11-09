@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -34,7 +36,6 @@ class ChatGenerationForegroundService : Service() {
         private const val ACTION_RELEASE = "me.rerere.rikkahub.action.CHAT_GENERATION_RELEASE"
         private const val EXTRA_GENERATION_ID = "generation_id"
         private const val EXTRA_CONVERSATION_ID = "conversation_id"
-        private const val WAKE_LOCK_TIMEOUT_MS = 25 * 60 * 1000L
         private const val WAKE_LOCK_TAG = "rikkahub:generation"
 
         const val NOTIFICATION_ID = 2002
@@ -68,7 +69,15 @@ class ChatGenerationForegroundService : Service() {
 
     private val activeGenerations = linkedMapOf<String, String>()
     private var isForeground = false
+    private var isStopping = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private val renewHandler = Handler(Looper.getMainLooper())
+    private val wakeLockRenewal = GenerationWakeLockRenewal(
+        isActive = { !isStopping && isForeground && activeGenerations.isNotEmpty() },
+        renew = ::ensureWakeLock,
+        postDelayed = { callback, delayMs -> renewHandler.postDelayed(callback, delayMs) },
+        removeCallbacks = renewHandler::removeCallbacks,
+    )
     private val appScope: AppScope by inject()
     private val chatService: ChatService by inject()
 
@@ -84,6 +93,8 @@ class ChatGenerationForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        isStopping = true
+        wakeLockRenewal.stop()
         releaseWakeLock()
         activeGenerations.clear()
         if (isForeground) {
@@ -94,6 +105,8 @@ class ChatGenerationForegroundService : Service() {
     }
 
     override fun onTimeout(startId: Int, fgsType: Int) {
+        isStopping = true
+        wakeLockRenewal.stop()
         releaseWakeLock()
         Log.e(TAG, "Foreground service timed out (type=$fgsType)")
         activeGenerations.values
@@ -113,33 +126,43 @@ class ChatGenerationForegroundService : Service() {
         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID) ?: return stopSelf(startId)
         activeGenerations[generationId] = conversationId
         updateForegroundNotification(conversationId)
-        ensureWakeLock()
+        wakeLockRenewal.start()
     }
 
     private fun release(intent: Intent, startId: Int) {
         intent.getStringExtra(EXTRA_GENERATION_ID)?.let(activeGenerations::remove)
         if (activeGenerations.isEmpty()) {
+            wakeLockRenewal.stop()
+            releaseWakeLock()
             // Only stop if no newer start request is queued. A pending ACQUIRE came from
             // startForegroundService(), and stopping before it calls startForeground() crashes
             // with ForegroundServiceDidNotStartInTimeException. onDestroy() removes the notification.
             stopSelf(startId)
         } else {
             updateForegroundNotification(activeGenerations.values.last())
-            ensureWakeLock()
+            wakeLockRenewal.start()
         }
     }
 
     private fun ensureWakeLock() {
-        if (!isForeground || activeGenerations.isEmpty()) return
-        runCatching {
-            val lock = wakeLock ?: (getSystemService(PowerManager::class.java) ?: return)
+        if (isStopping || !isForeground || activeGenerations.isEmpty()) return
+        val lock = runCatching {
+            wakeLock ?: (getSystemService(PowerManager::class.java) ?: return)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
                 .apply { setReferenceCounted(false) }
                 .also { wakeLock = it }
-            // Renew on each generation: overlapping tasks can outlive the first lock's lease.
-            // Also reacquires an expired lease; a non-null reference does not mean isHeld.
+        }.onFailure {
+            Log.w(TAG, "Unable to create generation wake lock", it)
+        }.getOrNull() ?: return
+        // A failed release must not skip reacquisition; the bounded lease remains a safety net.
+        runCatching {
             if (lock.isHeld) lock.release()
-            lock.acquire(WAKE_LOCK_TIMEOUT_MS)
+        }.onFailure {
+            Log.w(TAG, "Unable to release generation wake lock before renewal", it)
+        }
+        runCatching {
+            // Also reacquires an expired lease; a non-null reference does not mean isHeld.
+            lock.acquire(GENERATION_WAKE_LOCK_LEASE_MS)
         }.onFailure {
             Log.w(TAG, "Unable to acquire generation wake lock", it)
         }
@@ -153,6 +176,7 @@ class ChatGenerationForegroundService : Service() {
     }
 
     private fun updateForegroundNotification(conversationId: String) {
+        if (isStopping) return
         try {
             val notification = buildNotification(conversationId)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -174,6 +198,8 @@ class ChatGenerationForegroundService : Service() {
     }
 
     private fun stopService() {
+        isStopping = true
+        wakeLockRenewal.stop()
         releaseWakeLock()
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)

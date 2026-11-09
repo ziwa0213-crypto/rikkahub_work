@@ -152,6 +152,8 @@ import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openUsageAccessSettings
+import me.rerere.rikkahub.service.pulse.ACTION_PULSE_BATTERY_SETTINGS
+import me.rerere.rikkahub.service.pulse.launchBatterySettings
 import okhttp3.OkHttpClient
 import org.koin.android.ext.android.inject
 import org.koin.compose.koinInject
@@ -160,7 +162,12 @@ import kotlin.uuid.Uuid
 private const val TAG = "RouteActivity"
 private const val ACTION_TRANSLATE = "me.rerere.rikkahub.action.TRANSLATE"
 private const val ACTION_MEDIA_CREATION = "me.rerere.rikkahub.action.MEDIA_CREATION"
+private const val ACTION_OPEN_PULSE = "me.rerere.rikkahub.action.OPEN_PULSE"
+private const val ACTION_OPEN_PULSE_LOGS = "me.rerere.rikkahub.action.OPEN_PULSE_LOGS"
+private const val ACTION_OPEN_PULSE_REPORT = "me.rerere.rikkahub.action.OPEN_PULSE_REPORT"
 private const val EXTRA_CONVERSATION_ID = "conversationId"
+private const val EXTRA_PULSE_WORKSPACE_ID = "pulseWorkspaceId"
+private const val EXTRA_PULSE_REPORT_PATH = "pulseReportPath"
 
 /** 打开指定会话的聊天页 */
 fun conversationIntent(context: Context, conversationId: String): Intent =
@@ -168,6 +175,26 @@ fun conversationIntent(context: Context, conversationId: String): Intent =
         flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         putExtra(EXTRA_CONVERSATION_ID, conversationId)
     }
+
+fun pulseLogsIntent(context: Context): Intent = Intent(context, RouteActivity::class.java).apply {
+    action = ACTION_OPEN_PULSE_LOGS
+    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+}
+
+fun pulseReportIntent(context: Context, workspaceId: String, path: String): Intent =
+    Intent(context, RouteActivity::class.java).apply {
+        action = ACTION_OPEN_PULSE_REPORT
+        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        putExtra(EXTRA_PULSE_WORKSPACE_ID, workspaceId)
+        putExtra(EXTRA_PULSE_REPORT_PATH, path)
+        data = android.net.Uri.Builder().scheme("rikkahub").authority("pulse-report")
+            .appendPath(workspaceId).appendPath(path).build()
+    }
+
+fun pulseIntent(context: Context): Intent = Intent(context, RouteActivity::class.java).apply {
+    action = ACTION_OPEN_PULSE
+    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+}
 
 class RouteActivity : ComponentActivity() {
     private val okHttpClient by inject<OkHttpClient>()
@@ -243,12 +270,25 @@ class RouteActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
+        if (intent.action == ACTION_PULSE_BATTERY_SETTINGS) {
+            launchBatterySettings(this)
+            return
+        }
         val backStack = navStack ?: run {
             // Compose 尚未创建导航栈，待就绪后处理。
             pendingIntents.addLast(intent)
             return
         }
         val destination = when (intent.action) {
+            ACTION_OPEN_PULSE -> Screen.Pulse
+            ACTION_OPEN_PULSE_LOGS -> Screen.PulseSettings(logs = true)
+            ACTION_OPEN_PULSE_REPORT -> {
+                val workspaceId = intent.getStringExtra(EXTRA_PULSE_WORKSPACE_ID)
+                val path = intent.getStringExtra(EXTRA_PULSE_REPORT_PATH)
+                if (workspaceId != null && path != null && path.startsWith("reports/")) {
+                    Screen.WorkspaceFileEditor(workspaceId, WorkspaceStorageArea.FILES.name, path)
+                } else Screen.PulseSettings(logs = true)
+            }
             ACTION_TRANSLATE -> Screen.Translator
             ACTION_MEDIA_CREATION -> {
                 openNewMediaCreation(backStack)
@@ -309,7 +349,9 @@ class RouteActivity : ComponentActivity() {
             return
         }
 
-        val startScreen = if (settings.uiMode == UiMode.GROUP) {
+        val startScreen = if (settings.uiMode == UiMode.PULSE) {
+            Screen.Pulse
+        } else if (settings.uiMode == UiMode.GROUP) {
             // 群组模式：复用该组最后一个群聊会话；没有组或组内没有会话时进入群组列表。
             // 不新建会话，避免每次冷启动都产生空群聊。
             val groupConversationId = settings.selectedGroup(null)?.conversationIds?.lastOrNull()
@@ -395,6 +437,15 @@ class RouteActivity : ComponentActivity() {
                                 slideOutHorizontally { it }
                         },
                         entryProvider = entryProvider {
+                            entry<Screen.Pulse> {
+                                me.rerere.rikkahub.ui.pages.pulse.PulseEntryPage()
+                            }
+                            entry<Screen.PulseSettings> { screen ->
+                                me.rerere.rikkahub.ui.pages.pulse.PulseSettingsPage(screen.initialTab, screen.logs)
+                            }
+                            entry<Screen.PulseBackgroundSettings> {
+                                me.rerere.rikkahub.ui.pages.pulse.PulseBackgroundSettingsPage()
+                            }
                             entry<Screen.Chat>(
                                 metadata = NavDisplay.transitionSpec { fadeIn() togetherWith fadeOut() }
                                     + NavDisplay.popTransitionSpec { fadeIn() togetherWith fadeOut() }
@@ -740,6 +791,15 @@ class RouteActivity : ComponentActivity() {
 }
 
 sealed interface Screen : NavKey {
+    @Serializable
+    data object Pulse : Screen
+
+    @Serializable
+    data class PulseSettings(val initialTab: Int = 0, val logs: Boolean = false) : Screen
+
+    @Serializable
+    data object PulseBackgroundSettings : Screen
+
     @Serializable
     data class Chat(
         val id: String,

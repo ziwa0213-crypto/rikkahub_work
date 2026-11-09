@@ -1,5 +1,27 @@
 # RikkaHub 二次开发功能台账
 
+## [F015 阶段 A+B 与 F009 补充六] 3.1.1-work.3 / 201（2026-11-06，ARM64 Debug）
+
+- `PulseRuntime.kt`：租约恢复按未完成的 heartbeat/task claim 及对应配置判断，不用生成开始后才持久化的 `lastHeartbeatAt` 排除较早 claim；无效、完成、禁用或已消费的 claim 不再保留无意义恢复闹钟。
+- 用户有未回复消息时，心跳返回 `SKIPPED`，不更新 `lastHeartbeatAt`，不认为本轮已执行，不触发 `ON_HEARTBEAT` 任务；安排 60 秒后重查以等待用户回复，避免每个唤醒周期立即重试。状态栏下一次心跳时间与重查时间一致。
+- `pulseNextHeartbeatAt` 改为“间隔已到后尽早执行”：睡醒/时段开放时不再按间隔网格继续递增；保持活跃时段限制及单次唤醒至多执行一次。新增心跳 claim 恢复、过期时段、短暂重查与 DeepSeek capability 隔离单测源码。
+- 阶段 B 包 10：脉搏工作区归属独立为 `pulse`，复用 F017 工作区安装流程；首次安装后补齐 README、IDENTITY、USER、TODO、JOURNAL、TOOLS 六个简体中文模板，已存在文件不覆盖。聊天/群组工作区选择器继续隔离。
+- 阶段 B 包 7：新增电量、HTTP(S)、工作区命令监视器。本地指纹无变化不调用模型，首次采样只建立基线，失败不当变化；每轮最多 5 个、间隔 10–240 分钟，URL/命令输出有字节上限。未就绪工作区的命令监视器不能启用。
+- 阶段 B 包 8：新增脉搏通知与报告路径，报告按自有文件名最多保留 5 份，最近活动显示最近 20 项；失败通知不受普通报告通知开关影响。聊天失败通知既有独立失败事件路径保留。
+- 阶段 B 包 9：按脉搏会话统计今日 tokens，提供输入/输出/缓存单价和倍率估算；运行日志最多 200 项，只存结果摘要和错误、不存正文。缓存 token 口径因供应商而异，金额明确为估算；未改 UsageRecorder/Room。
+- 静态核对 Kai / PalmClaw 固定版本的调度、临时会话、claim/租约与处理器边界；未把参考仓库代码复制进产品。测试数、APK 校验和交付目录见 `DELIVERY.md`。自动化验证通过，设备上的后台运行、通知及 UI 行为待维护者验收。
+
+## [F015 包 0 后台保活收尾] 3.1.1-work.3 / 201（2026-11-03，Debug）
+
+- 依据 `RikkaHub Work-F015包0-后台保活收尾-20261103.zip`，但以维护者随后指示覆盖 watchdog 方案：取消全部应用层生成时限，不实现 5 分钟空闲 / 2 小时清醒上限。
+- 删除 `GenerationWatchdog.kt` 及其已废弃测试；`ChatService.kt` 移除 watchdog、GenerationActivity、进展 touch 接线，保留 launchGenerationJob 签名、原 Job、finally 释放前台服务和其他真实异常处理。common/RequestTiming 与 UI 计时不改。
+- `ChatGenerationForegroundService.kt` 用 Handler 连接 `GenerationWakeLockRenewal.kt`；5 分钟有界租约、60 秒续租，最后任务结束立即释放，销毁/系统超时/主动停止时清理回调。保持 setReferenceCounted(false) 和过期锁重取，续租时不取消生成。
+- `GenerationWakeLockRenewalTest.kt` 验证超过旧时限仍持续续租、重复启动、旧回调失效、没有活动任务、停止中回调及重启不叠加。实际测试数量、编译和包体验证以 DELIVERY 为准。
+- 参考复核：Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff`、PalmClaw `75a42aeda0e580ebad0de4a38c00c94146148366`；只采用生命周期独立、幂等和有界电源锁续租思路，未移植常驻/恢复系统。新增四项调度回归，首轮立即获取、重复事件保持原期限、空闲后重启和回调内停止重启均覆盖。详见 `docs/f015-keepalive-reference-review.md`。
+- 复核后构建通过：App 719 / Workspace 72 / Common 9，共 800 个用例，0 失败/错误/跳过；App 本轮执行，另两模块复用通过报告。新 APK 和源码交付路径见 DELIVERY。设备息屏、续租实际生效和多任务体验未操作，需维护者验收。
+- 本批无新 UI、依赖、数据库或语言 key；三语现有 2224 条保持不变。versionName 调整为维护者指定 3.1.1-work.3；Debug 暂沿用 versionCode 201，不构建 Release。
+- 上游升级需重新套用 ChatService 的无 watchdog 生命周期及前台服务的续租接线，保留新增调度类；不可把历史 watchdog 测试或 20 分钟常量随合并恢复。回滚只反向应用本批差异，不覆盖 F017 或其他既有改动。本批不自动提交、打标签或推送。
+
 ## [F017 工作区 Rootfs] 3.1.1-work.2 / 201（2026-11-02，本地 Release）
 
 - 数据目录：`workspace/rootfs/` 提供 ID、档位、架构、条目、索引缓存、目录、安装规格、镜像标识和验证器；发行版开放扩展。只有 `configureFor` 按发行版分流，未知发行版通用配置。

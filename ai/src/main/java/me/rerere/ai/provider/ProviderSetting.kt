@@ -402,6 +402,7 @@ sealed class ProviderSetting {
         var capturedAt: Long = 0L,
         var throttleMinMs: Int = 2000,
         var throttleMaxMs: Int = 4000,
+        var unlock: DeepSeekWebUnlock = DeepSeekWebUnlock(),
     ) : ProviderSetting() {
         override fun copyProvider(
             id: Uuid,

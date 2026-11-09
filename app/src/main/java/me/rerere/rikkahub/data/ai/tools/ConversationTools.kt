@@ -27,6 +27,7 @@ import kotlin.uuid.Uuid
 fun createConversationTools(
     conversationRepo: ConversationRepository,
     assistantId: Uuid?,
+    pulse: Boolean = false,
 ): List<Tool> = listOf(
     Tool(
         name = "recent_chats",
@@ -51,7 +52,7 @@ fun createConversationTools(
         },
         execute = {
             val limit = (it.jsonObject["limit"]?.jsonPrimitive?.intOrNull ?: 10).coerceIn(1, 30)
-            val recent = conversationRepo.getRecentConversations(
+            val recent = if (pulse) conversationRepo.getRecentPulseSummaries(limit) else conversationRepo.getRecentConversations(
                 assistantId = assistantId,
                 limit = limit,
             )

@@ -128,6 +128,7 @@ internal fun FilesPicker(
     onPickAudio: () -> Unit,
     onPickFile: () -> Unit,
     onSketch: () -> Unit,
+    pulseMode: Boolean = false,
     onStartVoiceMode: (() -> Unit)? = null,
     groupContextUsage: ContextUsage? = null,
     groupCompressThreshold: Float? = null,
@@ -153,11 +154,17 @@ internal fun FilesPicker(
     val navController = LocalNavController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
+    val ownerScope = when {
+        pulseMode -> WorkspaceOwnerScope.PULSE
+        groupMode -> WorkspaceOwnerScope.GROUP
+        else -> WorkspaceOwnerScope.CHAT
+    }
     val selectedWorkspaceId = if (groupMode) groupWorkspaceId else assistant.workspaceId
     val selectedMcpServerIds = if (groupMode) groupMcpServerIds.orEmpty() else assistant.mcpServers
+    val scopedWorkspaces = remember(workspaces, ownerScope) { workspaces.filter(ownerScope::includes) }
 
     val boundWorkspace = remember(workspaces, selectedWorkspaceId) {
-        workspaces.find { it.id == selectedWorkspaceId?.toString() }
+        workspaces.find { it.id == selectedWorkspaceId?.toString() && ownerScope.includes(it) }
     }
     val showCwd = groupAllowCwd && boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name
     var showCwdSheet by remember { mutableStateOf(false) }
@@ -249,7 +256,7 @@ internal fun FilesPicker(
                 )
 
                 // 分段列表：各项按显示条件依次占位，首尾项才有大圆角
-                val showWorkspace = workspaces.isNotEmpty()
+                val showWorkspace = scopedWorkspaces.isNotEmpty()
                 val showMcp = settings.mcpServers.isNotEmpty()
                 // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
                 val showCompress = groupMode || assistant.contextMessageLimit <= 0
@@ -270,7 +277,7 @@ internal fun FilesPicker(
                         WorkspacePickerListItem(
                             assistant = assistant,
                             workspaceId = selectedWorkspaceId,
-                            workspaces = workspaces,
+                            workspaces = scopedWorkspaces,
                             shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
                             onUpdateAssistant = onUpdateAssistant,
                             onUpdateWorkspace = { workspaceId ->
@@ -289,11 +296,11 @@ internal fun FilesPicker(
                                 onDismiss()
                                 navController.navigate(
                                     Screen.Workspaces(
-                                        if (groupMode) WorkspaceOwnerScope.GROUP.value else WorkspaceOwnerScope.CHAT.value,
+                                        ownerScope.value,
                                     ),
                                 )
                             },
-                            ownerScope = if (groupMode) WorkspaceOwnerScope.GROUP else WorkspaceOwnerScope.CHAT,
+                            ownerScope = ownerScope,
                         )
 
                         // Workspace CWD

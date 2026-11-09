@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.ai
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import me.rerere.ai.provider.DeepSeekWebUnlock
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebToolPolicy
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebToolProtocol
@@ -33,7 +34,10 @@ object DeepSeekWebOutputGuard {
     private val dsmlParameter = Regex("(?s)<\\|\\|DSML\\|\\|parameter\\b([^>]*)>(.*?)</\\|\\|DSML\\|\\|parameter>")
     private val dsmlAttribute = Regex("""\b(name|string)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 
-    fun sanitize(messages: List<UIMessage>): DeepSeekWebSanitizedMessages? {
+    fun sanitize(
+        messages: List<UIMessage>,
+        unlock: DeepSeekWebUnlock = DeepSeekWebUnlock.DISABLED,
+    ): DeepSeekWebSanitizedMessages? {
         val matches = mutableListOf<DeepSeekWebPseudoToolMatch>()
         val sanitized = messages.mapIndexed { index, message ->
             // Historical API responses can contain examples that must not trigger a new error.
@@ -50,7 +54,7 @@ object DeepSeekWebOutputGuard {
                     while (message.parts.getOrNull(partIndex) is UIMessagePart.Text) {
                         textParts += message.parts[partIndex++] as UIMessagePart.Text
                     }
-                    val result = sanitizeText(textParts.joinToString("") { it.text })
+                    val result = sanitizeText(textParts.joinToString("") { it.text }, unlock)
                     matches += result.matches
                     if (result.matches.isEmpty()) addAll(textParts)
                     else result.text.takeIf(String::isNotBlank)?.let { add(part.copy(text = it)) }
@@ -63,17 +67,17 @@ object DeepSeekWebOutputGuard {
         }
     }
 
-    private fun sanitizeText(text: String): SanitizedText {
+    private fun sanitizeText(text: String, unlock: DeepSeekWebUnlock): SanitizedText {
         val candidates = mutableListOf<Candidate>()
         dsmlCalls.findAll(text).forEach { block ->
-            candidates += dsmlCandidates(block.value, block.range)
+            candidates += dsmlCandidates(block.value, block.range, unlock)
         }
         dsmlInvoke.findAll(text).forEach { block ->
             if (candidates.none { block.range.first >= it.range.first && block.range.last <= it.range.last }) {
-                candidates += dsmlCandidates(block.value, block.range)
+                candidates += dsmlCandidates(block.value, block.range, unlock)
             }
         }
-        DeepSeekWebToolProtocol.scan(text).forEach { call ->
+        DeepSeekWebToolProtocol.scan(text, unlock).forEach { call ->
             if (candidates.any { call.range.first >= it.range.first && call.range.last <= it.range.last }) return@forEach
             val candidate = when (val result = call.result) {
                 is DeepSeekWebToolProtocol.Result.Blocked -> {
@@ -105,7 +109,7 @@ object DeepSeekWebOutputGuard {
         )
     }
 
-    private fun dsmlCandidates(block: String, range: IntRange): List<Candidate> {
+    private fun dsmlCandidates(block: String, range: IntRange, unlock: DeepSeekWebUnlock): List<Candidate> {
         val calls = dsmlInvoke.findAll(block).map { invocation ->
             val name = attributes(invocation.groupValues[1])["name"] ?: "DSML"
             val action = dsmlParameter.findAll(invocation.value).firstOrNull {
@@ -119,7 +123,7 @@ object DeepSeekWebOutputGuard {
             Candidate(
                 range = (range.first + invocation.range.first)..(range.first + invocation.range.last),
                 toolName = name,
-                blocked = !DeepSeekWebToolPolicy.allows(name, arguments),
+                blocked = !DeepSeekWebToolPolicy.allows(name, arguments, unlock),
             )
         }.toList()
         return when {

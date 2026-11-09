@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.data.datastore.BackgroundEffectType
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 import me.rerere.rikkahub.ui.components.ai.LiquidGlassCircuitBreaker
@@ -42,6 +44,7 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
+    val navController = LocalNavController.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
@@ -77,6 +80,13 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             contentPadding = contentPadding + PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                CardGroup {
+                    item(onClick = { navController.navigate(Screen.PulseBackgroundSettings) },
+                        headlineContent = { Text(stringResource(R.string.pulse_background_title)) },
+                        supportingContent = { Text(stringResource(R.string.pulse_keepalive_description)) })
+                }
+            }
             item {
                 var createNewConversationOnStart by rememberSharedPreferenceBoolean(
                     "create_new_conversation_on_start",

@@ -31,7 +31,7 @@ class MediaCreationForegroundService : Service() {
         private const val EXTRA_SESSION_ID = "session_id"
 
         const val EXTRA_MEDIA_SESSION_ID = "mediaSessionId"
-        const val NOTIFICATION_ID = 2003
+        const val NOTIFICATION_ID = 2007
 
         fun acquire(context: Context, recordId: Uuid, sessionId: Uuid): Boolean {
             val intent = Intent(context, MediaCreationForegroundService::class.java).apply {

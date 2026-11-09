@@ -27,6 +27,7 @@ import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Message02
 import me.rerere.hugeicons.stroke.UserGroup03
+import me.rerere.hugeicons.stroke.HeartPulse
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.UiMode
 
@@ -46,8 +47,8 @@ fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(if (mode == UiMode.GROUP) HugeIcons.UserGroup03 else HugeIcons.Message02, null, Modifier.size(14.dp))
-                Text(stringResource(if (mode == UiMode.GROUP) R.string.group_mode_group else R.string.group_mode_chat),
+                Icon(mode.icon(), null, Modifier.size(14.dp))
+                Text(stringResource(mode.label()),
                     style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                 Icon(HugeIcons.ArrowDown01, null, Modifier.size(14.dp))
             }
@@ -55,12 +56,24 @@ fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             UiMode.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(stringResource(if (option == UiMode.GROUP) R.string.group_mode_group else R.string.group_mode_chat)) },
-                    leadingIcon = { Icon(if (option == UiMode.GROUP) HugeIcons.UserGroup03 else HugeIcons.Message02, null) },
+                    text = { Text(stringResource(option.label())) },
+                    leadingIcon = { Icon(option.icon(), null) },
                     trailingIcon = { if (option == mode) Icon(HugeIcons.Tick01, null) },
                     onClick = { expanded = false; if (option != mode) onSelect(option) },
                 )
             }
         }
     }
+}
+
+private fun UiMode.label() = when (this) {
+    UiMode.CHAT -> R.string.group_mode_chat
+    UiMode.GROUP -> R.string.group_mode_group
+    UiMode.PULSE -> R.string.group_mode_pulse
+}
+
+private fun UiMode.icon() = when (this) {
+    UiMode.CHAT -> HugeIcons.Message02
+    UiMode.GROUP -> HugeIcons.UserGroup03
+    UiMode.PULSE -> HugeIcons.HeartPulse
 }

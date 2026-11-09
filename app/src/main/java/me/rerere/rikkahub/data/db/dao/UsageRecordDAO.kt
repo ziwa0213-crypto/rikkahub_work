@@ -18,6 +18,22 @@ interface UsageRecordDAO {
     )
     suspend fun getTotals(since: Long = 0): UsageTotals
 
+    @Query(
+        "SELECT COALESCE(SUM(prompt_tokens), 0) AS promptTokens, " +
+            "COALESCE(SUM(completion_tokens), 0) AS completionTokens, " +
+            "COALESCE(SUM(cached_tokens), 0) AS cachedTokens " +
+            "FROM usage_record WHERE conversation_id = :conversationId AND created_at >= :since"
+    )
+    suspend fun getConversationTotals(conversationId: String, since: Long): UsageTotals
+
+    @Query(
+        "SELECT COALESCE(SUM(prompt_tokens), 0) AS promptTokens, " +
+            "COALESCE(SUM(completion_tokens), 0) AS completionTokens, " +
+            "COALESCE(SUM(cached_tokens), 0) AS cachedTokens " +
+            "FROM usage_record WHERE conversation_id = :conversationId AND created_at >= :since"
+    )
+    fun observeConversationTotals(conversationId: String, since: Long): kotlinx.coroutines.flow.Flow<UsageTotals>
+
     /** 按本地时间分桶汇总，[format] 是 strftime 格式，比如按天用 `%Y-%m-%d`、按月用 `%Y-%m` */
     @Query(
         "SELECT strftime(:format, created_at / 1000, 'unixepoch', 'localtime') AS bucket, " +

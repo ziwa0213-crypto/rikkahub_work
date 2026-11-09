@@ -233,6 +233,7 @@ class MemoryRepository(
 /** 助手读写的记忆库：开启全局记忆后所有助手共用一份 */
 val Assistant.memoryId: String
     get() = when {
+        id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID -> me.rerere.rikkahub.data.model.PULSE_MEMORY_ID
         useGlobalMemory -> MemoryRepository.GLOBAL_MEMORY_ID
         memoryGroupId != null -> "${MemoryRepository.GROUP_MEMORY_PREFIX}$memoryGroupId"
         else -> id.toString()

@@ -1,5 +1,23 @@
 # Repository Guidelines
 
+## 当前工作批次（2026-11-06，已构建待维护者设备验收）
+
+- 基线版本为 `3.1.1-work.3 / 201`。F015 阶段 A+B（含补充二、补充三）与 F009 补充六源码已完成；交付 ARM64 GitHub Debug APK 与精简源码 ZIP。实际构建和校验结果见 `DELIVERY.md` 顶部，不提交、不打 tag、不推送或发布。
+- F015 阶段 B 包 10/7/8/9：脉搏专属工作区和六份不覆盖已有文件的模板、最多 20 个监视器（每轮最多 5 个采样）、通知/失败报告/活动列表、token 成本估算与 200 条运行日志。
+- 心跳提示只在自动轮次作为 synthetic system 注入；未回复用户消息时跳过且 60 秒后重查。未恢复生成超时、休眠取消、5 分钟空闲停止或 2 小时上限。
+- F009 自定义工具总开关与 9 个能力开关默认关闭；总开关开启需逐字确认，能力继续经过工具注册、协议/输出校验、本地预检和提示词。总开关关闭时保持原 DeepSeek Web 只读白名单。
+- 已重新核对 Kai 与 PalmClaw 固定参考版本及既有采用范围，参见 `docs/f015-keepalive-reference-review.md`。语言资源仅有 `values`、`values-zh`、`values-zh-rTW`；本轮未操作设备、提交、推送或发布。
+
+## F015 包 0 当前约定（2026-11-03，覆盖任务包原 watchdog 方案）
+
+- 维护者在审阅任务包后明确取消全部应用层生成时限：删除旧 20 分钟 watchdog 和休眠判定，也不新增 5 分钟空闲 / 2 小时清醒上限。对应检查 timer、GenerationActivity 和进展 touch 一并移除；正常完成、手动取消、真实异常及 Android 前台服务生命周期仍正常收尾。
+- 本批只补齐生成期 WakeLock：5 分钟有界租约、60 秒续租，未前台或没有活动生成时不续；最后任务结束、onDestroy、onTimeout、stopService 必须清理回调并释放锁。保留非引用计数及重新获取过期锁的处理。续租不得变成生成超时或常驻空闲保活。
+- 版本按维护者指定进入 `3.1.1-work.3` Debug；versionCode 暂保持 201，正式发版时再递增。本批只交付 ARM64 Debug APK、精简源码 ZIP 和根 DELIVERY，不构建 Release，不自行 commit/tag/push/发布，不操作设备。
+- 不加入 PULSE 模式/UI、Alarm/WorkManager、权限引导或前台恢复功能。common/RequestTiming、UI 耗时显示、工具审批、DeepSeek 只读边界、数据库、原应用身份图标与三语资源保持不变。过时的超时语言 key 保留，但不再被生成流程引用。
+- 新增 GenerationWakeLockRenewal 的无 Android 依赖回调调度测试；删除只验证已废弃 watchdog 的测试，不保留“睡醒立即取消”的旧断言。验证结果及实机待验项见本批 DELIVERY。
+- 后续参照 Kai 和 PalmClaw 的固定版本复核：保持生成与页面生命周期独立，续租入口改为幂等、首轮立即持锁，重复任务状态更新不推迟下一次续租；释放旧锁异常不跳过重新获取。参考路径、commit 与采用范围见 `docs/f015-keepalive-reference-review.md`；本包不引入常驻服务、自动重启或心跳调度。
+- 参考复核后的 ARM64 Debug 构建通过；App 719、Workspace 72、Common 9，共 800 个用例通过（续租专项 11 项），0 失败/错误/跳过。新批次以根 DELIVERY 最新记录为准，不复用初版 APK 冒充新实现。实机息屏和持锁续租仍待维护者验证。
+
 ## F017 当前约定（2026-11-02，优先于历史版本和 Debug-only 交付口径）
 
 - 最新依据为维护者的 `RikkaHub Work-F017工作区Rootfs改造-20261102(1).zip`（v2.3）。版本 `3.1.1-work.2 / 201`；维护者要求 Release，覆盖附件 Debug 建议。交付三个 GitHub Release APK、精简源码 ZIP 和根 DELIVERY；不提交、tag、推送、发布或操作设备。

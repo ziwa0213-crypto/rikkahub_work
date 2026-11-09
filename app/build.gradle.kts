@@ -28,7 +28,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 201
-        versionName = "3.1.1-work.2"
+        versionName = "3.1.1-work.3"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
