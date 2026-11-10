@@ -1,5 +1,113 @@
 # RikkaHub 二次开发功能台账
 
+## [F015 主界面用量与等待约束] 3.1.2-work.1 / 202（2026-11-10，本地 Release）
+
+- 产品范围：app/build.gradle.kts仅versionCode201→202；PulseStatusRow仅compact默认值与渲染门控，ChatPage仅主界面compact=true，ChatDrawer逐字保持；PulseTurnInput增加固定system约束，末尾synthetic user和历史不变。
+- 经维护者授权补齐附件遗漏：ChatRequestFactory.createContext使用resolvePulseInstruction，只在脉搏且未显式传值时提供固定约束。普通/群聊null仍为null，appendPulseInstruction函数体和ChatService不改；不改默认心跳、人格、shell工具描述、调度或计时。
+- 测试：PulseTurnInputTest维护新system契约，真实ChatCompletions序列化夹具确认完整约束只出现一次、长触发留在最后user；ChatRequestFactoryPulseInstructionTest覆盖手动/自动、并发历史保留、普通/群聊system字节一致与原显式参数契约。短轮询靠明确提示允许，没有工具层命令过滤。设备截图和真实工具日志不以离线夹具代替。
+- 基线为f015-dreaming-release-20261110的1794项源码清单；未提交，无本批commit。回滚仅参照该ZIP逐块反向撤销本批compact与system补丁，单独评估版本递增，不整文件覆盖共享页面或Git index。
+- 上游重套：保留ChatPage主界面compact=true、PulseStatusRow默认完整渲染与ChatRequestFactory的脉搏专用默认约束；不将约束下沉至全局workspace_shell，也不删临时user触发。三语、原21身份图标、DB33、依赖与既有F004/F009保持。
+- 参考、构建和验收边界见根DELIVERY及docs/f015-keepalive-reference-review.md；交三个原正式签名Release与源码ZIP，保留前批产物，不推送或发布。
+
+## [F015 脉搏做梦与循环任务说明] 3.1.2-work.1 / 201（2026-11-10，本地 Release）
+
+- 配置/界面：PulseConfig 新增 autoConsolidateMemory=false 并由 PulseChat.toAssistant 映射；PulseMemoryPage 两页签、持久化开关、状态与手动整理，保持文件路由。三语仅新增四条 pulse_memory_*。
+- 后台：MemoryConsolidator 的作用域、发现、查询及执行统一纳入独立脉搏 facade；includeAutonomousReplies 仅脉搏开启，默认普通助手算法不变，时间进度不跨越待审批。新 service/pulse/PulseMemoryCompletion 负责按ID合并/flush/完成回调，ChatService 使用它通知原调度器，保留供应商限制。没有添加真实助手记录或更改记忆存储格式。
+- 工具：PulseTaskTool 仅 description 补 cron 契约和例子。PulseSettingsPage/PulseTask/PulseCron/PulseTaskRepository/PulseRuntime 不改，parameters/execute 对照前批逐字相同。
+- 上游升级需重套：AssistantMemoryPage 的 MemoryConsolidationSection private→internal（函数体不变）；MemoryConsolidator 的脉搏范围和轮次识别；ChatService 的完成接线。保留 fork 自有 PulseConfig、PulseChat、PulseMemoryPage、PulseTaskTool 与 PulseMemoryCompletion 文件及三语新增值。
+- 回归：MemoryConsolidatorTest 覆盖作用域、纯自动/混合历史、审批、分批/重启与位置编号；MemoryConsolidationSchedulerTest 覆盖脉搏自动/手动与其他桶隔离；PulseMemoryCompletionTest 用真实 ConversationSession + 假磁盘检查先保存后通知、失败重试/去重/并发消息、审批和过期结果；PulseConfigTest/SettingsStoreTest 覆盖默认、JSON/Preferences和实际磁盘重启。无设备/账号测试，V2/V3/V6截图与真实工具参数待验。
+- 基线：前批 f015-alarm-memory-media-release-20261110 的源码清单（1792项），不是过时 HEAD；当前 HEAD 仍 `18c372d58f77da7c8a1c1f59042993e01be2bd5b`，本批未提交，无本批commit。回滚对照前批源码逐项反向应用本批增量，不整文件 checkout；已持久化新开关保留兼容，不删除序列化字段。
+- Kai/PalmClaw 参考采用范围详见 docs/f015-keepalive-reference-review.md 的本批记录。三个Release、源码和根DELIVERY同目录交付；保留原应用图标、三语、DB33、依赖、F004/F009、短信审批与无生成时限。
+
+## [F015 闹钟、记忆、图片与视频] 3.1.2-work.1 / 201（2026-11-10，本地 Release）
+
+- 闹钟：PulseConfig 添加 enableAlarm=false；PulseChat.toAssistant、PulseToolPolicy、PulseSettingsPage 同步接线，三语移除旧信息组闹钟说明。原工具与 writes/审批规则不改。PulseConfigTest/PulseToolPolicyTest 覆盖旧数据关闭、开关独立、Preferences/JSON与供应商过滤；AlarmRegistrationTest 按新约定覆盖信息/闹钟开关四种组合，保留原序列化兼容检查。
+- 抽屉：PulseStatusRow 空态与 recent=false；PulseCost 新增 calculatePulseDailyCost，只在抽屉按本地自然日筛保留日志，设置页沿用 calculatePulseCost。PulseCostTest 覆盖跨天、午夜、DST与非峰谷。
+- 记忆：新 PulseMemoryPage、RouteActivity.Screen.PulseMemory 与 Nav3 entry、ChatPage 顶栏入口；复用 MemoryRepository 与 MemoryFilePage，不新增助手/存储或改变 __pulse__ scope。
+- 图片：ChatPage 两个独立页面分支分别 provide LocalWorkspaceId；Markdown.rememberWorkspaceImageUrl 仅 private→internal，ChatMessage 图片复用。WorkspaceRepository/路径安全策略不变。
+- 视频：ModelAbility 末尾追加 VIDEO；SettingProviderDetailPage 的内置工具页开关/说明，普通能力选择器不重复列VIDEO；FilesPicker 保留Google音频；ModelList 显示视频能力图标。FileEncoder.Video 支持历史data URI并保持现有本地文件编码；ChatCompletionsAPI 两类消息均序列化video_url，失败抛脱敏异常。VideoInput校验由请求工厂与协议构造器调用，关闭能力和未接入协议明确拒绝；ChatService映射三语常驻错误，既有F009/HITL不改。
+- 新 ChatCompletionsVideoTest 走真实请求构造器，含流/非流、纯视频、能力关闭、失败脱敏、Google原路径、未接入协议和旧模型JSON兼容；离线构造不冒充真实请求/视频理解。三语只落 values/values-zh/values-zh-rTW。
+- 未提交，无本批SHA。回滚以 f019-root-coordinates-release-20261110/SOURCE-MANIFEST.json 和该批完整源码作比较，仅反向本批具体改动，保留之前全部未提交增量；兼容字段 enableAlarm 和枚举VIDEO不为回滚而删除。上游重套须同步工具注册/过滤、两处图片上下文、两类视频消息及错误映射。
+- 参考Kai/PalmClaw固定源码的实际阅读与采用边界见 docs/f015-keepalive-reference-review.md。交付路径为 artifacts/3.1.2-work.1/f015-alarm-memory-media-release-20261110/；自动结果和设备待验见根DELIVERY，不提交/tag/push/发布。
+- 验证：完整JVM任务图与GitHub Release构建成功，246套件/1653项中1652通过、1项既有PDF语料跳过；App875项本次执行，其他报告由Gradle复用。三个APK均通过正式签名/版本/ABI/图标/WASM校验；相对前批只有30个既有文件及3个新文件变化，其他用户增量保留。未运行设备或真实模型验证。
+
+## [F019 顶栏玻璃概率性偏移修正] 3.1.2-work.1 / 201（2026-11-10，本地 Release）
+
+- 三个产品文件：`ChatTopBarCapsule.kt`、`ChatInput.kt` 统一报告前景 Compose root 内像素位置；`LiquidGlassInputBackground.kt` 只扣 host padding，不再读窗口位置。bounds 契约和日志同步标明 root/hostPadding/local。
+- 新修正单取代旧 F019 §2 的尺寸假设，撤销上一批 wrapContentSize 与 Row 上报，恢复原 Box 测量；未改闹钟、pulse、三语、数据库、版本、依赖或既有玻璃参数。
+- 源码检查分别为窗口调用 0、root 调用 2、窗口 View 位置调用 0；若按完整词检索，root 包含两行 import，共 4 行，不能把它谎写成 2 行。
+- 交付 `artifacts/3.1.2-work.1/f019-root-coordinates-release-20261110/` 的三个签名 Release APK 与含根 DELIVERY 的源码 ZIP；沿用维护者已授权交付，不自行上传。不操作设备，20 次进出/截图/键盘/logcat 仍待验。
+- 未提交。回滚以旧批 `f015-f019-release-20261110` 源码 ZIP 为比较基准，仅逐块反向三处坐标与测量变化；不整文件还原共享 ChatInput。合并上游时三处须一起重套，并检查前景 ComposeView 满宿主、无额外 padding/margin 的前提。
+
+## [F015 抽屉状态卡与白名单 + F019 闹钟与顶栏玻璃] 3.1.2-work.1 / 201（2026-11-10，本地 Release）
+
+- `service/pulse/PulseSchedule.kt` 新增只读展示类型 PulseUpcoming 与 pulseUpcomingTasks：启用过滤、dueAt/nextAt排序、空标题回退；不解析 cron。缺时刻显示未知，随心跳型最后；原调度函数不变。新增 `PulseUpcomingTest`。
+- `PulseStatusRow.kt` 拆分状态/下一次/数量，保留今日用量和动画，增加最多三条待执行及剩余数；`ChatDrawer.kt` 仅删除旧五条日志渲染及失效 pulseTime import，其他入口与图标不动。
+- `PulseSensingSettings.kt` 增加批量按钮/数量，加载中禁用，列表可收缩以给底部数量留空间；保存变换读取最新 pulse。`NotificationWhitelistSelection.kt` 为可独立测试的纯列表操作，保持外部包名和顺序。`NotificationWhitelistSelectionTest` 覆盖部分选择、全选、反选、空列表、最新配置及其他字段不变。
+- 三语各新增8个key，改3个既有值（running/failed/on_heartbeat）；off/paused文本与参数不动。PulseConfig/PulseTask、通知收件箱/读取工具、运行时、审批、数据库、依赖、版本及应用身份图标保持本批前源码。
+- 尚未提交，无本批 SHA。回滚按本批 artifacts 中 before 备份与增量补丁逐块反向应用，只撤销本节 UI/helper/test/文案，不整文件还原共享 ChatDrawer/PulseSchedule/三语。上游重套时保留状态去参数、下一次独立行、只读待执行、最新 whitelist 变换与列表外保留规则。
+- 交付目录 `artifacts/3.1.2-work.1/f015-f019-release-20261110/`；三个正式签名 APK 与精简源码 ZIP（根含 DELIVERY），维护者已确认覆盖两个任务包“不附 APK”。Kai/PalmClaw 参考、实际验证和设备待验见本批 DELIVERY。
+- `set_alarm` 只通过系统 Clock Intent 创建闹钟/倒计时，后台失败如实返回；顶栏玻璃按按钮内容测量 bounds，避免整条通栏并保留所有模式按钮。
+
+## [F015 心跳指令与感知摘要] 3.1.2-work.1 / 201（2026-11-10，本地 Release）
+
+- `PulseTurnInput.kt` 对空/非空历史均追加请求专用 synthetic user，systemInstruction=null；`PulseTurnInputTest` 覆盖非空、尾部用户消息保留及长指令的实际协议 JSON 构造。`appendPulseInstruction` 及其通用测试、ChatRequestFactory、ChatService 的写入去重逻辑均保留。
+- `PulseSensingPrivacy.kt` 仅检查 SMS 事件与实际感知工具历史，移除 config 参数；`PulseRuntime.kt` 更新两处调用、加入不进请求的 summaryHint。待审批优先，普通轮次取首行，感知轮次只给安全提示/数字。失败时开关仅作异常脱敏兜底，防止本轮中途已读取但尚未返回的内容进入报告。
+- `SmsReader.kt` 的临时 SmsDiscovery 增加 senderCount，在打码前按归一化号码去重；不改持久化字段、查询投影或水位行为。`SmsPrivacyTest` 增加掩码碰撞、重复/白名单/空结果回归；`PulseSensingFlowTest` 覆盖关闭开关后的历史保护和非感知工具不误判。
+- 三语各加两个安全摘要 key；数字摘要仅称“发现”，不声称已读取正文。手动设置按钮已确认为 runtime.trigger(manual=true)，不写按钮文案入会话；普通聊天发送路径不改。
+- 未提交，无本批 SHA。回滚应使用本批 BEFORE-SOURCE/SOURCE-MANIFEST 对照逐块反向撤销，不整文件还原共享 PulseRuntime 或字符串，不覆盖原感知/保活改动。上游重套须保持请求尾部 user、实际感知历史判定及真实数字去重。
+- 使用既有 Release 签名构建三个 GitHub APK，版本不变；源码 ZIP 含根 DELIVERY，排除产物、缓存、参考仓库与凭据。Kai/PalmClaw 固定版本复核、范围偏差、验证和设备待验见 DELIVERY。
+
+## [F015 包 11、12 感知层] 3.1.2-work.1 / 201（2026-11-10，未提交）
+
+- 包 11：新增 `service/pulse/PulseNotificationInbox.kt`、`PulseNotificationListenerService.kt`、`NotificationPermission.kt`、`data/ai/tools/pulse/ReadNotificationsTool.kt`；同步修改 Manifest、PulseConfig、SettingsNormalization、ChatToolFactory、PulseToolPolicy、ToolRiskTiers 和 DI。内存 FIFO、墙钟寿命、白名单撤销即抹除、序列化 JSON 上限，均有回归测试。
+- 包 12：新增 `data/pulse/SmsPrivacy.kt`、`SmsReader.kt`、`SmsSender.kt`、`data/ai/tools/pulse/SmsTools.kt`、`service/pulse/PulseSmsSchedule.kt`；修改 PulseRuntimeState 和 PulseRuntime，加入独立轮询分支及全部早退/重排条件。首次跳历史、稳定轮询锚点、ID 升序分批，不查询正文；没有 RECEIVE_SMS 广播。
+- 租约恢复：有效占用与业务重放分开计算；短信 claim 不自动重放，但其有效租约仍必须安排到期唤醒。PulseSensingFlowTest 覆盖重启后短信租约、到期与完成情况，避免候选时间退为 Long.MAX_VALUE 导致后台检查停住。
+- 审批及隐私：修改 ChatService、PulseTurnResult、PulseEffects，新建 PulseSensingPrivacy。临时轮次接受 AwaitingApproval，保存待审批卡片，普通恢复路径绑定回复节点的副作用回执；调度器视待审批为忙。ChatNotificationManager 对脉搏一律使用通用预览，自动感知轮次不导出正文报告。
+- 设置/UI：新增 `ui/pages/pulse/PulseSensingSettings.kt`、`ui/components/message/tools/SmsToolUI.kt`，登记 ToolUI；PulseSettingsPage 工具 Tab 增加三组设置，活动显示短信与待审批。权限请求由开启事件触发，返回仅刷新；输入草稿与持久化值分离，不吞逗号或重置正在编辑的文本。
+- 新增三语资源，仅 values、values-zh、values-zh-rTW；测试覆盖验证码正反例各至少 8 条、整条先屏蔽再截断、号码/发送校验、通知过滤/寿命/容量/撤销、JSON 上限、审批各档、策略/供应商边界、调度与设置跨重启。
+- 尚无本批 commit；不提交、tag、推送或发布。回滚应从本批逐块撤销服务/工具/UI 接线与三项注册，保留已有配置字段及默认值，禁止整文件还原共享 ChatService、PulseRuntime 或三语资源。上游重套须重新核查 Factory→供应商策略→PulsePolicy→审批顺序、待审批持久化与轮询所有早退条件；不动 DB33。
+- 已阅读 Kai 的通知监听、SmsReader/SmsSender/SmsPoller 与 TaskScheduler，及 PalmClaw 的自动化调度和内部心跳入口。只借鉴边界与调度思路，不复制源码，不引入参考项目持久化通知收件箱。交付实测结果见根 DELIVERY。
+
+## [F015 阶段 C 收尾] 3.1.2-work.1 / 201（2026-11-10，未提交）
+
+- **扩展选择**：`ExtensionSelector.kt` 允许按明确白名单过滤；脉搏仅展示快捷消息与技能。`FilesPicker.kt` 将脉搏模式传入；群组仍沿用原有无快捷消息的三 Tab 行为。`PulseConfig.withAssistantUpdate` 持久化脉搏自己的选择。
+- **抽屉与动效**：`ChatDrawer.kt` 移除中区重复按钮并加入最近五次心跳摘要，底部提供五个脉搏入口；`PulseStatusRow.kt` 添加状态文字淡变、语义色圆点及 token/费用动画；`PulseSettingsPage.kt` 对带稳定 key 的动态列表使用 `animateItem()`。
+- **回归测试**：新增 ExtensionSelector 三模式筛选测试，并覆盖脉搏快捷消息/技能选择更新；DataStore/JSON 覆盖测试包含快捷消息配置。
+- **本批增量涉及**：`ExtensionSelector.kt`、`FilesPicker.kt`、`ChatPage.kt`、`ChatDrawer.kt`、`PulseStatusRow.kt`、`PulseSettingsPage.kt`、`PulseConfigTest.kt`、`ExtensionSelectorTest.kt`，以及本文件、`CHANGES.md`、`DELIVERY.md`。未增加资源 key、依赖或数据库迁移。
+- **版本/提交**：`3.1.2-work.1 / 201`，未提交。回滚时只反向撤销本条脉搏 Tab 白名单、`pulseMode` 传递、抽屉入口/摘要及状态/列表动画，不整文件恢复共享 UI，也不撤销既有 F015/F018 或玻璃改动。
+- **上游重套**：保留 `ExtensionSelector` 对 `includeQuickMessages` 的旧行为，仅在白名单非 null 时覆盖；确认聊天四项、群组三项、脉搏两项。保留 `ChatService.updateChatAssistant` 对脉搏配置的隔离更新，检查所有动态 LazyColumn 项仍有 key。Kai/PalmClaw 固定版本复核记录见 `docs/f015-keepalive-reference-review.md`。
+- **交付/验证**：ARM64 GitHub Debug APK 与根含 `DELIVERY.md` 的源码 ZIP 位于 `artifacts/3.1.2-work.1/f015-stage-c-finish-debug-20261110/`；自动测试通过，设备视觉验收待维护者执行。未构建 Release、未 commit/tag/push/发布。
+
+## [顶栏玻璃强度回调] 3.1.2-work.1 / 201（2026-11-09，第二轮 Debug）
+
+- `ChatPage.kt` 顶栏四处（groupTopStart/groupTopEnd/topStart/topEnd）统一 refractionScale=0.60、tintAlpha=0.16、blurRadiusDp=2；输入两处 region 及 LiquidGlassRegion 默认值保持原样。`ChatTopBarCapsule.kt` 的 Surface color 读取 effectiveDisplaySetting，Haze 已使用同一配置；原生 border=null 的条件保持。
+- 不改宿主层级、区域字段、最多三个实例的约束或淡入门槛；列表顶部透明是既有设计，必须滚动后验玻璃。两份新修正单仅授权本轮参数与配置一致性调整，未执行其中需要设备反馈后的临时强着色实验。
+- 本批未提交；回滚仅把四处参数恢复为上一批 0.22/0.08/8 并反向 Surface color 一行，不整文件恢复。上游合并时保留本批最终四处参数；历史节中 0.08/8/0.22 仅代表上一轮起点。
+- 新 ARM64 Debug、含根 DELIVERY 的源码 ZIP 和精确行号/校验记录见 DELIVERY 最新节；未操作设备、提交、推送或发布。
+
+## [玻璃与页面回归修正] 3.1.2-work.1 / 201（2026-11-09，同版本后续 Debug）
+
+- `LiquidGlassInputBackground.kt`：addView 后 bringToFront；内部透明前景覆盖全页，公开两 slot 不变；区域追加 tintAlpha/blurRadiusDp，缓存配置和 bounds，统一熔断、透明 removeView。输入参数保留，顶栏 0.08/8dp/0.22 为待实机起点。未改 liquidglass 库。
+- `ChatPage.kt`、`GroupChatContent.kt`：背景顶栏等高占位，真实顶栏和输入只在前景组合；聊天/群聊/脉搏均两胶囊，群聊三 action 合一；原点击回调保留。群聊收藏复用当前会话 ChatVM 存储，未对齐时不开放；群不存在时隐藏思考预算。
+- `ChatTopBarCapsule.kt`、`ChatInputHaze.kt`、`ChatInput.kt`：始终缓存原生 bounds、销毁清理；顶栏原生无描边；不支持/熔断时用 BLUR 渲染副本，持久设置不变。BackgroundEffectTest 新增降级回归。
+- `ChatList.kt`：音量翻页读取实时设置/遮挡高度和 LocalActivity，可用高度限零；nullable 收藏回调不再包装成假可用。`FilesPicker.kt`：分段数量含扩展行，工作区缓存 key 含 ownerScope。`ErrorCard.kt`：限高滚动和稳定 error.id，群聊移除重复外层滚动。
+- 详细源码检查见 `docs/ui-regression-audit-20261109.md`：298 个 UI 文件模式扫描、69 路由配对、56 个合并 UI 路径对照及重点调用链。编译/JVM 与设备验证区分记录，不宣称全 UI 实测通过。
+- 本批未提交，基线为 `18c372d5` 加已有 F015/F018 增量；回滚仅逐块撤销本节相关差异，不整文件恢复、不撤销已有功能。下次合并需保留前景/背景分层、三区域、回退和可空回调语义。交付新 ARM64 Debug 和精简源码 ZIP，根含 DELIVERY；不 Release、commit/tag/push/发布或操作设备。
+
+## [合并 3.1.2 / F015 实施后修正 / F018] 3.1.2-work.1 / 201（2026-11-09）
+
+- 合并提交 `18c372d58f77da7c8a1c1f59042993e01be2bd5b`，父提交为 F015 `4b336d85` 与上游标签 `3.1.2` / `fe5a28f9`。本节 F015/F018 修正为其后的未提交增量；本轮不 commit/tag/push/发布。
+- 上游重构涉及 bettertext、ConversationInbox、聊天列表拆分、浮动顶栏、SSH 跳板机与后台 Shell；保留群消息 annotations、conversationId、F006 多区域液态玻璃、原应用身份图标、三语及数据库33。详细合并和冲突清单见 `docs/merge-3.1.2-review.md`。
+- 脉搏生命周期：`PulseDaemonService.kt` 显示通知时间戳且加载期不误停；`PulseRuntime.kt` 同时监听 init 与 pulse 配置，加载完成后重排。任务书误解了 init 的方向；实际 `Settings.dummy().init == true`，`awaitLoaded()` 等待 false，不照抄反向条件。
+- 空历史输入：`ChatService.kt` 与 `service/pulse/PulseTurnInput.kt` 仅为空历史提供 synthetic user 触发器，并清空 system 重复指令；现有历史不改。仅助手消息持久化路径保留。
+- 工作区：`PulseWorkspaceProvisioner.kt` 以共享 Mutex 幂等恢复/创建唯一绑定、迁移旧非ASCII名；`PulseWorkspaceSetup.kt` 自动补文件模板与可点击卡片，安装复用 `WorkspaceDetailPage` 原有 rootfs 选择、安装与回滚流程。`ChatToolFactory.kt` 对未装Linux的本地脉搏工作区仅注册文件工具，保留聊天/群组原有守卫。
+- 审批：`WorkspaceTools.kt`、`ToolRiskTiers.kt`、`WorkspaceRepository.kt`、`WorkspaceEntity.kt`、`WorkspaceDetailPage.kt`、`WorkspaceDetailVM.kt` 撤下独立审批读写与UI。磁盘字段不删、越界写保留，后台输出显式登记为 L3_SELF，kill仍为L3_REWRITE，ask_user恒走HITL。
+- 计价：`PulseConfig.kt` 追加默认关闭的峰谷开关、分段列表及运行日志cachedTokens；`PulsePriceSegment.kt` 做时段命中/冲突/周覆盖检测；`PulseCost.kt` 做分段金额估算。`PulsePricingSettings.kt` 提供编辑弹层，`PulseSettingsPage.kt` 拆五Tab，`PulseStatusRow.kt` 区分今日/最近运行估算；三语同步。
+- F018：`Settings.kt`、`PreferencesStore.kt`、`SettingsFields.kt` 同时追加持久化字段与键；`FilesPicker.kt`、`ChatPage.kt`、`ChatVM.kt` 接读写，不改群聊路径。SettingsStore回归覆盖默认32、0和7跨重启以及峰谷/普通价格双配置不丢。
+- 回滚：合并阶段基线为 `4b336d85`，修正基线为 `18c372d5`。应从 `git diff 18c372d5 -- <本节相关文件>` 生成补丁并逐块反向审核；不得整树恢复，也不得删除新增持久化字段或 `tool_approvals` 列。上游再次同步时重新套用本节守卫、注入、审批和SettingsFields映射。
+- Kai/PalmClaw固定版本与采用边界已重新核对；未复制参考仓库源码，未增加生成时限。测试、Lint限制、APK/ZIP校验与设备待验项见 `DELIVERY.md`。
+
 ## [F015 阶段 A+B 与 F009 补充六] 3.1.1-work.3 / 201（2026-11-06，ARM64 Debug）
 
 - `PulseRuntime.kt`：租约恢复按未完成的 heartbeat/task claim 及对应配置判断，不用生成开始后才持久化的 `lastHeartbeatAt` 排除较早 claim；无效、完成、禁用或已消费的 claim 不再保留无意义恢复闹钟。

@@ -52,6 +52,8 @@ import me.rerere.ai.util.KeyRoulette
 import me.rerere.ai.util.configureReferHeaders
 import me.rerere.ai.util.configureSessionHeaders
 import me.rerere.ai.util.encodeBase64
+import me.rerere.ai.provider.VideoInputException
+import me.rerere.ai.provider.validateVideoInput
 import me.rerere.ai.util.json
 import me.rerere.ai.util.mergeCustomBody
 import me.rerere.ai.util.mergeCustomHeaders
@@ -239,6 +241,7 @@ class ChatCompletionsAPI(
         providerSetting: ProviderSetting.OpenAI,
         stream: Boolean = false,
     ): JsonObject {
+        validateVideoInput(providerSetting, params.model, messages)
         val host = providerSetting.baseUrl.toHttpUrl().host
         val isOpenRouter = host == "openrouter.ai"
         val hasTools = hasTools(params)
@@ -522,7 +525,7 @@ class ChatCompletionsAPI(
                         }
                     }
                     group.parts
-                        .filter { it is UIMessagePart.Text || it is UIMessagePart.Image }
+                        .filter { it is UIMessagePart.Text || it is UIMessagePart.Image || it is UIMessagePart.Video }
                         .forEach { contentBuffer.add(it) }
                 }
 
@@ -577,6 +580,7 @@ class ChatCompletionsAPI(
             when (part) {
                 is UIMessagePart.Text -> part.text.isNotBlank()
                 is UIMessagePart.Image -> part.url.isNotBlank()
+                is UIMessagePart.Video -> part.url.isNotBlank()
                 else -> false
             }
         }
@@ -635,6 +639,8 @@ class ChatCompletionsAPI(
                                 })
                             }
 
+                            is UIMessagePart.Video -> add(videoContent(part))
+
                             else -> {}
                         }
                     }
@@ -660,11 +666,21 @@ class ChatCompletionsAPI(
         }
     }
 
+    private fun videoContent(part: UIMessagePart.Video): JsonObject {
+        val encoded = part.encodeBase64().getOrElse {
+            throw VideoInputException(VideoInputException.Reason.ENCODING_FAILED)
+        }
+        return buildJsonObject {
+            put("type", "video_url")
+            put("video_url", buildJsonObject { put("url", encoded) })
+        }
+    }
+
     private fun JsonArrayBuilder.addNonAssistantMessage(message: UIMessage) {
         add(buildJsonObject {
             put("role", JsonPrimitive(message.role.name.lowercase()))
 
-            if (message.parts.isOnlyTextPart()) {
+            if (message.parts.isOnlyTextPart() && message.parts.none { it is UIMessagePart.Video }) {
                 put("content", message.parts.filterIsInstance<UIMessagePart.Text>().first().text)
             } else {
                 putJsonArray("content") {
@@ -691,6 +707,8 @@ class ChatCompletionsAPI(
                                     }
                                 })
                             }
+
+                            is UIMessagePart.Video -> add(videoContent(part))
 
                             else -> {}
                         }

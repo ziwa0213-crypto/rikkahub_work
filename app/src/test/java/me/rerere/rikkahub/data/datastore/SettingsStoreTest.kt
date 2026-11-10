@@ -55,6 +55,64 @@ class SettingsStoreTest {
     private suspend fun reopened(): Settings = open().store.awaitLoaded()
 
     @Test
+    fun `pulse dreaming opt in survives restart without replacing concurrent settings`() = runBlocking {
+        val store = open().store
+        assertFalse(store.awaitLoaded().pulse.autoConsolidateMemory)
+        val first = launch { store.update { it.copy(pulse = it.pulse.copy(autoConsolidateMemory = true)) } }
+        val second = launch { store.update { it.copy(pulse = it.pulse.copy(systemPrompt = "keep persona")) } }
+        joinAll(first, second)
+        val restored = reopened()
+        assertEquals(true, restored.pulse.autoConsolidateMemory)
+        assertEquals("keep persona", restored.pulse.systemPrompt)
+        assertEquals(restored.assistants, opened!!.store.settingsFlow.value.assistants)
+        opened!!.store.update { it.copy(pulse = it.pulse.copy(autoConsolidateMemory = false)) }
+        assertFalse(reopened().pulse.autoConsolidateMemory)
+    }
+
+    @Test fun sensingSettingsSurviveRestartAndClampUntrustedRanges() = runBlocking {
+        val store = open().store
+        val defaults = store.awaitLoaded().pulse
+        assertFalse(defaults.enableNotificationReading || defaults.enableSmsReading || defaults.enableSmsSending || defaults.smsPollEnabled)
+        store.update { it.copy(pulse = it.pulse.copy(
+            enableNotificationReading = true, notificationWhitelist = listOf(" chat ", "chat", ""),
+            notificationRetentionHours = 100, notificationBufferLimit = 1,
+            enableSmsReading = true, enableSmsSending = true, smsPollEnabled = true,
+            smsPollMinutes = 1, smsWatermarkId = 42L, smsSenderWhitelist = listOf(" 95588 ", "95588"),
+        )) }
+        val restored = reopened().pulse
+        assertEquals(72, restored.notificationRetentionHours)
+        assertEquals(20, restored.notificationBufferLimit)
+        assertEquals(5, restored.smsPollMinutes)
+        assertEquals(42L, restored.smsWatermarkId)
+        assertEquals(listOf("chat"), restored.notificationWhitelist)
+        assertEquals(listOf("95588"), restored.smsSenderWhitelist)
+        assertEquals(true, restored.enableNotificationReading && restored.enableSmsReading && restored.enableSmsSending && restored.smsPollEnabled)
+    }
+
+    @Test
+    fun `confirmed compression count including zero survives process restart`() = runBlocking {
+        val store = open().store
+        assertEquals(32, store.awaitLoaded().lastCompressKeepRecentMessages)
+        store.update { it.copy(lastCompressKeepRecentMessages = 0) }
+        assertEquals(0, reopened().lastCompressKeepRecentMessages)
+        opened!!.store.update { it.copy(lastCompressKeepRecentMessages = 7) }
+        assertEquals(7, reopened().lastCompressKeepRecentMessages)
+    }
+
+    @Test
+    fun `pricing modes retain both price sets across restart`() = runBlocking {
+        val segment = me.rerere.rikkahub.data.pulse.PulsePriceSegment(inputPrice = 1.25, outputPrice = 4.0)
+        val store = open().store
+        store.update { it.copy(pulse = it.pulse.copy(priceInputPerMillion = 9.0, peakPricingEnabled = true, priceSegments = listOf(segment))) }
+        val peak = reopened().pulse
+        assertEquals(listOf(segment), peak.priceSegments)
+        opened!!.store.update { it.copy(pulse = it.pulse.copy(peakPricingEnabled = false)) }
+        val standard = reopened().pulse
+        assertEquals(9.0, standard.priceInputPerMillion, 0.0)
+        assertEquals(listOf(segment), standard.priceSegments)
+    }
+
+    @Test
     fun `typing faster than the disk can write loses no keystroke`() = runBlocking {
         val opened = open()
         val store = opened.store

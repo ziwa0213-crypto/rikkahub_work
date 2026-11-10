@@ -43,6 +43,8 @@ data class Settings(
     val networkSetting: NetworkSetting = NetworkSetting(),
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
+    /** Last confirmed message count to retain when opening the compression dialog. */
+    val lastCompressKeepRecentMessages: Int = 32,
     val fastModelId: Uuid = Uuid.random(),
     val fastModelReasoningLevel: ReasoningLevel = ReasoningLevel.AUTO,
     // 记忆整理用的模型，没设置时用快速模型

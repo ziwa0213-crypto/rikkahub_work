@@ -72,7 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -273,13 +273,13 @@ fun ChatInput(
                     .fillMaxWidth()
                     .clip(containerShape)
                     .onGloballyPositioned { coordinates ->
-                        val position = coordinates.positionInWindow()
+                        val position = coordinates.positionInRoot()
                         onInputPanelBoundsChanged?.invoke(position.x, position.y, coordinates.size)
                     }
                     .then(
                         if (forceLiquidGlass) Modifier else Modifier.chatInputHaze(
                             hazeState = hazeState,
-                            displaySetting = settings.displaySetting,
+                            displaySetting = settings.displaySetting.chatBackgroundSetting(forceLiquidGlass),
                         )
                     ),
                 shape = containerShape,

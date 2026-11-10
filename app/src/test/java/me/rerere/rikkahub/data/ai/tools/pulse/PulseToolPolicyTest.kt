@@ -12,6 +12,32 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PulseToolPolicyTest {
+    @Test fun `alarm is opt in independent of information and uses scheduled receipt guard`() = runBlocking {
+        val alarm = tool("set_alarm")
+        assertTrue(applyPulseToolPolicy(listOf(alarm), PulseConfig(enableInformation = false)).isEmpty())
+        assertTrue(applyPulseToolPolicy(listOf(alarm), PulseConfig()).isEmpty())
+        val offered = applyPulseToolPolicy(listOf(alarm), PulseConfig(enableInformation = false, enableAlarm = true))
+        assertEquals(listOf("set_alarm"), offered.map { it.name })
+        val intercepted = mutableListOf<String>()
+        withContext(PulseToolContext { name, _, block -> intercepted += name; block() }) {
+            offered.single().execute(buildJsonObject {})
+        }
+        assertEquals(listOf("set_alarm"), intercepted)
+        val providerAllowed = listOf(alarm).filter { it.name in DeepSeekWebToolPolicy.baseAllowedNames }
+        assertTrue(applyPulseToolPolicy(providerAllowed, PulseConfig(enableAlarm = true)).isEmpty())
+    }
+    @Test fun sensingSwitchesAreIndependentAndProviderRestrictionsStillWin() = runBlocking {
+        val names = listOf("read_notifications", "read_sms", "send_sms")
+        assertTrue(applyPulseToolPolicy(names.map { tool(it) }, PulseConfig()).isEmpty())
+        val config = PulseConfig(enableInformation = false, enableNotificationReading = true, enableSmsReading = true, enableSmsSending = true)
+        assertEquals(names, applyPulseToolPolicy(names.map { tool(it) }, config).map { it.name })
+        assertTrue(applyPulseToolPolicy(names.filter { it in DeepSeekWebToolPolicy.baseAllowedNames }.map { tool(it) }, config).isEmpty())
+        val intercepted = mutableListOf<String>()
+        withContext(PulseToolContext { name, _, block -> intercepted += name; block() }) {
+            applyPulseToolPolicy(names.map { tool(it) }, config).forEach { it.execute(buildJsonObject {}) }
+        }
+        assertEquals(listOf("send_sms"), intercepted)
+    }
     private fun tool(name: String, action: () -> Unit = {}) = Tool(name = name, description = name,
         execute = { action(); emptyList() })
 

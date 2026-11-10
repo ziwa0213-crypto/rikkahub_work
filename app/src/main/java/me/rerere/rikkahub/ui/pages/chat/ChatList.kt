@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.chat
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalScrollCaptureInProgress
@@ -257,17 +257,19 @@ private fun ChatListNormal(
     var isRecentScroll by remember { mutableStateOf(false) }
     val conversationUpdated by rememberUpdatedState(conversation)
     val density = LocalDensity.current
-    val activity = LocalContext.current as? me.rerere.rikkahub.RouteActivity
+    val activity = LocalActivity.current as? me.rerere.rikkahub.RouteActivity
+    val currentDisplaySetting by rememberUpdatedState(settings.displaySetting)
+    val currentInnerPadding by rememberUpdatedState(innerPadding)
 
-    DisposableEffect(Unit) {
+    DisposableEffect(activity, state, density, scope) {
         val listener: (Boolean) -> Boolean = { isVolumeUp ->
-            if (settings.displaySetting.enableVolumeKeyScroll) {
+            if (currentDisplaySetting.enableVolumeKeyScroll) {
                 // 列表视口包含标题栏和输入区遮住的部分，翻页时只按可见区域计算
                 val coveredPx = with(density) {
-                    (innerPadding.calculateTopPadding() + 32.dp + innerPadding.calculateBottomPadding()).toPx()
+                    (currentInnerPadding.calculateTopPadding() + 32.dp + currentInnerPadding.calculateBottomPadding()).toPx()
                 }
-                val scrollAmount = (state.layoutInfo.viewportSize.height - coveredPx) *
-                    settings.displaySetting.volumeKeyScrollRatio
+                val scrollAmount = (state.layoutInfo.viewportSize.height - coveredPx).coerceAtLeast(0f) *
+                    currentDisplaySetting.volumeKeyScrollRatio
                 scope.launch { state.scrollBy(if (isVolumeUp) -scrollAmount else scrollAmount) }
                 true
             } else false
@@ -415,9 +417,7 @@ private fun ChatListNormal(
                                 onUpdateMessage(it)
                             },
                             isFavorite = node.isFavorite,
-                            onToggleFavorite = {
-                                onToggleFavorite?.invoke(node)
-                            },
+                            onToggleFavorite = onToggleFavorite?.let { toggle -> { toggle(node) } },
                             onTranslate = onTranslate,
                             onClearTranslation = onClearTranslation,
                             onToolApproval = onToolApproval,

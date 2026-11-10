@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.datastore
 
 import kotlinx.serialization.Serializable
 import me.rerere.ai.core.ReasoningLevel
+import me.rerere.rikkahub.data.pulse.PulsePriceSegment
 import kotlin.uuid.Uuid
 import java.time.LocalTime
 
@@ -27,13 +28,26 @@ data class PulseConfig(
     val reasoningLevel: ReasoningLevel = ReasoningLevel.AUTO,
     val contextMessageLimit: Int = 0,
     val enableMemory: Boolean = true,
+    val autoConsolidateMemory: Boolean = false,
     val conversationId: Uuid? = null,
     val enableWebSearch: Boolean = false,
     val enableRecentChats: Boolean = true,
     val enabledSkills: List<String> = emptyList(),
+    val quickMessageIds: Set<Uuid> = emptySet(),
     val localTools: List<String> = emptyList(),
     val enableInformation: Boolean = true,
+    val enableNotificationReading: Boolean = false,
+    val notificationWhitelist: List<String> = emptyList(),
+    val notificationRetentionHours: Int = 6,
+    val notificationBufferLimit: Int = 100,
+    val enableSmsReading: Boolean = false,
+    val enableSmsSending: Boolean = false,
+    val smsPollEnabled: Boolean = false,
+    val smsPollMinutes: Int = 15,
+    val smsWatermarkId: Long = 0,
+    val smsSenderWhitelist: List<String> = emptyList(),
     val enableCalendarCreate: Boolean = true,
+    val enableAlarm: Boolean = false,
     val enableFileWrite: Boolean = false,
     val enableShell: Boolean = false,
     val enableMcp: Boolean = false,
@@ -58,6 +72,8 @@ data class PulseConfig(
     val priceOutputPerMillion: Double = 0.0,
     val priceCachedPerMillion: Double = 0.0,
     val priceMultiplier: Double = 1.0,
+    val peakPricingEnabled: Boolean = false,
+    val priceSegments: List<PulsePriceSegment> = emptyList(),
     val runLogs: List<PulseRunLog> = emptyList(),
 )
 
@@ -104,6 +120,7 @@ data class PulseRunLog(
     val durationMs: Long = 0L,
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
+    val cachedTokens: Int = 0,
     val note: String = "",
 )
 

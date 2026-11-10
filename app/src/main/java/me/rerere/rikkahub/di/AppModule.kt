@@ -118,6 +118,7 @@ val appModule = module {
             workspaceRepository = get(),
             pulseTasks = get(),
             backgroundShellManager = get(),
+            settingsStore = get(),
         )
     }
 

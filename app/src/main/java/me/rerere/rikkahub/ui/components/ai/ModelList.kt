@@ -71,6 +71,7 @@ import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.filterByKeywords
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Video01
 import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Brain02
@@ -929,6 +930,15 @@ fun ModelAbilityTag(model: Model) {
                     Icon(
                         painter = painterResource(R.drawable.deepthink),
                         contentDescription = null,
+                        modifier = Modifier.size(LocalTextStyle.current.lineHeight.toDp()),
+                    )
+                }
+            }
+            ModelAbility.VIDEO -> {
+                Tag(type = TagType.INFO) {
+                    Icon(
+                        imageVector = HugeIcons.Video01,
+                        contentDescription = stringResource(R.string.setting_page_model_video_input),
                         modifier = Modifier.size(LocalTextStyle.current.lineHeight.toDp()),
                     )
                 }

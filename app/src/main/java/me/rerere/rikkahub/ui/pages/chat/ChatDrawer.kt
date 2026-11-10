@@ -2,6 +2,7 @@ package me.rerere.rikkahub.ui.pages.chat
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -64,6 +67,7 @@ import me.rerere.hugeicons.stroke.FolderAdd
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.ImageToVideo
 import me.rerere.hugeicons.stroke.InLove
+import me.rerere.hugeicons.stroke.HeartPulse
 import me.rerere.hugeicons.stroke.LanguageCircle
 import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.PencilEdit01
@@ -396,15 +400,10 @@ fun ChatDrawerContent(
 
             if (pulseMode) {
                 if (scrollableHeader) drawerHeader()
-                Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     me.rerere.rikkahub.ui.pages.pulse.PulseStatusRow(settings.pulse) {
                         navController.navigate(Screen.PulseSettings(1))
-                    }
-                    TextButton(onClick = { navController.navigate(Screen.PulseSettings()) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.pulse_settings_title))
-                    }
-                    TextButton(onClick = { navController.navigate(Screen.PulseSettings(logs = true)) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.pulse_logs))
                     }
                 }
             } else if (groupMode) {
@@ -529,6 +528,18 @@ fun ChatDrawerContent(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
             ) {
+                if (pulseMode) {
+                    DrawerAction(
+                        icon = { Icon(HugeIcons.HeartPulse, stringResource(R.string.pulse_settings_title)) },
+                        label = { Text(stringResource(R.string.pulse_settings_title)) },
+                        onClick = { navController.navigate(Screen.PulseSettings()) },
+                    )
+                    DrawerAction(
+                        icon = { Icon(HugeIcons.TransactionHistory, stringResource(R.string.pulse_logs)) },
+                        label = { Text(stringResource(R.string.pulse_logs)) },
+                        onClick = { navController.navigate(Screen.PulseSettings(logs = true)) },
+                    )
+                }
                 if (!pulseMode) DrawerAction(
                     icon = {
                         Icon(
@@ -595,7 +606,7 @@ fun ChatDrawerContent(
                     },
                 )
 
-                Spacer(Modifier.weight(1f))
+                if (!pulseMode) Spacer(Modifier.weight(1f))
 
                 DrawerAction(
                     icon = {

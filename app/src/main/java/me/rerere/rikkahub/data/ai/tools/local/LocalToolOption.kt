@@ -40,4 +40,8 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("browser")
     data object Browser : LocalToolOption()
+
+    @Serializable
+    @SerialName("alarm")
+    data object Alarm : LocalToolOption()
 }

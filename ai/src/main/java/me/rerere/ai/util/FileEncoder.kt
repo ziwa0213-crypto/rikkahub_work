@@ -82,6 +82,12 @@ fun UIMessagePart.Image.encodeBase64(withPrefix: Boolean = true): Result<Encoded
 
 fun UIMessagePart.Video.encodeBase64(withPrefix: Boolean = true): Result<String> = runCatching {
     when {
+        this.url.startsWith("data:video/") -> {
+            val header = url.substringBefore(',')
+            val encoded = url.substringAfter(',', "")
+            require(header.endsWith(";base64") && encoded.isNotBlank()) { "Invalid video data URI" }
+            if (withPrefix) url else encoded
+        }
         this.url.startsWith("file://") -> {
             val filePath =
                 this.url.toUri().path ?: throw IllegalArgumentException("Invalid file URI: ${this.url}")

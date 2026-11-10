@@ -245,18 +245,6 @@ class WorkspaceRepository private constructor(
         dao.setShellCompatibilityMode(id, enabled, System.currentTimeMillis())
     }
 
-    suspend fun setToolApproval(id: String, toolName: String, needsApproval: Boolean): Boolean {
-        val workspace = dao.getById(id) ?: return false
-        val overrides = workspace.toolApprovalOverrides() + (toolName to needsApproval)
-        dao.upsert(
-            workspace.copy(
-                toolApprovals = JsonInstant.encodeToString(overrides),
-                updatedAt = System.currentTimeMillis(),
-            )
-        )
-        return true
-    }
-
     suspend fun setOwner(id: String, owner: String?): Boolean = lifecycleMutex.withLock {
         require(owner == null || owner == "chat" || owner == "group" || owner == "pulse") { "Invalid workspace owner" }
         val workspace = dao.getById(id) ?: return@withLock false

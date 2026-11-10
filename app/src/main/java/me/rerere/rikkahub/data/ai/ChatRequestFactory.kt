@@ -15,6 +15,7 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.validateVideoInput
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
 import me.rerere.ai.ui.UIMessage
@@ -54,6 +55,7 @@ import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
+import me.rerere.rikkahub.service.pulse.PULSE_TURN_CONSTRAINT
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -145,7 +147,7 @@ class ChatRequestFactory(
                 conversationId = conversation.id,
             ),
             isGroupChat = assistantOverride != null,
-            pulseInstruction = pulseInstruction,
+            pulseInstruction = resolvePulseInstruction(conversation, pulseInstruction),
         )
     }
 
@@ -296,6 +298,7 @@ class ChatRequestFactory(
             processingStatus = processingStatus,
             workspaceCwd = turn.workspaceCwd,
         ).expandNotices()
+        validateVideoInput(turn.providerSetting, turn.model, requestMessages)
         val params = TextGenerationParams(
             model = turn.model,
             temperature = assistant.temperature,
@@ -316,6 +319,10 @@ class ChatRequestFactory(
         return StepRequest(requestMessages, params)
     }
 }
+
+/** Manual Pulse chat uses the same framework guidance as scheduled turns. */
+internal fun resolvePulseInstruction(conversation: Conversation, instruction: String?): String? =
+    instruction ?: PULSE_TURN_CONSTRAINT.takeIf { conversation.isPulseChat() }
 
 internal fun appendPulseInstruction(target: StringBuilder, instruction: String?) {
     instruction?.takeIf(String::isNotBlank)?.let {

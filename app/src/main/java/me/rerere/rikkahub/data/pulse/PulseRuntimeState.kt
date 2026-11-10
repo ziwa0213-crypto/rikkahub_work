@@ -20,6 +20,9 @@ data class PulseRuntimeState(
     /** Non-zero while a heartbeat or task is executing. */
     val runningSince: Long = 0L,
     val runningLabel: String = "",
+    val lastSmsPollAt: Long = 0L,
+    /** Distinguish an initialized empty inbox from the first permission grant. */
+    val smsBaselineReady: Boolean = false,
 )
 
 object PulseRuntimeStore {

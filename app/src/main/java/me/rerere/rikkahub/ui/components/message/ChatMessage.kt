@@ -111,7 +111,7 @@ import me.rerere.rikkahub.ui.components.ui.FaviconRow
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.ui.context.LocalSettings
-import me.rerere.rikkahub.ui.context.LocalWorkspaceId
+import me.rerere.rikkahub.ui.components.richtext.rememberWorkspaceImageUrl
 import me.rerere.rikkahub.ui.theme.LocalChatFontFamily
 import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
 import me.rerere.rikkahub.utils.JsonInstant
@@ -598,7 +598,7 @@ private fun MessagePartsBlock(
                             )
                         } else {
                             ZoomableAsyncImage(
-                                model = part.url,
+                                model = rememberWorkspaceImageUrl(part.url),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.large)

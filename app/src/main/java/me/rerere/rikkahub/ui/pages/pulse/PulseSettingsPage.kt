@@ -1,10 +1,14 @@
 package me.rerere.rikkahub.ui.pages.pulse
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,8 +65,9 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
     val scope = rememberCoroutineScope()
     val nav = LocalNavController.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val clipboard = LocalClipboardManager.current
-    var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     var deleting by remember { mutableStateOf<PulseTask?>(null) }
     var addWatcher by remember { mutableStateOf(false) }
     var editingWatcher by remember { mutableStateOf<PulseWatcher?>(null) }
@@ -81,11 +88,10 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
             if (today != dayStart) dayStart = today
         }
     }
-    val usage by remember(config.conversationId, dayStart, config.priceInputPerMillion, config.priceOutputPerMillion,
-        config.priceCachedPerMillion, config.priceMultiplier) {
-        config.conversationId?.let { id -> usageDao.observeConversationTotals(id.toString(), dayStart).map { calculatePulseCost(it, config) } }
-            ?: flowOf(calculatePulseCost(UsageTotals(), config))
-    }.collectAsStateWithLifecycle(initialValue = calculatePulseCost(UsageTotals(), config))
+    val usage by remember(config, dayStart) {
+        config.conversationId?.let { id -> usageDao.observeConversationTotals(id.toString(), dayStart).map { calculatePulseCost(it, config, config.runLogs) } }
+            ?: flowOf(calculatePulseCost(UsageTotals(), config, config.runLogs))
+    }.collectAsStateWithLifecycle(initialValue = calculatePulseCost(UsageTotals(), config, config.runLogs))
     fun update(transform: (PulseConfig) -> PulseConfig) {
         scope.launch { store.update { it.copy(pulse = transform(it.pulse)) } }
     }
@@ -96,7 +102,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!logs) PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                 listOf(R.string.pulse_settings_basic, R.string.pulse_settings_heartbeat,
-                    R.string.pulse_settings_tasks, R.string.pulse_settings_tools).forEachIndexed { index, label ->
+                    R.string.pulse_settings_tasks, R.string.pulse_settings_tools, R.string.pulse_settings_cost).forEachIndexed { index, label ->
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(label)) })
                 }
             }
@@ -105,7 +111,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                     item { Text(stringResource(R.string.pulse_recent_activity), style = MaterialTheme.typography.titleMedium) }
                     if (config.activityLog.isEmpty()) item { Text(stringResource(R.string.pulse_log_empty)) }
                     items(config.activityLog.take(20), key = { it.id }) { entry ->
-                        CardGroup {
+                        CardGroup(modifier = pulseItemAnimation()) {
                             item(headlineContent = { Text("${pulseTime(entry.at)} · ${pulseActivityType(entry.kind)} · ${pulseResultLabel(entry.result)}") },
                                 supportingContent = { if (entry.summary.isNotBlank()) Text(entry.summary) })
                             if (entry.reportPath.isNotBlank() && pulseWorkspace != null) item(
@@ -117,7 +123,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                     item { Text(stringResource(R.string.pulse_run_log_title), style = MaterialTheme.typography.titleMedium) }
                     if (config.runLogs.isEmpty()) item { Text(stringResource(R.string.pulse_log_empty)) }
                     items(config.runLogs, key = { "${it.at}-${it.refId}-${it.kind}" }) { log ->
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(modifier = pulseItemAnimation(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 PulseLog(log.at, log.result, "${pulseActivityType(log.kind)} · ${log.durationMs} ms · ${log.promptTokens} / ${log.completionTokens} tokens${if (log.note.isNotBlank()) "\n${log.note}" else ""}")
                             }
@@ -131,6 +137,11 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                 } else when (tab) {
                     0 -> {
                         item { CardGroup {
+                            formItem(headlineContent = { Text(stringResource(R.string.pulse_model)) }) {
+                                ModelSelector(config.chatModelId ?: settings.chatModelId, settings.providers, ModelType.CHAT) { model ->
+                                    update { it.copy(chatModelId = model.id) }
+                                }
+                            }
                             switchItem(checked = config.enableMemory, onCheckedChange = { value -> update { it.copy(enableMemory = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_memory_enabled)) })
                             item(onClick = { nav.navigate(Screen.PulseBackgroundSettings) },
@@ -139,6 +150,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                         item { PulsePrompt(config.systemPrompt.ifBlank { DEFAULT_PULSE_PROMPT }, R.string.pulse_prompt_persona,
                             onChange = { text -> update { it.copy(systemPrompt = text) } },
                             restore = { update { it.copy(systemPrompt = DEFAULT_PULSE_PROMPT) } }) }
+                        item { TextButton(onClick = { nav.navigate(Screen.PulseSettings(logs = true)) }) { Text(stringResource(R.string.pulse_view_logs)) } }
                     }
                     1 -> {
                         item { CardGroup {
@@ -175,11 +187,13 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                         item { Button(onClick = { runtime.trigger(manual = true) }, enabled = config.enableHeartbeat) {
                             Text(stringResource(R.string.pulse_run_now))
                         } }
-                        items(config.heartbeatLog) { log -> PulseLog(log.at, log.result, log.summary) }
+                        items(config.heartbeatLog, key = { "heartbeat-${it.at}" }) { log ->
+                            PulseLog(log.at, log.result, log.summary, modifier = pulseItemAnimation())
+                        }
                         item { Text(stringResource(R.string.pulse_recent_activity), style = MaterialTheme.typography.titleMedium) }
                         items(config.activityLog.take(20), key = { it.id }) { entry ->
                             ListItem(
-                                modifier = Modifier.clickable { expandedActivity = entry },
+                                modifier = pulseItemAnimation().clickable { expandedActivity = entry },
                                 headlineContent = { Text("${pulseTime(entry.at)} · ${pulseActivityType(entry.kind)} · ${pulseResultLabel(entry.result)}") },
                                 supportingContent = { if (entry.summary.isNotBlank()) Text(entry.summary) },
                             )
@@ -193,7 +207,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                         } }
                         if (config.tasks.isEmpty()) item { Text(stringResource(R.string.pulse_task_empty)) }
                         items(config.tasks, key = { it.id }) { task ->
-                            CardGroup {
+                            CardGroup(modifier = pulseItemAnimation()) {
                                 switchItem(checked = task.enabled, onCheckedChange = { enabled ->
                                     update { pulse -> pulse.copy(tasks = pulse.tasks.map { if (it.id == task.id) it.copy(enabled = enabled) else it }) }
                                 }, headlineContent = { Text(task.title) }, supportingContent = {
@@ -209,65 +223,38 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                         }
                     }
                     3 -> {
-                        item { CardGroup {
-                            formItem(headlineContent = { Text(stringResource(R.string.pulse_model)) }) {
-                                ModelSelector(config.chatModelId ?: settings.chatModelId, settings.providers, ModelType.CHAT) { model ->
-                                    update { it.copy(chatModelId = model.id) }
-                                }
-                            }
-                        } }
-                        item { CardGroup(title = { Text(stringResource(R.string.pulse_cost_prices)) }) {
-                            formItem(headlineContent = { Text(stringResource(R.string.pulse_price_input)) }) {
-                                PulsePriceInput(config.priceInputPerMillion) { value -> update { it.copy(priceInputPerMillion = value) } }
-                            }
-                            formItem(headlineContent = { Text(stringResource(R.string.pulse_price_output)) }) {
-                                PulsePriceInput(config.priceOutputPerMillion) { value -> update { it.copy(priceOutputPerMillion = value) } }
-                            }
-                            formItem(headlineContent = { Text(stringResource(R.string.pulse_price_cached)) }) {
-                                PulsePriceInput(config.priceCachedPerMillion) { value -> update { it.copy(priceCachedPerMillion = value) } }
-                            }
-                            formItem(headlineContent = { Text(stringResource(R.string.pulse_price_multiplier)) }) {
-                                PulsePriceInput(config.priceMultiplier) { value -> update { it.copy(priceMultiplier = value) } }
-                            }
-                        } }
-                        item { Text(pulseUsageLine(usage.inputTokens + usage.outputTokens, usage.costYuan), style = MaterialTheme.typography.titleSmall) }
-                        if (pulseWorkspace == null) item { workspaceSetup.header() }
                         item { CardGroup(title = { Text(stringResource(R.string.pulse_workspace_tools)) }) {
+                            formItem { workspaceSetup.header() }
                             if (pulseWorkspace == null) {
                                 item(headlineContent = { Text(stringResource(R.string.pulse_workspace_tools_unavailable)) })
                             } else {
-                                item(headlineContent = { Text(pulseWorkspace.name) }, supportingContent = {
-                                    Text(stringResource(if (pulseWorkspace.shellStatus == "READY") R.string.pulse_workspace_ready else R.string.pulse_workspace_not_ready))
-                                })
                                 item(onClick = {
                                     scope.launch {
                                         runCatching { provisionPulseTemplates(workspaceRepository, pulseWorkspace.id) }
                                             .onSuccess { count ->
                                                 update { it.copy(workspaceInitialized = true) }
                                                 android.widget.Toast.makeText(context,
-                                                    context.getString(R.string.pulse_templates_restored, count), android.widget.Toast.LENGTH_SHORT).show()
+                                                    resources.getString(R.string.pulse_templates_restored, count), android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                             .onFailure { error -> android.widget.Toast.makeText(context,
-                                                error.message ?: context.getString(R.string.pulse_templates_failed), android.widget.Toast.LENGTH_LONG).show() }
+                                                error.message ?: resources.getString(R.string.pulse_templates_failed), android.widget.Toast.LENGTH_LONG).show() }
                                     }
                                 }, headlineContent = { Text(stringResource(R.string.pulse_restore_templates)) })
-                                item(onClick = { nav.navigate(Screen.Workspaces("pulse")) }, headlineContent = {
-                                    Text(stringResource(R.string.pulse_workspace_manage))
-                                })
                             }
                         } }
-                        item { CardGroup {
+                        item { CardGroup(title = { Text(stringResource(R.string.pulse_tool_settings)) }) {
                             switchItem(checked = config.enableInformation, onCheckedChange = { value -> update { it.copy(enableInformation = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_info)) })
                             switchItem(checked = config.enableMemory, onCheckedChange = { value -> update { it.copy(enableMemory = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_memory)) })
                             switchItem(checked = config.enableCalendarCreate, onCheckedChange = { value -> update { it.copy(enableCalendarCreate = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_calendar)) })
+                            switchItem(checked = config.enableAlarm, onCheckedChange = { value -> update { it.copy(enableAlarm = value) } },
+                                headlineContent = { Text(stringResource(R.string.pulse_tool_alarm)) },
+                                supportingContent = { Text(stringResource(R.string.pulse_tool_alarm_desc)) })
                             switchItem(checked = config.notifyOnReport, onCheckedChange = { value -> update { it.copy(notifyOnReport = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_notify_reports)) })
-                        } }
-                        item { CardGroup(title = { Text(stringResource(R.string.pulse_tool_settings)) }) {
-                            if (pulseWorkspace == null || pulseWorkspace.shellStatus != "READY") {
+                            if (pulseWorkspace == null) {
                                 item(headlineContent = { Text(stringResource(R.string.pulse_workspace_tools_unavailable)) })
                             } else {
                                 switchItem(checked = config.enableFileWrite, onCheckedChange = { value ->
@@ -275,11 +262,9 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                                 }, headlineContent = { Text(stringResource(R.string.pulse_tool_file_write)) })
                                 switchItem(checked = config.enableShell, onCheckedChange = { value ->
                                     if (value) confirmTool = "shell" else update { it.copy(enableShell = false) }
-                                }, headlineContent = { Text(stringResource(R.string.pulse_tool_shell)) })
+                                }, enabled = pulseWorkspace.shellStatus == "READY", headlineContent = { Text(stringResource(R.string.pulse_tool_shell)) })
                             }
                             item(headlineContent = { Text(stringResource(R.string.pulse_tool_mcp_hidden)) })
-                        } }
-                        item { CardGroup {
                             switchItem(checked = config.enableWatchers, onCheckedChange = { value -> update { it.copy(enableWatchers = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_watchers_enabled)) })
                             config.watchers.forEach { watcher ->
@@ -304,8 +289,9 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                             if (config.watchers.size < 20) item(onClick = { addWatcher = true }, headlineContent = { Text(stringResource(R.string.pulse_add_watcher)) })
                             else item(headlineContent = { Text(stringResource(R.string.pulse_watcher_limit)) })
                         } }
-                        item { TextButton(onClick = { nav.navigate(Screen.PulseSettings(logs = true)) }) { Text(stringResource(R.string.pulse_view_logs)) } }
+                        item { PulseSensingSettings(config, ::update) }
                     }
+                    4 -> pulsePricingItems(config, usage, ::update)
                 }
             }
         }
@@ -318,7 +304,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
             text = { Text(stringResource(if (tool == "files") R.string.pulse_tool_files_warning else R.string.pulse_tool_shell_warning)) },
             confirmButton = { TextButton(onClick = {
                 val current = pulseWorkspace
-                if (current != null && current.shellStatus == "READY") update {
+                if (current != null && (tool == "files" || current.shellStatus == "READY")) update {
                     if (tool == "files") it.copy(enableFileWrite = true) else it.copy(enableShell = true)
                 }
                 confirmTool = null
@@ -435,10 +421,10 @@ private fun HeartbeatIntervalInput(value: Int, onCommit: (Int) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
     var hasFocus by remember { mutableStateOf(false) }
     val parsed = text.toIntOrNull()
-    val isValid = parsed != null && parsed in 15..240
+    val isValid = parsed != null && parsed in 1..240
 
     fun commit() {
-        val minutes = parsed?.coerceIn(15, 240) ?: value
+        val minutes = (parsed ?: value).coerceIn(1, 240)
         text = minutes.toString()
         onCommit(minutes)
     }
@@ -456,7 +442,10 @@ private fun HeartbeatIntervalInput(value: Int, onCommit: (Int) -> Unit) {
         keyboardActions = KeyboardActions(onDone = { commit() }),
         label = { Text(stringResource(R.string.pulse_interval_minutes)) },
         supportingText = {
-            Text(stringResource(R.string.pulse_interval_range, 15, 240))
+            Column {
+                Text(stringResource(R.string.pulse_interval_range))
+                Text(stringResource(R.string.pulse_interval_cost_warning))
+            }
         },
     )
 }
@@ -467,18 +456,25 @@ private fun pulseResultLabel(result: String): String = when {
     result == "REPORTED" -> stringResource(R.string.pulse_result_reported)
     result == "CANCELLED" -> stringResource(R.string.pulse_result_cancelled)
     result == "EXPIRED" -> stringResource(R.string.pulse_result_expired)
+    result == "WAITING_APPROVAL" -> stringResource(R.string.pulse_approval_waiting)
     result.startsWith("FAILED") -> stringResource(R.string.pulse_result_failed) + result.removePrefix("FAILED")
     else -> result
 }
 
 @Composable
-private fun PulseLog(time: Long, result: String, detail: String) {
-    ListItem(headlineContent = { Text("${pulseTime(time)} · ${pulseResultLabel(result)}") },
+private fun PulseLog(time: Long, result: String, detail: String, modifier: Modifier = Modifier) {
+    ListItem(modifier = modifier, headlineContent = { Text("${pulseTime(time)} · ${pulseResultLabel(result)}") },
         supportingContent = { if (detail.isNotBlank()) Text(detail) })
 }
 
+private fun LazyItemScope.pulseItemAnimation(): Modifier = Modifier.animateItem(
+    fadeInSpec = tween(120, easing = LinearOutSlowInEasing),
+    placementSpec = tween(220, easing = FastOutSlowInEasing),
+    fadeOutSpec = tween(120, easing = LinearOutSlowInEasing),
+)
+
 @Composable
-private fun PulsePriceInput(value: Double, onCommit: (Double) -> Unit) {
+internal fun PulsePriceInput(value: Double, onCommit: (Double) -> Unit) {
     var text by remember(value) {
         mutableStateOf(if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString())
     }
@@ -508,12 +504,13 @@ private fun PulsePriceInput(value: Double, onCommit: (Double) -> Unit) {
 }
 
 @Composable
-internal fun pulseUsageLine(tokens: Long, cost: Double?): String {
-    val tokenText = stringResource(R.string.pulse_usage_tokens, compactPulseNumber(tokens))
+internal fun pulseUsageLine(tokens: Long, cost: Double?, recent: Boolean = false, costFractionDigits: Int = 4): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val tokenText = stringResource(if (recent) R.string.pulse_usage_recent_tokens else R.string.pulse_usage_tokens, compactPulseNumber(tokens))
     return if (cost == null) tokenText else stringResource(
-        R.string.pulse_usage_estimate,
+        if (recent) R.string.pulse_usage_recent_estimate else R.string.pulse_usage_estimate,
         tokenText,
-        "%.4f".format(java.util.Locale.getDefault(), cost),
+        "%.${costFractionDigits}f".format(locale, cost),
     )
 }
 
@@ -528,5 +525,6 @@ private fun pulseWatcherType(target: WatcherTarget): String = stringResource(whe
 private fun pulseActivityType(kind: String): String = stringResource(when (kind) {
     "watcher" -> R.string.pulse_activity_watcher
     "task" -> R.string.pulse_activity_task
+    "sms" -> R.string.pulse_sms_activity
     else -> R.string.pulse_activity_heartbeat
 })

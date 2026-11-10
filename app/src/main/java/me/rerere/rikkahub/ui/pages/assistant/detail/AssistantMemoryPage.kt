@@ -928,7 +928,7 @@ private fun MemoryFilesTab(
 
 /** 后台整理的状态和手动入口 */
 @Composable
-private fun MemoryConsolidationSection(
+internal fun MemoryConsolidationSection(
     status: MemoryConsolidationStatus,
     onOrganize: () -> Unit,
 ) {

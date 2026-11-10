@@ -8,6 +8,12 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.MemoryToolNames
+import me.rerere.rikkahub.data.datastore.PulseConfig
+import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID
+import me.rerere.rikkahub.data.model.PULSE_MEMORY_ID
+import me.rerere.rikkahub.data.repository.memoryId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -35,6 +41,88 @@ class MemoryConsolidatorTest {
 
     private fun pending(messages: List<UIMessage>, consolidatedAt: Long, updatedAt: Long = 0) =
         pendingMemoryTurns(messages, updatedAt = updatedAt, consolidatedAt = consolidatedAt, timeZone = zone)
+
+    private fun pulsePending(messages: List<UIMessage>, mark: Long = 0, updatedAt: Long = 0) =
+        pendingMemoryTurns(messages, updatedAt, mark, zone, includeAutonomousReplies = true)
+
+    @Test
+    fun `consolidation resolves the pulse facade without enrolling it in any shared bucket`() {
+        val private = Assistant(enableMemory = true)
+        val global = Assistant(enableMemory = true, useGlobalMemory = true)
+        val grouped = Assistant(enableMemory = true, memoryGroupId = Uuid.random())
+        val disabled = Assistant(enableMemory = false)
+        val settings = Settings(assistants = listOf(private, global, grouped, disabled),
+            pulse = PulseConfig(autoConsolidateMemory = true))
+        val resolved = settings.memoryConsolidationAssistants()
+        assertEquals(listOf(private.id, global.id, grouped.id, PULSE_ASSISTANT_ID), resolved.map { it.id })
+        assertEquals(listOf(PULSE_ASSISTANT_ID), resolved.filter { it.memoryId == PULSE_MEMORY_ID }.map { it.id })
+        assertTrue(resolved.last().autoConsolidateMemory)
+        assertEquals(listOf(private, global, grouped, disabled), settings.assistants)
+        assertEquals(listOf(private, global, grouped), settings.copy(pulse = PulseConfig(enableMemory = false))
+            .memoryConsolidationAssistants())
+    }
+
+    @Test
+    fun `automatic pulse replies are separate turns without inventing user messages`() {
+        val replies = listOf(assistant(1), assistant(2), assistant(3))
+        val before = replies.toList()
+        val first = pulsePending(replies, updatedAt = timeOf(4))
+        assertEquals(3, first.totalTurns)
+        assertEquals(listOf(0, 1, 2), first.turns.map { it.position })
+        assertEquals(replies, first.turns.flatMap { it.messages }.map { it.value })
+        assertEquals(before, replies)
+        assertTrue(first.turns.flatMap { it.messages }.all { it.value.role == MessageRole.ASSISTANT })
+        assertTrue(pulsePending(replies, first.consolidatedThrough!!).turns.isEmpty())
+        // The default ordinary-chat interpretation is deliberately unchanged.
+        assertTrue(pending(replies, 0).turns.isEmpty())
+    }
+
+    @Test
+    fun `manual pulse turns retain their user anchor while later automatic turns are independent`() {
+        val messages = listOf(assistant(1), user(2), assistant(3), assistant(4), user(5), assistant(6))
+        val result = pulsePending(messages, mark = timeOf(1))
+        assertEquals(listOf(1, 3, 4), result.turns.map { it.position })
+        assertEquals(listOf("user 2", "reply 3"), result.turns.first().messages.map { it.value.toText() })
+        assertEquals(listOf("reply 4"), result.turns[1].messages.map { it.value.toText() })
+        val regenerated = listOf(user(1), assistant(9))
+        assertTrue(pulsePending(regenerated, mark = timeOf(5)).turns.isEmpty())
+    }
+
+    @Test
+    fun `pulse approval blocks progress even with later concurrent messages`() {
+        val waiting = assistant(3, tool("send_sms", output = null))
+        val messages = listOf(assistant(1), assistant(2), waiting, user(4), assistant(5))
+        val result = pulsePending(messages, updatedAt = timeOf(6))
+        assertEquals(listOf(0, 1), result.turns.map { it.position })
+        assertEquals(timeOf(3) - 1, result.consolidatedThrough)
+        val completed = messages.toMutableList().apply { set(2, assistant(3, tool("send_sms"), UIMessagePart.Text("sent"))) }
+        assertEquals(listOf(2, 3), pulsePending(completed, result.consolidatedThrough!!).turns.map { it.position })
+    }
+
+    @Test
+    fun `an abandoned pulse user message or notice cannot block all later completed turns`() {
+        val messages = listOf(user(1), notice(2), user(3), assistant(4), assistant(5))
+        val result = pulsePending(messages, updatedAt = timeOf(6))
+        assertEquals(listOf(0, 2, 4), result.turns.map { it.position })
+        assertEquals(timeOf(6), result.consolidatedThrough)
+        assertTrue(pulsePending(messages, result.consolidatedThrough!!).turns.isEmpty())
+    }
+
+    @Test
+    fun `pulse restart and backlog use bounded batches and original transcript positions`() {
+        val messages = (1..15).map { assistant(it) }
+        val start = initialMemoryProgress(messages, zone, includeAutonomousReplies = true)
+        assertEquals(timeOf(4) - 1, start)
+        assertEquals(12, pulsePending(messages, start).totalTurns)
+        val first = pulsePending(messages)
+        assertEquals(15, first.totalTurns)
+        assertEquals((0..11).toList(), first.turns.map { it.position })
+        assertEquals(listOf(12, 13, 14), pulsePending(messages, first.consolidatedThrough!!).turns.map { it.position })
+        val checkpoint = user(1, "summary").copy(isContextCheckpoint = true)
+        val afterCheckpoint = pulsePending(listOf(checkpoint, assistant(2)))
+        assertEquals(1, afterCheckpoint.turns.single().position)
+        assertEquals("[ASSISTANT #1]: reply 2", afterCheckpoint.turns.single().messages.toMemoryTranscript(100, 100))
+    }
 
     @Test
     fun `only turns whose user message is newer than the mark are pending`() {

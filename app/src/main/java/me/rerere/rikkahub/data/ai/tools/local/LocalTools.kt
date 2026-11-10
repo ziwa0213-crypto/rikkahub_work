@@ -33,6 +33,7 @@ class LocalTools(
 
     val calendarDeleteTool by lazy { buildCalendarDeleteTool(context) }
     val chartDisplayTool by lazy { buildChartDisplayTool() }
+    val alarmTool by lazy { buildAlarmTool() }
     fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
@@ -63,6 +64,9 @@ class LocalTools(
         }
         if (options.contains(LocalToolOption.Browser)) {
             tools.addAll(buildBrowserTools(browserController, eventBus, settingsStore, conversationId))
+        }
+        if (options.contains(LocalToolOption.Alarm)) {
+            tools.add(alarmTool)
         }
         return tools
     }

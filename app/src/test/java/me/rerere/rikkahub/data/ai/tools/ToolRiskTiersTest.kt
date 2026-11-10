@@ -9,6 +9,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolRiskTiersTest {
+    @Test fun alarmUsesExistingCreateTierAndApprovalModes() {
+        val args = buildJsonObject {}
+        org.junit.Assert.assertEquals(ToolTier.L2_CREATE, tierOf("set_alarm", args))
+        assertTrue(applyApprovalMode(listOf(tool("set_alarm")), ToolApprovalMode.AskAll).single().needsApproval(args))
+        assertFalse(applyApprovalMode(listOf(tool("set_alarm")), ToolApprovalMode.Partial).single().needsApproval(args))
+        assertFalse(applyApprovalMode(listOf(tool("set_alarm")), ToolApprovalMode.AllowAll).single().needsApproval(args))
+    }
+    @Test fun smsAlwaysNeedsExplicitApprovalAndReadToolsRemainReadOnly() {
+        ToolApprovalMode.entries.forEach { mode ->
+            assertTrue(applyApprovalMode(listOf(tool("send_sms")), mode).single().needsApproval(buildJsonObject {}))
+        }
+        assertFalse(applyApprovalMode(listOf(tool("read_sms"), tool("read_notifications")), ToolApprovalMode.Partial)
+            .any { it.needsApproval(buildJsonObject {}) })
+    }
     @Test
     fun `partial mode keeps original approval and applies risk tiers`() {
         val tools = applyApprovalMode(
@@ -42,13 +56,17 @@ class ToolRiskTiersTest {
     }
 
     @Test
-    fun `mcp and workspace tools are high risk`() {
+    fun `mcp and workspace writes remain gated but workspace reads are allowed`() {
         val tools = applyApprovalMode(
-            listOf(tool("mcp__server__tool"), tool("workspace_read_file")),
+            listOf(tool("mcp__server__tool"), tool("workspace_write_file"), tool("workspace_edit_file"), tool("workspace_shell"), tool("workspace_shell_kill")),
             ToolApprovalMode.Partial,
         )
 
         assertTrue(tools.all { it.needsApproval(buildJsonObject {}) })
+        val reads = applyApprovalMode(listOf(tool("workspace_read_file"), tool("workspace_shell_output")), ToolApprovalMode.Partial)
+        assertTrue(reads.none { it.needsApproval(buildJsonObject {}) })
+        val outside = applyApprovalMode(listOf(tool("workspace_write_file", needsApproval = true)), ToolApprovalMode.Partial).single()
+        assertTrue(outside.needsApproval(buildJsonObject {}))
     }
 
     @Test

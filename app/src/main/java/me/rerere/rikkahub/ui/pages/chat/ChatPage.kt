@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -44,16 +43,20 @@ import androidx.compose.material3.adaptive.currentWindowDpSize
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -81,6 +84,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Book02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
@@ -120,12 +124,14 @@ import me.rerere.rikkahub.ui.components.ai.SearchMode
 import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
 import me.rerere.rikkahub.ui.components.ai.rememberChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalWorkspaceId
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.pages.group.GroupChatContent
+import me.rerere.rikkahub.ui.pages.group.GroupChatTopBar
 import me.rerere.rikkahub.ui.pages.group.GroupVM
 import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
 import me.rerere.rikkahub.ui.pages.pulse.rememberPulseWorkspaceSetup
@@ -368,6 +374,13 @@ private fun GroupChatHost(
     var pendingQuote by remember { mutableStateOf<UIMessageAnnotation.GroupQuote?>(null) }
     var inputPanelBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
     var inputHeightPx by remember { mutableStateOf(0) }
+    var topBarHeightPx by remember { mutableIntStateOf(0) }
+    var groupTopStart by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var groupTopEnd by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    var groupTopStartAlpha by remember { mutableFloatStateOf(0f) }
+    var groupTopEndAlpha by remember { mutableFloatStateOf(0f) }
+    val groupListState = rememberLazyListState()
+    val density = LocalDensity.current
 
     LaunchedEffect(group?.id, conversation.id) {
         group?.let {
@@ -408,7 +421,7 @@ private fun GroupChatHost(
             assistant = groupAssistant,
             chatModel = null,
             groupMode = true,
-            reasoningAvailable = true,
+            reasoningAvailable = group != null,
             hazeState = hazeState,
             completionProviders = completionProviders,
             onUpdateChatModel = {},
@@ -468,77 +481,112 @@ private fun GroupChatHost(
     }
 
     val groupPage: @Composable () -> Unit = {
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            if (useLiquidHost) {
-                LiquidGlassChatHost(
-                    sourceContent = {
-                        GroupChatContent(
-                            drawerState = drawerState,
-                            bigScreen = bigScreen,
-                            settings = settings,
-                            hazeState = hazeState,
-                            useLiquidHost = true,
-                            inputHeightPx = inputHeightPx,
-                            onDrawInput = {},
-                            blocked = blocked,
-                            onBlockedChange = { blocked = it },
-                            vm = groupVm,
-                            onQuote = { pendingQuote = it },
-                            onMention = { groupVm.inputState.appendText("@$it ") },
-                        )
-                    },
-                    inputContent = { inputContent(true) },
-                    regions = inputPanelBounds?.let {
-                        listOf(
-                            LiquidGlassRegion(
-                                key = "input",
-                                bounds = it,
-                                cornerRadiusPx = with(LocalDensity.current) { 28.dp.toPx() },
-                                tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        CompositionLocalProvider(LocalWorkspaceId provides group?.workspaceId?.toString()) {
+            Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                if (useLiquidHost) {
+                    LiquidGlassChatHost(
+                        sourceContent = {
+                            GroupChatContent(
+                                drawerState = drawerState,
+                                bigScreen = bigScreen,
+                                settings = settings,
+                                hazeState = hazeState,
+                                useLiquidHost = true,
+                                inputHeightPx = inputHeightPx,
+                                onDrawInput = {},
+                                blocked = blocked,
+                                onBlockedChange = { blocked = it },
+                                vm = groupVm,
+                                onQuote = { pendingQuote = it },
+                                onMention = { groupVm.inputState.appendText("@$it ") },
+                                listState = groupListState,
+                                onToggleFavorite = if (activeConversation.id == conversation.id) chatVm::toggleMessageFavorite else null,
+                                topBar = { Spacer(Modifier.height(with(density) { topBarHeightPx.toDp() })) },
                             )
-                        )
-                    }.orEmpty(),
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                GroupChatContent(
-                    drawerState = drawerState,
-                    bigScreen = bigScreen,
-                    settings = settings,
-                    hazeState = hazeState,
-                    useLiquidHost = false,
-                    inputHeightPx = 0,
-                    onDrawInput = { inputContent(false) },
-                    blocked = blocked,
-                    onBlockedChange = { blocked = it },
-                    vm = groupVm,
-                    onQuote = { pendingQuote = it },
-                    onMention = { groupVm.inputState.appendText("@$it ") },
-                )
-            }
+                        },
+                        inputContent = {
+                            Box(Modifier.fillMaxSize()) {
+                                Column(Modifier.align(Alignment.TopCenter).onSizeChanged { topBarHeightPx = it.height }) {
+                                    GroupChatTopBar(
+                                        drawerState = drawerState, bigScreen = bigScreen, settings = settings,
+                                        hazeState = hazeState, showBackground = groupListState.canScrollBackward,
+                                        vm = groupVm, forceLiquidGlass = true,
+                                        onTopStartGlassChanged = { bounds, alpha ->
+                                            groupTopStart = bounds
+                                            groupTopStartAlpha = alpha
+                                        },
+                                        onTopEndGlassChanged = { bounds, alpha ->
+                                            groupTopEnd = bounds
+                                            groupTopEndAlpha = alpha
+                                        },
+                                    )
+                                }
+                                Box(Modifier.align(Alignment.BottomCenter)) { inputContent(true) }
+                            }
+                        },
+                        regions = buildList {
+                            inputPanelBounds?.let {
+                                add(LiquidGlassRegion(
+                                    key = "input",
+                                    bounds = it,
+                                    cornerRadiusPx = with(density) { 28.dp.toPx() },
+                                    tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                ))
+                            }
+                            if (groupTopStartAlpha > 0.01f) groupTopStart?.let {
+                                add(LiquidGlassRegion("groupTopStart", it, it.height / 2f,
+                                    MaterialTheme.colorScheme.surfaceContainerLow, groupTopStartAlpha,
+                                    refractionScale = 0.60f, tintAlpha = 0.16f, blurRadiusDp = 2f))
+                            }
+                            if (groupTopEndAlpha > 0.01f) groupTopEnd?.let {
+                                add(LiquidGlassRegion("groupTopEnd", it, it.height / 2f,
+                                    MaterialTheme.colorScheme.surfaceContainerLow, groupTopEndAlpha,
+                                    refractionScale = 0.60f, tintAlpha = 0.16f, blurRadiusDp = 2f))
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    GroupChatContent(
+                        drawerState = drawerState,
+                        bigScreen = bigScreen,
+                        settings = settings,
+                        hazeState = hazeState,
+                        useLiquidHost = false,
+                        inputHeightPx = 0,
+                        onDrawInput = { inputContent(false) },
+                        blocked = blocked,
+                        onBlockedChange = { blocked = it },
+                        vm = groupVm,
+                        onQuote = { pendingQuote = it },
+                        onMention = { groupVm.inputState.appendText("@$it ") },
+                        listState = groupListState,
+                        onToggleFavorite = if (activeConversation.id == conversation.id) chatVm::toggleMessageFavorite else null,
+                    )
+                }
 
-            if (showFilesSheet && group != null) {
-                GroupChatFilesPickerSheet(
-                    conversation = activeConversation,
-                    group = group,
-                    assistant = groupAssistant,
-                    settings = settings,
-                    groupVm = groupVm,
-                    mcpManager = mcpManager,
-                    contextUsage = contextUsage,
-                    inputState = groupVm.inputState,
-                    attachmentPickerActions = attachmentPickerActions,
-                    showCompressDialog = showCompressDialog,
-                    onShowCompressDialogChange = { showCompressDialog = it },
-                    onDismiss = {
-                        showCompressDialog = false
-                        showFilesSheet = false
-                    },
-                )
+                if (showFilesSheet && group != null) {
+                    GroupChatFilesPickerSheet(
+                        conversation = activeConversation,
+                        group = group,
+                        assistant = groupAssistant,
+                        settings = settings,
+                        groupVm = groupVm,
+                        mcpManager = mcpManager,
+                        contextUsage = contextUsage,
+                        inputState = groupVm.inputState,
+                        attachmentPickerActions = attachmentPickerActions,
+                        showCompressDialog = showCompressDialog,
+                        onShowCompressDialogChange = { showCompressDialog = it },
+                        onDismiss = {
+                            showCompressDialog = false
+                            showFilesSheet = false
+                        },
+                    )
+                }
             }
         }
     }
-
     if (bigScreen) {
         androidx.compose.material3.PermanentNavigationDrawer(
             drawerContent = {
@@ -709,7 +757,7 @@ private fun ChatPageContent(
     pulseWorkspaceSetup?.overlays?.invoke()
     if (!conversation.isPulseChat()) TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
-    // 上游消息概览只用于普通聊天；脉搏模式继续使用原有顶栏与输入交互。
+    // 群聊禁用概览手势；普通聊天和脉搏保留各自的顶栏操作。
     val previewListState = rememberLazyListState()
     val listScrolledUnderTopBar by remember(chatListState, previewListState) {
         derivedStateOf {
@@ -732,17 +780,14 @@ private fun ChatPageContent(
     var topEndBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
     var topStartAlpha by remember { mutableFloatStateOf(0f) }
     var topEndAlpha by remember { mutableFloatStateOf(0f) }
+    var topBarHeightPx by remember { mutableIntStateOf(0) }
     val backgroundTasks by vm.backgroundTasks.collectAsStateWithLifecycle()
     var showBackgroundTasks by remember { mutableStateOf(false) }
 
-    LaunchedEffect(bigScreen, conversation.isPulseChat()) {
-        if (bigScreen || conversation.isPulseChat()) {
+    LaunchedEffect(bigScreen) {
+        if (bigScreen) {
             topStartBounds = null
             topStartAlpha = 0f
-        }
-        if (conversation.isPulseChat()) {
-            topEndBounds = null
-            topEndAlpha = 0f
         }
     }
 
@@ -820,11 +865,7 @@ private fun ChatPageContent(
         )
     }
 
-    val body: @Composable () -> Unit = {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
-        Scaffold(
-            topBar = {
+    val topBar: @Composable () -> Unit = {
                 Column {
                 TopBar(
                     settings = setting,
@@ -834,8 +875,8 @@ private fun ChatPageContent(
                     bigScreen = bigScreen,
                     drawerState = drawerState,
                     hazeState = hazeState,
-                    showCapsuleBackground = listScrolledUnderTopBar && !conversation.isPulseChat(),
-                    forceLiquidGlass = useLiquidHost && !conversation.isPulseChat(),
+                    showCapsuleBackground = listScrolledUnderTopBar,
+                    forceLiquidGlass = useLiquidHost,
                     previewMode = previewMode,
                     onTogglePreview = { previewMode = !previewMode },
                     onTopStartGlassChanged = { bounds, alpha ->
@@ -866,11 +907,21 @@ private fun ChatPageContent(
                     }
                 )
                 if (conversation.isPulseChat()) {
-                    me.rerere.rikkahub.ui.pages.pulse.PulseStatusRow(setting.pulse) {
+                    me.rerere.rikkahub.ui.pages.pulse.PulseStatusRow(setting.pulse, compact = true) {
                         navController.navigate(Screen.PulseSettings(1))
                     }
                 }
                 }
+    }
+    val body: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
+        Scaffold(
+            topBar = {
+                if (useLiquidHost) {
+                    // Reserve space without putting interactive controls into the sampled background.
+                    Spacer(Modifier.height(with(density) { topBarHeightPx.toDp() }))
+                } else topBar()
             },
             bottomBar = {
                 if (!useLiquidHost) inputContent(false)
@@ -954,69 +1005,77 @@ private fun ChatPageContent(
 
         }
     }
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        if (useLiquidHost) {
-            val regions = buildList {
-                inputPanelBounds?.let {
-                    add(
-                        LiquidGlassRegion(
-                            key = "input",
-                            bounds = it,
-                            cornerRadiusPx = with(density) { 28.dp.toPx() },
-                            tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    // The assistant is already resolved from the conversation snapshot (or live Pulse config).
+    CompositionLocalProvider(LocalWorkspaceId provides assistant.workspaceId?.toString()) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            if (useLiquidHost) {
+                val regions = buildList {
+                    inputPanelBounds?.let {
+                        add(
+                            LiquidGlassRegion(
+                                key = "input",
+                                bounds = it,
+                                cornerRadiusPx = with(density) { 28.dp.toPx() },
+                                tintColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            )
                         )
-                    )
-                }
-                if (!conversation.isPulseChat()) {
+                    }
                     if (topStartAlpha > 0.01f) topStartBounds?.let {
-                        add(LiquidGlassRegion("topStart", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topStartAlpha, 0.45f))
+                        add(LiquidGlassRegion("topStart", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topStartAlpha,
+                            refractionScale = 0.60f, tintAlpha = 0.16f, blurRadiusDp = 2f))
                     }
                     if (topEndAlpha > 0.01f) topEndBounds?.let {
-                        add(LiquidGlassRegion("topEnd", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topEndAlpha, 0.45f))
+                        add(LiquidGlassRegion("topEnd", it, it.height / 2f, MaterialTheme.colorScheme.surfaceContainerLow, topEndAlpha,
+                            refractionScale = 0.60f, tintAlpha = 0.16f, blurRadiusDp = 2f))
                     }
                 }
+                LiquidGlassChatHost(
+                    sourceContent = body,
+                    inputContent = {
+                        Box(Modifier.fillMaxSize()) {
+                            Column(Modifier.align(Alignment.TopCenter).onSizeChanged { topBarHeightPx = it.height }) { topBar() }
+                            Box(Modifier.align(Alignment.BottomCenter)) { inputContent(true) }
+                        }
+                    },
+                    regions = regions,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else body()
+            if (showBackgroundTasks) {
+                BackgroundTasksSheet(
+                    tasks = backgroundTasks,
+                    onStop = vm::stopBackgroundTask,
+                    onDismiss = { showBackgroundTasks = false },
+                )
             }
-            LiquidGlassChatHost(
-                sourceContent = body,
-                inputContent = { inputContent(true) },
-                regions = regions,
-                modifier = Modifier.fillMaxSize(),
+            RikkaConfirmDialog(
+                show = showDeleteConfirm,
+                title = stringResource(R.string.confirm_delete),
+                confirmText = stringResource(R.string.delete),
+                dismissText = stringResource(R.string.cancel),
+                onConfirm = {
+                    showDeleteConfirm = false
+                    scope.launch {
+                        vm.deleteConversation(conversation).join()
+                        navigateToChatPage(navController)
+                    }
+                },
+                onDismiss = { showDeleteConfirm = false },
+                text = { Text(stringResource(R.string.chat_page_delete_conversation_confirm)) },
             )
-        } else body()
-        if (showBackgroundTasks) {
-            BackgroundTasksSheet(
-                tasks = backgroundTasks,
-                onStop = vm::stopBackgroundTask,
-                onDismiss = { showBackgroundTasks = false },
-            )
-        }
-        RikkaConfirmDialog(
-            show = showDeleteConfirm,
-            title = stringResource(R.string.confirm_delete),
-            confirmText = stringResource(R.string.delete),
-            dismissText = stringResource(R.string.cancel),
-            onConfirm = {
-                showDeleteConfirm = false
-                scope.launch {
-                    vm.deleteConversation(conversation).join()
-                    navigateToChatPage(navController)
-                }
-            },
-            onDismiss = { showDeleteConfirm = false },
-            text = { Text(stringResource(R.string.chat_page_delete_conversation_confirm)) },
-        )
-        if (showFilesSheet) {
-            ChatFilesPickerSheet(
-                inputState = inputState,
-                setting = setting,
-                conversation = conversation,
-                assistant = assistant,
-                chatModel = currentChatModel,
-                vm = vm,
-                attachmentPickerActions = attachmentPickerActions,
-                onStartVoiceMode = onStartVoiceMode,
-                onDismiss = { showFilesSheet = false },
-            )
+            if (showFilesSheet) {
+                ChatFilesPickerSheet(
+                    inputState = inputState,
+                    setting = setting,
+                    conversation = conversation,
+                    assistant = assistant,
+                    chatModel = currentChatModel,
+                    vm = vm,
+                    attachmentPickerActions = attachmentPickerActions,
+                    onStartVoiceMode = onStartVoiceMode,
+                    onDismiss = { showFilesSheet = false },
+                )
+            }
         }
     }
 }
@@ -1058,6 +1117,7 @@ private fun ChatFilesPickerSheet(
             chatModel = chatModel,
             mcpManager = vm.mcpManager,
             onCompressContext = vm::handleCompressContext,
+            chatCompressKeepRecent = setting.lastCompressKeepRecentMessages,
             onUpdateAssistant = vm::updateAssistant,
             onUpdateWorkspaceCwd = vm::updateWorkspaceCwd,
             onUpdateSearchMode = { mode ->
@@ -1117,6 +1177,7 @@ private fun TopBar(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
+    val navController = LocalNavController.current
     val titleState = useEditState<String> {
         onUpdateTitle(it)
     }
@@ -1124,7 +1185,7 @@ private fun TopBar(
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
         navigationIcon = {
-            if (!bigScreen && !conversation.isPulseChat()) {
+            if (!bigScreen) {
                 ChatTopBarCapsule(
                     hazeState = hazeState,
                     displaySetting = settings.displaySetting,
@@ -1140,10 +1201,6 @@ private fun TopBar(
                     ) {
                         Icon(HugeIcons.Menu03, "Messages")
                     }
-                }
-            } else if (!bigScreen) {
-                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                    Icon(HugeIcons.Menu03, "Messages")
                 }
             }
         },
@@ -1189,7 +1246,18 @@ private fun TopBar(
             }
         },
         actions = {
+            ChatTopBarCapsule(
+                hazeState = hazeState,
+                displaySetting = settings.displaySetting,
+                showBackground = showCapsuleBackground,
+                forceLiquidGlass = forceLiquidGlass,
+                onGlassBoundsChanged = onTopEndGlassChanged,
+                modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+            ) {
             if (conversation.isPulseChat()) {
+                IconButton(onClick = { navController.navigate(Screen.PulseMemory) }) {
+                    Icon(HugeIcons.Book02, stringResource(R.string.pulse_memory_title))
+                }
                 IconButton(
                     onClick = onTogglePreview,
                 ) {
@@ -1199,14 +1267,6 @@ private fun TopBar(
                     )
                 }
             } else {
-                ChatTopBarCapsule(
-                    hazeState = hazeState,
-                    displaySetting = settings.displaySetting,
-                    showBackground = showCapsuleBackground,
-                    forceLiquidGlass = forceLiquidGlass,
-                    onGlassBoundsChanged = onTopEndGlassChanged,
-                    modifier = Modifier.padding(start = 4.dp, end = 8.dp),
-                ) {
                     IconButton(onClick = onNewChat) {
                         Icon(HugeIcons.MessageAdd01, "New Message")
                     }
@@ -1216,7 +1276,7 @@ private fun TopBar(
                         onExport = onExport,
                         onDelete = onDelete,
                     )
-                }
+            }
             }
         },
     )

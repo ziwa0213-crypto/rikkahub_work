@@ -14,6 +14,12 @@ import dev.chrisbanes.haze.blur.material3.Material3
 import me.rerere.rikkahub.data.datastore.BackgroundEffectType
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 
+/** View-only fallback; never writes the selected background mode back to settings. */
+internal fun DisplaySetting.chatBackgroundSetting(nativeLiquidGlass: Boolean): DisplaySetting =
+    if (!nativeLiquidGlass && backgroundEffectType == BackgroundEffectType.LIQUID) {
+        copy(backgroundEffectType = BackgroundEffectType.BLUR)
+    } else this
+
 /** Blur mode. Native liquid glass is drawn by LiquidGlassChatHost. */
 @Composable
 @Suppress("UNUSED_PARAMETER")

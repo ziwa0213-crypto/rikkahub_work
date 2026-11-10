@@ -6,6 +6,7 @@ import kotlinx.coroutines.ensureActive
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebCapabilityRefusalException
+import me.rerere.ai.provider.VideoInputException
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebImageException
 import me.rerere.rikkahub.data.ai.DeepSeekWebOutputGuard
 import me.rerere.rikkahub.data.ai.DeepSeekWebPseudoToolException
@@ -21,6 +22,7 @@ import me.rerere.rikkahub.data.model.stripSelfSpeakerPrefix
 import me.rerere.rikkahub.data.model.toAssistant
 import me.rerere.rikkahub.data.model.withGroupSender
 import me.rerere.rikkahub.service.pulse.isAwaitingPulseReply
+import me.rerere.rikkahub.service.pulse.persistPulseResponse
 import java.util.concurrent.ConcurrentHashMap
 import android.util.Log
 import androidx.annotation.StringRes
@@ -85,6 +87,7 @@ import me.rerere.rikkahub.data.model.fillModelSnapshots
 import me.rerere.rikkahub.data.model.fork
 import me.rerere.rikkahub.data.model.getAssistantOf
 import me.rerere.rikkahub.data.model.getChatModelOf
+import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.getStoredAssistantOf
 import me.rerere.rikkahub.data.model.insertContextCheckpoint
 import me.rerere.rikkahub.data.model.isAwaitingToolApproval
@@ -190,6 +193,13 @@ class ChatService(
     private val folderRepository: FolderRepository,
     private val backgroundShellManager: BackgroundShellManager,
 ) {
+    private val pulseEffects by lazy {
+        val preferences = context.getSharedPreferences("pulse_runs", android.content.Context.MODE_PRIVATE)
+        me.rerere.rikkahub.service.pulse.PulseEffects(
+            load = { preferences.getString(it, null) },
+            save = { key, value -> check(preferences.edit().putString(key, value).commit()) { "Cannot record Pulse write" } },
+        )
+    }
     private val groupRounds = ConcurrentHashMap<Uuid, GroupGenerationRound>()
     private val _completedGroupRounds = MutableStateFlow<Map<Uuid, Long>>(emptyMap())
     internal val completedGroupRounds = _completedGroupRounds.asStateFlow()
@@ -258,6 +268,15 @@ class ChatService(
     }
 
     private fun addGenerationError(error: Throwable, conversationId: Uuid, title: String) {
+        if (error is VideoInputException) {
+            val message = when (error.reason) {
+                VideoInputException.Reason.DISABLED -> R.string.chat_error_video_disabled
+                VideoInputException.Reason.UNSUPPORTED_PROTOCOL -> R.string.chat_error_video_protocol
+                VideoInputException.Reason.ENCODING_FAILED -> R.string.chat_error_video_encoding
+            }
+            addError(IllegalArgumentException(context.getString(message)), conversationId, title = title, autoDismiss = false)
+            return
+        }
         val capabilityError = deepSeekWebChatError(error, conversationId) { resource, toolName ->
             if (toolName == null) context.getString(resource) else context.getString(resource, toolName)
         }
@@ -372,15 +391,17 @@ class ChatService(
             try {
                 withContext(toolContext ?: kotlin.coroutines.EmptyCoroutineContext) {
                     val conversation = session.state.value
-                    if (skipIfUnanswered && isAwaitingPulseReply(conversation.currentMessages)) {
+                    if (conversation.isAwaitingToolApproval || (skipIfUnanswered && isAwaitingPulseReply(conversation.currentMessages))) {
                         result.complete(null)
                         return@withContext
                     }
                     onStarted()
+                    val input = me.rerere.rikkahub.service.pulse.pulseTurnInput(conversation.currentMessages, instruction)
                     val turn = requestFactory.createContext(
-                        settingsStore.awaitLoaded(), conversation, pulseInstruction = instruction,
+                        settingsStore.awaitLoaded(), conversation,
+                        pulseInstruction = input.systemInstruction,
                     )
-                    val (request, hooks) = requestFactory.createAgent(turn, conversation.currentMessages, session.processingStatus)
+                    val (request, hooks) = requestFactory.createAgent(turn, input.messages, session.processingStatus)
                     var response: UIMessage? = null
                     var reason: AgentFinishReason? = null
                     runAgent(request, hooks).flowOn(Dispatchers.IO).collect { event ->
@@ -401,7 +422,6 @@ class ChatService(
                             }
                         }
                     }
-                    check(reason == AgentFinishReason.Completed) { "Pulse generation did not complete" }
                     val message = checkNotNull(response) { "Empty Pulse response" }
                     if (turn.providerSetting is ProviderSetting.DeepSeekWeb) {
                         DeepSeekWebOutputGuard.sanitize(listOf(message), (turn.providerSetting as ProviderSetting.DeepSeekWeb).unlock)?.let { checked ->
@@ -409,8 +429,7 @@ class ChatService(
                             throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
                         }
                     }
-                    check(message.toText().isNotBlank()) { "Empty Pulse response" }
-                    result.complete(me.rerere.rikkahub.service.pulse.PulseTurnResult(conversationId, incarnation, message))
+                    result.complete(me.rerere.rikkahub.service.pulse.pulseTurnResult(conversationId, incarnation, message, reason))
                 }
             } catch (error: CancellationException) {
                 result.cancel(error)
@@ -440,16 +459,13 @@ class ChatService(
 
     suspend fun persistPulseTurn(result: me.rerere.rikkahub.service.pulse.PulseTurnResult) {
         withLoadedSession(result.conversationId, createIfMissing = false) { session ->
-            check(session.incarnation == result.incarnation && session.existsInDatabase) { "Pulse conversation was replaced" }
-            check(result.response.role == MessageRole.ASSISTANT) { "Pulse result must be an assistant message" }
-            session.update { latest ->
-                // Merge with the latest transcript; never replace a snapshot or truncate concurrent messages.
-                if (latest.currentMessages.any { it.id == result.response.id }) latest else latest.copy(
-                    messageNodes = latest.messageNodes + MessageNode(messages = listOf(result.response)),
-                    updateAt = java.time.Instant.now(),
-                )
+            session.persistPulseResponse(result) { saved ->
+                val settings = settingsStore.awaitLoaded()
+                val provider = settings.getChatModelOf(saved)?.findProvider(settings.providers)
+                if (settings.pulse.enableMemory && provider != null && provider !is ProviderSetting.DeepSeekWeb) {
+                    memoryConsolidationScheduler.onTurnFinished(saved)
+                }
             }
-            session.flush()
         }
     }
 
@@ -896,14 +912,20 @@ class ChatService(
 
             var finishReason: AgentFinishReason? = null
             try {
-                finishReason = runAgentForSession(
+                val pulseContext = if (conversation.isPulseChat()) {
+                    me.rerere.rikkahub.service.pulse.PulseToolContext { name, args, block ->
+                        // Approval resumption and retries share the persisted reply node identity.
+                        pulseEffects.execute("reply:$conversationId:$replyNodeId", name, args, block)
+                    }
+                } else kotlin.coroutines.EmptyCoroutineContext
+                finishReason = withContext(pulseContext) { runAgentForSession(
                     session = session,
                     turn = turn,
                     history = history,
                     replyNodeId = replyNodeId,
                     senderName = senderName,
                     takePendingParts = session.inbox::takeNotices,
-                )
+                ) }
             } finally {
                 withContext(NonCancellable) {
                     session.processingStatus.value = null
@@ -1391,12 +1413,7 @@ class ChatService(
             if (conversation.isPulseChat()) {
                 settingsStore.update { latest ->
                     val updated = update(latest.pulse.toAssistant(latest))
-                    latest.copy(pulse = latest.pulse.copy(
-                        chatModelId = updated.chatModelId,
-                        reasoningLevel = updated.reasoningLevel,
-                        enableWebSearch = updated.enableWebSearch,
-                        contextMessageLimit = updated.contextMessageLimit,
-                    ))
+                    latest.copy(pulse = latest.pulse.withAssistantUpdate(updated))
                 }
                 return@withLoadedSession
             }

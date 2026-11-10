@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.datastore
 
 import me.rerere.rikkahub.ui.components.ai.shouldUseNativeLiquidGlass
+import me.rerere.rikkahub.ui.components.ai.chatBackgroundSetting
 import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,6 +9,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackgroundEffectTest {
+    @Test
+    fun `unavailable native renderer falls back to blur without changing saved settings`() {
+        val saved = DisplaySetting(enableBlurEffect = true, backgroundEffectType = BackgroundEffectType.LIQUID)
+        for ((apiLevel, unavailable) in listOf(32 to false, 35 to true)) {
+            val useNative = shouldUseNativeLiquidGlass(apiLevel, saved, unavailable)
+            assertFalse(useNative)
+            assertEquals(BackgroundEffectType.BLUR, saved.chatBackgroundSetting(useNative).backgroundEffectType)
+            assertEquals(BackgroundEffectType.LIQUID, saved.backgroundEffectType)
+        }
+        assertEquals(saved, saved.chatBackgroundSetting(nativeLiquidGlass = true))
+        val disabled = saved.copy(enableBlurEffect = false)
+        assertFalse(disabled.chatBackgroundSetting(nativeLiquidGlass = false).enableBlurEffect)
+    }
+
     @Test
     fun `native liquid glass is limited to enabled liquid mode on api 33 plus`() {
         val liquid = DisplaySetting(

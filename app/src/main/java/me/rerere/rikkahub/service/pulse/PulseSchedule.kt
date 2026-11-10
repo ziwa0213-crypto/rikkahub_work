@@ -6,6 +6,8 @@ import me.rerere.ai.ui.UIMessage
 import java.time.Instant
 import java.time.ZoneId
 import me.rerere.rikkahub.data.datastore.PulseConfig
+import me.rerere.rikkahub.data.datastore.PulseTask
+import me.rerere.rikkahub.data.datastore.PulseTaskKind
 import me.rerere.rikkahub.data.datastore.isInActiveHours
 
 internal const val PULSE_HEARTBEAT_RECHECK_MS = 60_000L
@@ -53,3 +55,25 @@ internal fun pulseNextHeartbeatAt(
         !config.isInActiveHours(nextLocal.toLocalTime())
     return candidate to lastOfDay
 }
+
+internal data class PulseUpcoming(
+    val title: String,
+    /** Next trigger time, or null for heartbeat tasks and uninitialised schedules. */
+    val at: Long?,
+    val onHeartbeat: Boolean = false,
+)
+
+/** Read the scheduler's stored times without reparsing cron or dropping overdue tasks. */
+internal fun pulseUpcomingTasks(tasks: List<PulseTask>, @Suppress("UNUSED_PARAMETER") now: Long): List<PulseUpcoming> =
+    tasks.asSequence()
+        .filter { it.enabled }
+        .map { task ->
+            val title = task.title.ifBlank { task.prompt.take(20) }
+            when (task.kind) {
+                PulseTaskKind.ONCE -> PulseUpcoming(title, task.dueAt.takeIf { it > 0 })
+                PulseTaskKind.CRON -> PulseUpcoming(title, task.nextAt.takeIf { it > 0 })
+                PulseTaskKind.ON_HEARTBEAT -> PulseUpcoming(title, null, onHeartbeat = true)
+            }
+        }
+        .sortedWith(compareBy<PulseUpcoming>({ it.at == null }, { it.at ?: Long.MAX_VALUE }, { it.onHeartbeat }))
+        .toList()

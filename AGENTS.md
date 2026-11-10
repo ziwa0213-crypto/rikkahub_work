@@ -1,6 +1,80 @@
 # Repository Guidelines
 
-## 当前工作批次（2026-11-06，已构建待维护者设备验收）
+## 当前后续：F015 主界面用量与等待约束（2026-11-10，Release）
+
+- 维护者指定 `3.1.2-work.1 / 202`，覆盖附件201/不改版本号。仍交三个签名 GitHub Release APK 与含根 DELIVERY 的精简源码 ZIP，新目录 `artifacts/3.1.2-work.1/f015-usage-wait-release-20261110/`；不提交/tag/push/发布或操作设备、真实账号，旧产物保留。
+- PulseStatusRow 追加 compact=false，只有 ChatPage 主界面传 true；状态/sub/待执行渲染隐藏，用量与原动画、点击进入心跳设置不变。抽屉调用不改，心跳关闭仍显示主界面用量。
+- 固定 PULSE_TURN_CONSTRAINT 放 system，自动触发仍为最后一条临时 user、不落库。维护者已明确授权例外于附件R2：ChatRequestFactory.createContext 仅对脉搏空参数补固定约束，覆盖手动发送、重新生成与恢复；ChatService与普通/群聊原系统文本不改。
+- 禁止的是用shell等待未来时刻；明确允许短sleep轮询已运行进程，不加全局工具封锁、计时器或生成时限。不改DEFAULT_HEARTBEAT_PROMPT、用户人格、workspace_shell描述或任务调度。此为模型system提示约束，不宣称执行层硬拦截或真实模型已遵守。
+- 改前复核固定Kai的HeartbeatPromptBuilder、TaskScheduler、Android ProcessManager及PalmClaw的HeartbeatService/CronTools；仅参考职责边界，不复制源码或替换调度器。测试/离线请求与设备截图、模型工具记录明确分开，后两项待维护者验收。
+
+## 当前后续：F015 脉搏做梦与循环任务说明（2026-11-10，Release）
+
+- 维护者已授权实施，仍为 `3.1.2-work.1 / 201`，交三个签名 Release APK 与根含 DELIVERY 的精简源码 ZIP；目录 `artifacts/3.1.2-work.1/f015-dreaming-release-20261110/`，覆盖附件“不附 APK”。不提交/tag/push/发布或操作设备、真实模型账号。
+- PulseMemoryPage 两页签为记忆/做梦，复用 MemoryRepository、MemoryFile 路由和现有 MemoryConsolidationSection；后者仅 private→internal，函数体不改。自动整理新增持久化默认 false，最新 SettingsStore.update 只改 pulse 字段；普通助手设置不变。
+- 任务书误认为传 __pulse__ 即能整理，但后台仅枚举普通助手、自动回复没有用户消息；维护者在指出差异后授权补齐。MemoryConsolidator 专用作用域解析包含脉搏 facade，查询与工具严格限定 __pulse__/PULSE_ASSISTANT_ID，不改通用 getAssistantById，不加入助手库。
+- 脉搏整理视图将独立助手回复按轮识别，不添加持久化触发消息、不截断历史；待审批前停止推进，沿用时间戳进度、初次12轮回看/批次、重试、原自动阈值与空闲整理机制。此空闲整理不是生成超时；无生成时限约定保持。
+- 自动结果成功 flush 后才通知整理器；静默未保存的回复不通知，待审批不通知，原 F009 DeepSeek Web 写入拒绝保持。重复持久化按回复ID合并，整理器按原进度去重。
+- schedule_task 只改 description，参数/execute、PulseTask、PulseCron、PulseTaskRepository、PulseRuntime 和任务UI均不改。只新增四个三语 key，不加依赖、schema或新任务入口。Kai/PalmClaw固定参考复核及验收边界记录在 DELIVERY/参考台账。
+
+## 当前后续：F015 闹钟独立开关、记忆与媒体输入（2026-11-10，Release）
+
+- 版本仍为 `3.1.2-work.1 / 201`。维护者授权实施六项，沿用三个签名 Release APK 与根含 DELIVERY 的精简源码 ZIP；新目录 `artifacts/3.1.2-work.1/f015-alarm-memory-media-release-20261110/`。不提交/tag/push/发布、不操作设备或真实账号。附件“不附 APK”不覆盖维护者既有交付要求。
+- `PulseConfig.enableAlarm=false` 是独立持久化开关，同时控制 toAssistant 的本地工具注册与 PulseToolPolicy；不改变 set_alarm 契约、风险、前台限制或 writes 回执守卫。旧配置没有此字段时关闭闹钟。
+- 心跳开启即显示待执行区，空列表提供占位；抽屉固定今日文案，峰谷估算仅用当天保留的运行日志（上限仍200），不把近期跨天统计标成今日；设置页近期统计不变。
+- 新 PulseMemoryPage 通过现有 MemoryRepository 读取 __pulse__ 文件桶，走现有 MemoryFile 编辑页；不依赖 AssistantDetailVM、不改记忆作用域或数据库。聊天/群聊继续使用各自桶。
+- LocalWorkspaceId 在独立群聊宿主及聊天/脉搏内容分别提供，普通聊天使用当前会话有效助手的 workspaceId。Markdown 和图片消息共用既有安全路径解析；不放宽文件访问范围、不改变网络图片加载器。保留上一轮三处 root 坐标与玻璃参数。
+- ModelAbility.VIDEO 仅末尾追加，无默认开启或猜模型名；视频开关放内置工具页，普通能力分段不重复显示。Google 原生音视频不受开关影响；非 Google 视频需显式开启，当前只接 Chat Completions 的 video_url。未接入的协议或关闭能力、编码失败均明确拒绝，不吞成空文本。AI层错误不含附件路径/编码内容，聊天显示三语常驻错误。
+- 已先阅读固定版本 Kai SetAlarmTool/MemoryStore 与 PalmClaw MemoryTools；只参考系统 Intent 与数据作用域/错误边界，不移植参考存储或全局记忆设计。三语、原21身份图标、DB33、审批与F009边界、保活及无生成时限约定保持。
+
+## 当前后续修正：F019 顶栏玻璃概率性偏移（2026-11-10，Release）
+
+- 维护者确认尺寸正确；按新修正单消除跨帧窗口坐标依赖。顶栏、输入框统一用 `positionInRoot()`；宿主布局为无 padding 的 MATCH_PARENT ComposeView，玻璃布局只扣除宿主 padding。撤销上一批针对尺寸假设新增的 wrapContentSize/Row 测量，恢复原 Box 尺寸规则。
+- 维护者既有“三个 Release APK 和源码”要求继续生效，覆盖附件“不附 APK”建议；版本固定 `3.1.2-work.1 / 201`。新包放 `artifacts/3.1.2-work.1/f019-root-coordinates-release-20261110/`，保留旧产物。不使用固定 dp 偏移、不加 `.size(48.dp)`、不改闹钟、依赖或玻璃参数。截图、20 次进出、键盘收放和 logcat 标设备待验，不提交/tag/push。
+
+## 当前增量：F015 抽屉状态卡与白名单 + F019 闹钟与顶栏玻璃（2026-11-10，Release）
+
+- 版本保持 `3.1.2-work.1 / 201`。维护者确认仍交三个 GitHub Release APK 与源码 ZIP，覆盖两批附件“不附带 APK”建议；沿用既有签名，根含 DELIVERY，独立 artifact 目录保留旧交付。不提交/tag/push/发布或操作设备。
+- 抽屉用启用任务的存储 dueAt/nextAt 展示待执行列表，不解析 cron、不重排真实调度；最多三条，心跳任务排最后。运行/失败文字去参数，下一次与数量单独一行；今日用量及动画保持。移除抽屉五条日志，设置运行日志保留。
+- 通知应用列表全选/反选均在 update 变换内读最新 whitelist，仅修改该字段，保留列表外包名及原有顺序；加载中/空列表禁用批量按钮，计数只算列表内。通知读取与收件箱判定不改。
+- 闹钟工具 `set_alarm` 只创建系统闹钟/倒计时，参数严格校验，后台或系统 Clock 调用失败返回 `success:false`；不做查询、修改、删除或自建闹钟存储。实现参考 Kai 的 `SetAlarmTool` Intent 入口与 PalmClaw 的前台运行/失败反馈边界，未复制参考源码。
+- 顶栏玻璃使用真实内容 Row 的 wrap-content 测量并保持窗口坐标口径，保留既有参数和所有按钮；没有加入固定偏移或全局固定尺寸。
+- 不改 PulseConfig/PulseTask 字段、版本、依赖、DB33或原21身份图标；语言文案只更新 `values`、`values-zh`、`values-zh-rTW`。实际构建、纯函数回归、五种文字示例与设备待验以本批 DELIVERY 为准。任务包未含其引用的 HTML，本机亦未找到，不将文字夹具称为截图。
+
+## 当前增量：F015 心跳指令与感知摘要（2026-11-10，Release）
+
+- 维护者要求同号 `3.1.2-work.1 / 201` 出 Release，覆盖任务包及历史 Debug-only 口径。仅构建三个 GitHub Release（ARM64、x86_64、Universal），使用既有正式签名；交付精简源码 ZIP，根含 DELIVERY。旧产物保留，不提交/tag/push/发布或操作设备、真实通知/短信。
+- 每轮自动触发均在请求末尾追加 synthetic user，systemInstruction 恒为 null；不改 ChatRequestFactory 的通用追加函数、runPulseTurn/persistPulseTurn 写入去重或严格静默判据，不截断历史。手动按钮仍只 runtime.trigger。
+- 正常摘要按短信事件或实际感知工具历史判断，不能仅看开关；已有感知历史继续保护。短信摘要只含数量，发件人数打码前去重；仅发现元数据不写“已读取正文”。失败时若可能已读感知数据，仍隐藏异常原文与报告。
+- 不改 PulseConfig、依赖、DB33、版本及原身份图标；只增加三语文案。Kai/PalmClaw 固定参考、具体偏差、自动验证与待维护者设备请求日志/行为验收均记本批 DELIVERY，不把离线请求夹具冒充实际设备日志。
+
+## 当前增量：F015 包 11、12 感知层（2026-11-10）
+
+- 版本继续 `3.1.2-work.1 / 201`。交付 ARM64 GitHub Debug 与精简源码 ZIP（含根 DELIVERY），旧包不覆盖；不 Release/commit/tag/push/设备或真实短信操作。
+- 三个感知工具仅脉搏注册，各自默认关闭，独立于 enableInformation；供应商过滤先于 PulsePolicy，不能恢复 F009 拒绝的能力。读取为现有 L0_READ，send_sms 必须所有档位均确认，保留 ask_user 的 HITL 强制审批。
+- 通知仅内存、白名单外不存正文，撤销后旧内容不可恢复；工具完整序列化结果 ≤4000 字符。短信验证码先检查完整正文再截断，个人号码打码；轮询只查询 ID/address，首次种水位、升序分批，所有退出与重排均考虑轮询。
+- 自动轮次 AwaitingApproval 是有效结果，持久化卡片；待审批阻止新自动轮次。恢复执行用回复节点标识绑定回执。感知相关历史不复制到报告/日志摘要；脉搏通知预览使用通用文字。
+- 有效租约与业务重放条件分开：短信 claim 不重放，也必须在共享租约到期时安排唤醒，否则重启后会阻止其他轮次却没有恢复闹钟。
+- 设置开启即引导权限；拒绝不回弹开关，返回只刷新不重复跳转。数据仍在原会话历史中，可能发至供应商/搜索/导出/备份，文案不能承诺绝不落盘，也不能保证规则识别所有验证码。
+- 仅 READ_SMS/SEND_SMS + 通知使用权，不加 RECEIVE_SMS/QUERY_ALL_PACKAGES/无障碍；Manifest 复用既有 queries。DB33、原应用身份图标和三语不变。测试和设备待验以最新 DELIVERY 为准。
+
+## 同日后续：玻璃与页面回归修正（2026-11-09，含第二轮强度回调）
+
+- 仍为 `3.1.2-work.1 / 201`，交付新的 ARM64 GitHub Debug 与精简源码 ZIP（根含 DELIVERY），旧包不覆盖；不 Release/提交/tag/push/设备操作。最终验证和路径见 DELIVERY 顶部。
+- 原生宿主两公开 slot 不变，内部 source 只含背景/消息和等高顶栏占位；inputContent 是透明全屏前景，放真实顶栏/输入，动态 addView 后 bringToFront。前景空白处不加指针处理。每模式最多 input/left/right 三个区域，群聊三个 action 共用一个胶囊。
+- 第二轮按维护者新修正单将四处顶栏参数统一为 tint 0.16 / blur 2dp / refraction 0.60，覆盖群聊两处和聊天/脉搏共用两处；替代上一轮 0.08/8/0.22。原生无描边，模糊保留描边；输入保持 0.18/0/1。Surface 透明判断与 Haze 统一读取 effectiveDisplaySetting，描边仍按 forceLiquidGlass 判定。bounds 即使透明也缓存，alpha≤0.01 removeView；配置仅变化时刷新；不可用统一 BLUR 渲染副本，不写回设置、不动 liquidCompatMode。验证须先滚动消息列表：列表顶部透明、无顶栏玻璃是既有行为。
+- 系统检查与修复记录在 docs/ui-regression-audit-20261109.md；保留群聊收藏接线、可空操作语义、实时音量键设置、附件行计数和可滚动错误卡片。静态扫描与 JVM 不能代替真实触摸/渲染验收。
+
+## 当前工作批次（2026-11-09，3.1.2 合并与 F015/F018）
+
+- 目标版本固定为维护者指定的 `3.1.2-work.1 / 201`，覆盖任务包202。上游合并提交 `18c372d5`（父：`4b336d85` + `fe5a28f9`）；F015修正与F018为未提交增量。不再 commit/tag/push/发布；仅交付 ARM64 GitHub Debug APK 与精简源码ZIP，根 DELIVERY.md 必须随源码。
+- `Settings.init == true` 表示占位/尚未加载，`awaitLoaded()` 等待 `!init`。任务书两处相反解释作废，服务不能在占位期间按默认关闭值停掉，runtime须在加载完成后响应配置变化。监听键包括 init 和 pulse。
+- F015工作区自动幂等恢复/创建、默认英文名Pulse、模板只补缺；不自动安装Linux。安装使用现有工作区详情页；未装Linux时文件工具可用，Shell及命令监视器仍须READY。独立工作区工具审批UI撤下，磁盘列保留；全局三档与越界保护、HITL保留。
+- 脉搏设置五Tab、间隔1–240分钟（默认30）、监视器仍10–240；峰谷默认关闭，各时段独立单价/星期/跨天范围，重叠禁存、未覆盖只提示。峰谷按最近200条runLogs估算，非峰谷保持今日汇总。新字段均有默认值，DB保持33且schema不变。
+- F018字段须同时接Settings、PreferencesStore键和SettingsFields映射，不能只加JSON字段；0必须能持久化。群聊的Group.compressKeepRecent保持原样。
+- 保留最初21个launcher/about身份图标、三语、F006原生液态三区域与透明时GONE。未做设备、真实账号或UI实测；构建、测试与Lint实际结果以根DELIVERY本批记录为准。
+
+## 上一批（2026-11-06，已构建待维护者设备验收）
 
 - 基线版本为 `3.1.1-work.3 / 201`。F015 阶段 A+B（含补充二、补充三）与 F009 补充六源码已完成；交付 ARM64 GitHub Debug APK 与精简源码 ZIP。实际构建和校验结果见 `DELIVERY.md` 顶部，不提交、不打 tag、不推送或发布。
 - F015 阶段 B 包 10/7/8/9：脉搏专属工作区和六份不覆盖已有文件的模板、最多 20 个监视器（每轮最多 5 个采样）、通知/失败报告/活动列表、token 成本估算与 200 条运行日志。

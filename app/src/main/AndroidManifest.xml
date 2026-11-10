@@ -3,6 +3,7 @@
   xmlns:tools="http://schemas.android.com/tools">
 
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -25,6 +26,9 @@
     tools:ignore="ProtectedPermissions" />
   <uses-permission android:name="android.permission.READ_CALENDAR" />
   <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+  <uses-permission android:name="android.permission.READ_SMS" />
+  <uses-permission android:name="android.permission.SEND_SMS" />
+  <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
   <uses-feature
     android:name="android.hardware.camera"
@@ -124,6 +128,15 @@
           android:scheme="rikkahub" />
       </intent-filter>
     </activity>
+    <service
+      android:name=".service.pulse.PulseNotificationListenerService"
+      android:exported="true"
+      android:label="@string/pulse_notify_listener_label"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
     <service android:name=".service.PulseDaemonService" android:exported="false" android:foregroundServiceType="specialUse">
       <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled scheduled personal assistant tasks" />
     </service>

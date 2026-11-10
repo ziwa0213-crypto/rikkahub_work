@@ -31,7 +31,7 @@ private const val MAX_TOOL_OUTPUT_CHARS = 32 * 1024
 private const val TOOL_OUTPUT_PREVIEW_CHARS = 4 * 1024
 
 // 搜索结果的体积由用户设置的结果数决定，且结果列表 UI 与引用跳转都依赖完整的 JSON 结构，不参与截断
-private val TOOLS_WITHOUT_OUTPUT_TRUNCATION = setOf("search_web")
+private val TOOLS_WITHOUT_OUTPUT_TRUNCATION = setOf("search_web", "read_notifications", "read_sms")
 
 internal fun shouldUseExternalWebSearch(assistant: Assistant, model: Model): Boolean {
     return assistant.enableWebSearch && BuiltInTools.Search !in model.tools
@@ -51,6 +51,7 @@ class ChatToolFactory(
     private val workspaceRepository: WorkspaceRepository,
     private val pulseTasks: me.rerere.rikkahub.data.repository.PulseTaskRepository,
     private val backgroundShellManager: BackgroundShellManager,
+    private val settingsStore: me.rerere.rikkahub.data.datastore.SettingsStore,
 ) {
     suspend fun createTools(
         settings: Settings,
@@ -72,6 +73,11 @@ class ChatToolFactory(
             conversationId = conversationId,
         )
         val tools = buildList {
+            if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID) {
+                if (settings.pulse.enableNotificationReading) add(me.rerere.rikkahub.data.ai.tools.pulse.readNotificationsTool(context, settingsStore))
+                if (settings.pulse.enableSmsReading) add(me.rerere.rikkahub.data.ai.tools.pulse.readSmsTool(context, settingsStore))
+                if (settings.pulse.enableSmsSending) add(me.rerere.rikkahub.data.ai.tools.pulse.sendSmsTool(context, settingsStore))
+            }
             if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID && settings.pulse.enableScheduledTasks) {
                 add(me.rerere.rikkahub.data.ai.tools.pulse.pulseTaskTool(pulseTasks))
             }
@@ -190,6 +196,11 @@ class ChatToolFactory(
             return emptyList()
         }
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) {
+            // Pulse file access does not require a Linux environment; keep shell tools unavailable.
+            if (workspace.owner == "pulse" && workspace.capabilities().localFiles) {
+                return createWorkspaceTools(workspaceId, workspaceRepository, cwd)
+                    .filter { it.name in setOf("workspace_read_file", "workspace_write_file", "workspace_edit_file") }
+            }
             Log.d(
                 TAG,
                 "createWorkspaceToolsIfReady: skip workspace tools, workspace=$workspaceId, status=${workspace.shellStatus}"

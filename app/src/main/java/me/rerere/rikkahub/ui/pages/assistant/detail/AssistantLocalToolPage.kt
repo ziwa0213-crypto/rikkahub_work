@@ -238,6 +238,12 @@ internal fun AssistantLocalToolContent(
                     headlineContent = { Text(stringResource(R.string.assistant_page_local_tools_browser_title)) },
                 )
             }
+            toolItem(
+                option = LocalToolOption.Alarm,
+                icon = HugeIcons.Clock01,
+                title = R.string.assistant_page_local_tools_alarm_title,
+                description = R.string.assistant_page_local_tools_alarm_desc,
+            )
         }
 
     }

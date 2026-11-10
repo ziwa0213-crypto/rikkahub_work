@@ -14,12 +14,16 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
         when (tool.name) {
             "get_time_info", "get_screen_time", "search_web", "scrape_web", "clipboard_tool",
             "calendar_query", "recent_chats", "conversation_search", "workspace_read_file" -> pulse.enableInformation
+            "set_alarm" -> pulse.enableAlarm
             "workspace_write_file", "workspace_edit_file" -> pulse.enableFileWrite
             "workspace_shell" -> pulse.enableShell
             "memory_tool", MemoryToolNames.READ, MemoryToolNames.LIST, MemoryToolNames.WRITE,
             MemoryToolNames.STR_REPLACE, MemoryToolNames.APPEND -> pulse.enableMemory
             "calendar_create" -> pulse.enableCalendarCreate
             "schedule_task" -> pulse.enableScheduledTasks
+            "read_notifications" -> pulse.enableNotificationReading
+            "read_sms" -> pulse.enableSmsReading
+            "send_sms" -> pulse.enableSmsSending
             else -> false
         }
     }.map { tool ->
@@ -30,7 +34,7 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
         }
         val execute = tool.execute
         val writes = tool.name in (MemoryToolNames.WRITES + setOf(
-            "memory_tool", "calendar_create", "schedule_task", "workspace_write_file", "workspace_edit_file", "workspace_shell",
+            "memory_tool", "calendar_create", "schedule_task", "workspace_write_file", "workspace_edit_file", "workspace_shell", "send_sms", "set_alarm",
         ))
         tool.copy(
                 description = tool.description + if (actions == null) "" else "\nOnly these actions are available: ${actions.joinToString()}.",

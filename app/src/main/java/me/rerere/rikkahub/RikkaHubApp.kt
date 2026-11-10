@@ -62,6 +62,7 @@ const val MEMORY_DREAM_NOTIFICATION_CHANNEL_ID = "memory_dream"
 class RikkaHubApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        registerActivityLifecycleCallbacks(me.rerere.rikkahub.utils.AlarmForegroundActivity)
         // Restore files and settings before eager Koin singletons or workers can access them.
         try {
             val restored = runBlocking(Dispatchers.IO) {

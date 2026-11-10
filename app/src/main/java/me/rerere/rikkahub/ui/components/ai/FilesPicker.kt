@@ -85,6 +85,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import me.rerere.rikkahub.data.model.lastContextTokens
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
+import me.rerere.rikkahub.ui.components.ui.PulseExtensionTabs
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -137,6 +138,7 @@ internal fun FilesPicker(
     onGroupCompressThresholdChange: ((Float) -> Unit)? = null,
     groupCompressTargetTokens: Int = 2000,
     groupCompressKeepRecent: Int = 32,
+    chatCompressKeepRecent: Int = 32,
     groupMode: Boolean = false,
     groupWorkspaceId: Uuid? = null,
     groupAllowCwd: Boolean = true,
@@ -165,7 +167,7 @@ internal fun FilesPicker(
     val selectedMcpServerIds = if (groupMode) groupMcpServerIds.orEmpty() else assistant.mcpServers
     val scopedWorkspaces = remember(workspaces, ownerScope) { workspaces.filter(ownerScope::includes) }
 
-    val boundWorkspace = remember(workspaces, selectedWorkspaceId) {
+    val boundWorkspace = remember(workspaces, selectedWorkspaceId, ownerScope) {
         workspaces.find { it.id == selectedWorkspaceId?.toString() && ownerScope.includes(it) }
     }
     val showCwd = groupAllowCwd && boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name
@@ -207,6 +209,7 @@ internal fun FilesPicker(
                 onBack = { page = FilesPickerPage.MAIN },
                 onDismissAll = onDismiss,
                 groupMode = groupMode,
+                pulseMode = pulseMode,
                 groupModeInjectionIds = if (groupMode) groupModeInjectionIds.orEmpty() else null,
                 onUpdateGroupModeInjectionIds = onUpdateGroupModeInjectionIds,
                 groupLorebookIds = if (groupMode) groupLorebookIds.orEmpty() else null,
@@ -248,8 +251,11 @@ internal fun FilesPicker(
                         add(AttachmentAction(HugeIcons.Camera01, R.string.take_picture, onTakePic))
                         add(AttachmentAction(HugeIcons.Image02, R.string.photo, onPickImage))
                         add(AttachmentAction(HugeIcons.PaintBoard, R.string.sketch, onSketch))
-                        if (provider != null && provider is ProviderSetting.Google) {
+                        val isGoogle = provider is ProviderSetting.Google
+                        if (isGoogle || chatModel?.abilities?.contains(me.rerere.ai.provider.ModelAbility.VIDEO) == true) {
                             add(AttachmentAction(HugeIcons.Video01, R.string.video, onPickVideo))
+                        }
+                        if (isGoogle) {
                             add(AttachmentAction(HugeIcons.MusicNote03, R.string.audio, onPickAudio))
                         }
                         add(AttachmentAction(HugeIcons.Files02, R.string.upload_file, onPickFile))
@@ -264,7 +270,7 @@ internal fun FilesPicker(
                 val showMcp = settings.mcpServers.isNotEmpty()
                 // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
                 val showCompress = groupMode || assistant.contextMessageLimit <= 0
-                val itemCount = 1 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showCompress).count { it }
+                val itemCount = 2 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showCompress).count { it }
                 var itemIndex = 0
                 Column(
                     verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
@@ -451,7 +457,7 @@ internal fun FilesPicker(
             onAutoCompressThresholdChange = if (groupMode) onGroupCompressThresholdChange else null,
             estimatedMaxTokens = if (groupMode) groupContextUsage?.maxTokens else null,
             initialTargetTokens = if (groupMode) groupCompressTargetTokens else 2000,
-            initialKeepRecentMessages = if (groupMode) groupCompressKeepRecent else 32,
+            initialKeepRecentMessages = if (groupMode) groupCompressKeepRecent else chatCompressKeepRecent,
         )
     }
 }
@@ -549,6 +555,7 @@ private fun ExtensionPickerPage(
     onBack: () -> Unit,
     onDismissAll: () -> Unit,
     groupMode: Boolean = false,
+    pulseMode: Boolean = false,
     groupModeInjectionIds: Set<Uuid>? = null,
     onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
     groupLorebookIds: Set<Uuid>? = null,
@@ -578,6 +585,7 @@ private fun ExtensionPickerPage(
             onUpdate = onUpdateAssistant,
             includeQuickMessages = !groupMode,
             groupMode = groupMode,
+            allowedTabs = if (pulseMode) PulseExtensionTabs else null,
             onUpdateModeInjectionIds = onUpdateGroupModeInjectionIds,
             onUpdateLorebookIds = onUpdateGroupLorebookIds,
             onUpdateEnabledSkills = onUpdateGroupEnabledSkills,

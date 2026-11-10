@@ -27,19 +27,6 @@ import kotlin.uuid.Uuid
 private const val SHELL_TIMEOUT_MAX_SECONDS = 600L
 private const val MAX_READ_FILE_BYTES = 8L * 1024 * 1024
 
-val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
-    "workspace_read_file" to false,
-    "workspace_write_file" to false,
-    "workspace_edit_file" to false,
-    "workspace_shell" to true,
-)
-
-/** 直接写文件的工具, 只在支持 [WorkspaceCapabilities.fileWriteTools] 的工作区提供 */
-val WorkspaceFileWriteToolNames: Set<String> = setOf("workspace_write_file", "workspace_edit_file")
-
-fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
-    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
-
 suspend fun createWorkspaceTools(
     workspaceId: String?,
     workspaceRepository: WorkspaceRepository,
@@ -50,8 +37,6 @@ suspend fun createWorkspaceTools(
     if (workspaceId.isNullOrBlank()) return emptyList()
     val layout = workspaceRepository.layout(workspaceId) ?: return emptyList()
     val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
-    val approvalOverrides = workspace.toolApprovalOverrides()
-    fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
 
     val shellCwd = cwd?.let(layout::relativeToWorkspace)
     // 后台命令按会话归属, 没有会话时不提供
@@ -60,12 +45,12 @@ suspend fun createWorkspaceTools(
         ?.let { manager -> conversationId?.let { BackgroundShell(manager, it) } }
 
     return buildList {
-        add(createReadFileTool(workspaceId, layout, ::needsApproval, workspaceRepository))
+        add(createReadFileTool(workspaceId, layout, workspaceRepository))
         if (workspace.capabilities().fileWriteTools) {
-            add(createWriteFileTool(workspaceId, layout, ::needsApproval, workspaceRepository))
-            add(createEditFileTool(workspaceId, layout, ::needsApproval, workspaceRepository))
+            add(createWriteFileTool(workspaceId, layout, workspaceRepository))
+            add(createEditFileTool(workspaceId, layout, workspaceRepository))
         }
-        add(createShellTool(workspaceId, layout, ::needsApproval, workspaceRepository, shellCwd, background))
+        add(createShellTool(workspaceId, layout, workspaceRepository, shellCwd, background))
         if (background != null) {
             add(createShellOutputTool(background))
             add(createShellKillTool(background))
@@ -83,7 +68,6 @@ private fun String.isImagePath(): Boolean =
 private fun createReadFileTool(
     workspaceId: String,
     layout: WorkspaceLayout,
-    needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
     name = "workspace_read_file",
@@ -121,7 +105,6 @@ private fun createReadFileTool(
 private fun createWriteFileTool(
     workspaceId: String,
     layout: WorkspaceLayout,
-    needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
     name = "workspace_write_file",
@@ -145,7 +128,7 @@ private fun createWriteFileTool(
             required = listOf("path", "text"),
         )
     },
-    needsApproval = { needsApproval("workspace_write_file") || it.pathOutsideWritableRoots(layout, "path") },
+    needsApproval = { it.pathOutsideWritableRoots(layout, "path") },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -159,7 +142,6 @@ private fun createWriteFileTool(
 private fun createEditFileTool(
     workspaceId: String,
     layout: WorkspaceLayout,
-    needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
     name = "workspace_edit_file",
@@ -189,7 +171,7 @@ private fun createEditFileTool(
             required = listOf("path", "old_text", "new_text"),
         )
     },
-    needsApproval = { needsApproval("workspace_edit_file") || it.pathOutsideWritableRoots(layout, "path") },
+    needsApproval = { it.pathOutsideWritableRoots(layout, "path") },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -228,7 +210,6 @@ private class BackgroundShell(val manager: BackgroundShellManager, val conversat
 private fun createShellTool(
     workspaceId: String,
     layout: WorkspaceLayout,
-    needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
     defaultCwd: String? = null,
     background: BackgroundShell? = null,

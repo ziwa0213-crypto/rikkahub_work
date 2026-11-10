@@ -7,6 +7,8 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID
+import me.rerere.rikkahub.data.model.PULSE_MEMORY_ID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -114,6 +116,44 @@ class MemoryConsolidationSchedulerTest {
     private fun MemoryConsolidationScheduler.finishTurn(conversation: Conversation, pendingTurns: Int) {
         worker.pending[conversation.id] = pendingTurns
         onTurnFinished(conversation)
+    }
+
+    @Test
+    fun `pulse automatic consolidation never includes ordinary assistant backlog`() = runTest {
+        val pulse = Conversation(assistantId = PULSE_ASSISTANT_ID, messageNodes = emptyList())
+        worker.memoryIdOf[pulse.id] = PULSE_MEMORY_ID
+        worker.manual += chat.id
+        val scheduler = scheduler()
+        scheduler.finishTurn(chat, 4)
+        scheduler.finishTurn(pulse, 3)
+        runCurrent()
+        assertEquals(listOf(setOf(pulse.id)), worker.calls.map { it.conversationIds })
+        assertFalse(worker.calls.single().fullReview)
+        assertEquals(4, scheduler.statusOf(memoryId).first().pendingTurns)
+        assertEquals(0, scheduler.statusOf(PULSE_MEMORY_ID).first().pendingTurns)
+        assertEquals(4, worker.pending[chat.id])
+    }
+
+    @Test
+    fun `pulse manual organize works with auto off and restart keeps other buckets pending`() = runTest {
+        val pulse = Conversation(assistantId = PULSE_ASSISTANT_ID, messageNodes = emptyList())
+        worker.memoryIdOf[pulse.id] = PULSE_MEMORY_ID
+        worker.manual += pulse.id
+        worker.manual += chat.id
+        worker.pending[pulse.id] = 2
+        worker.pending[chat.id] = 2
+        val scheduler = scheduler()
+        scheduler.resumePending()
+        advanceTimeBy(3.minutes)
+        runCurrent()
+        assertTrue(worker.calls.isEmpty())
+        assertEquals(2, scheduler.statusOf(PULSE_MEMORY_ID).first().pendingTurns)
+        scheduler.organize(PULSE_MEMORY_ID)
+        runCurrent()
+        assertEquals(listOf(setOf(pulse.id)), worker.calls.map { it.conversationIds })
+        assertTrue(worker.calls.single().fullReview)
+        assertEquals(2, worker.pending[chat.id])
+        assertEquals(0, activeHolds)
     }
 
     @Test

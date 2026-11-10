@@ -11,6 +11,7 @@ enum class ToolTier {
     L0_READ,
     L1_SELF,
     L2_CREATE,
+    L3_SELF,
     L3_REWRITE,
 }
 
@@ -19,8 +20,13 @@ private val DEFAULT_TIER = ToolTier.L3_REWRITE
 
 // HITL tools must be intercepted by the approval flow because their execute path is not callable directly.
 private val HITL_TOOLS = setOf("ask_user")
+// External SMS sending is always an explicit human decision, including AllowAll.
+private val ALWAYS_CONFIRM_TOOLS = setOf("send_sms")
 
 private val TIERS: Map<String, (JsonElement) -> ToolTier> = mapOf(
+    "read_notifications" to { _ -> ToolTier.L0_READ },
+    "read_sms" to { _ -> ToolTier.L0_READ },
+    "send_sms" to { _ -> ToolTier.L3_REWRITE },
     "calendar_query" to { _ -> ToolTier.L0_READ },
     "chart_display" to { _ -> ToolTier.L0_READ },
     "get_time_info" to { _ -> ToolTier.L0_READ },
@@ -33,12 +39,15 @@ private val TIERS: Map<String, (JsonElement) -> ToolTier> = mapOf(
     "text_to_speech" to { _ -> ToolTier.L1_SELF },
     "ask_user" to { _ -> ToolTier.L1_SELF },
     "calendar_create" to { _ -> ToolTier.L2_CREATE },
+    "set_alarm" to { _ -> ToolTier.L2_CREATE },
     "calendar_delete" to { _ -> ToolTier.L3_REWRITE },
     "eval_javascript" to { _ -> ToolTier.L3_REWRITE },
-    "workspace_read_file" to { _ -> ToolTier.L3_REWRITE },
+    "workspace_read_file" to { _ -> ToolTier.L1_SELF },
     "workspace_write_file" to { _ -> ToolTier.L3_REWRITE },
     "workspace_edit_file" to { _ -> ToolTier.L3_REWRITE },
     "workspace_shell" to { _ -> ToolTier.L3_REWRITE },
+    "workspace_shell_output" to { _ -> ToolTier.L3_SELF },
+    "workspace_shell_kill" to { _ -> ToolTier.L3_REWRITE },
     "clipboard_tool" to { args ->
         if (args.jsonObject["action"]?.jsonPrimitive?.contentOrNull == "read") {
             ToolTier.L0_READ
@@ -75,7 +84,7 @@ fun applyApprovalMode(tools: List<Tool>, mode: ToolApprovalMode): List<Tool> =
     tools.map { tool ->
         tool.copy(
             needsApproval = { args ->
-                if (tool.name in HITL_TOOLS) {
+                if (tool.name in HITL_TOOLS || tool.name in ALWAYS_CONFIRM_TOOLS) {
                     true
                 } else {
                     when (mode) {

@@ -86,6 +86,7 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         // 模型选择
         json(FAVORITE_MODELS, Settings::favoriteModels) { copy(favoriteModels = it) },
         uuid(SELECT_MODEL, Settings::chatModelId) { copy(chatModelId = it) },
+        plain(LAST_COMPRESS_KEEP_RECENT, Settings::lastCompressKeepRecentMessages) { copy(lastCompressKeepRecentMessages = it) },
         uuid(FAST_MODEL, Settings::fastModelId) { copy(fastModelId = it) },
         reasoningLevel(FAST_MODEL_REASONING_LEVEL, Settings::fastModelReasoningLevel) {
             copy(fastModelReasoningLevel = it)

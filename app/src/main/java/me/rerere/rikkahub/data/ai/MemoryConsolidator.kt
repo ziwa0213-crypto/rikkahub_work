@@ -34,13 +34,15 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
-import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.db.dao.MemoryConsolidationDAO
 import me.rerere.rikkahub.data.db.entity.MemoryConsolidationEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MemoryFile
+import me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID
 import me.rerere.rikkahub.data.model.getChatModelOf
+import me.rerere.rikkahub.data.model.isPulseChat
+import me.rerere.rikkahub.data.model.toAssistant
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.memoryId
@@ -81,8 +83,8 @@ class MemoryConsolidator(
 
     override suspend fun pendingOf(conversation: Conversation): PendingMemoryConversation? =
         withContext(Dispatchers.IO) {
-            val assistant = settingsStore.awaitLoaded().getAssistantById(conversation.assistantId)
-                ?.takeIf { it.enableMemory } ?: return@withContext null
+            val assistant = settingsStore.awaitLoaded().memoryConsolidationAssistants()
+                .firstOrNull { it.id == conversation.assistantId } ?: return@withContext null
             val pending = loadPendingTurns(conversation)
             if (pending.turns.isEmpty()) {
                 null
@@ -97,7 +99,7 @@ class MemoryConsolidator(
         }
 
     override suspend fun memoryIdsWithUpdates(): List<String> = withContext(Dispatchers.IO) {
-        val assistants = settingsStore.awaitLoaded().assistants.filter { it.enableMemory }
+        val assistants = settingsStore.awaitLoaded().memoryConsolidationAssistants()
         if (assistants.isEmpty()) return@withContext emptyList()
         val updated = consolidationDao.getAssistantIdsWithUpdatedConversations(
             assistantIds = assistants.map { it.id.toString() },
@@ -108,8 +110,8 @@ class MemoryConsolidator(
 
     override suspend fun findPending(memoryId: String): List<PendingMemoryConversation> =
         withContext(Dispatchers.IO) {
-            val assistants = settingsStore.awaitLoaded().assistants
-                .filter { it.enableMemory && it.memoryId == memoryId }
+            val assistants = settingsStore.awaitLoaded().memoryConsolidationAssistants()
+                .filter { it.memoryId == memoryId }
             // 开着和关了自动整理的助手分开找：混在一起截断的话，关了的助手的对话一直不整理、一直排在前面，
             // 会把要自动整理的对话挤掉
             assistants.partition { it.autoConsolidateMemory }.toList()
@@ -155,7 +157,7 @@ class MemoryConsolidator(
         fullReview: Boolean,
     ): MemoryConsolidationRun? {
         val settings = settingsStore.awaitLoaded()
-        val assistants = settings.assistants.filter { it.enableMemory && it.memoryId == memoryId }
+        val assistants = settings.memoryConsolidationAssistants().filter { it.memoryId == memoryId }
         if (assistants.isEmpty()) return null
         val assistantIds = assistants.map { it.id }.toSet()
 
@@ -250,13 +252,16 @@ class MemoryConsolidator(
 
     private suspend fun loadPendingTurns(conversation: Conversation): PendingMemoryTurns {
         val messages = conversation.dialogueMessages()
+        val includeAutonomousReplies = conversation.isPulseChat()
         val consolidatedAt = consolidationDao.getConsolidatedAt(conversation.id.toString())
             // 第一次见到这个对话：定下从哪里开始整理并记下来，这之后的轮次一轮都不会被跳过
-            ?: initialMemoryProgress(messages).also { advance(conversation.id, it) }
+            ?: initialMemoryProgress(messages, includeAutonomousReplies = includeAutonomousReplies)
+                .also { advance(conversation.id, it) }
         val pending = pendingMemoryTurns(
             messages = messages,
             updatedAt = conversation.updateAt.toEpochMilli(),
             consolidatedAt = consolidatedAt,
+            includeAutonomousReplies = includeAutonomousReplies,
         )
         // 没有新的轮次（比如只是重新生成了回复）也推进进度，免得每次扫描都把它读出来
         if (pending.turns.isEmpty()) pending.consolidatedThrough?.let { advance(conversation.id, it) }
@@ -271,6 +276,11 @@ class MemoryConsolidator(
         Logging.log(TAG, "advance $conversationId: $it")
     }.isSuccess
 }
+
+/** Pulse is a facade, never a record in the assistant library; its memory bucket stays isolated. */
+internal fun Settings.memoryConsolidationAssistants(): List<Assistant> =
+    assistants.filter { it.enableMemory && it.id != PULSE_ASSISTANT_ID } +
+        listOfNotNull(pulse.toAssistant(this).takeIf { it.enableMemory })
 
 private class Batch(val conversation: Conversation, val pending: PendingMemoryTurns) {
     val input: MemoryConsolidationConversation by lazy {
@@ -333,12 +343,12 @@ internal suspend fun <T> collectPending(
 }
 
 /**
- * 一轮对话：一条用户消息和它之后直到下一条用户消息之前的回复，消息带着在对话里的位置。
+ * 一轮对话通常以用户消息开始；脉搏还可包含独立的自动回复。位置始终来自原始对话。
  * 空闲时的运行时通知也存成用户消息，同样单独成一轮。
  */
 internal class MemoryTurn(val messages: List<IndexedValue<UIMessage>>) {
     val position: Int get() = messages.first().index
-    val userMessage: UIMessage get() = messages.first().value
+    val anchorMessage: UIMessage get() = messages.first().value
 
     // 回复还没出来，或者停在等待工具审批上
     val isFinished: Boolean
@@ -358,16 +368,23 @@ internal class PendingMemoryTurns(
 
 // 按用户消息切成轮；压缩检查点是模型写的摘要，不是用户说的话。
 // 通知单独成一轮，没有用户文字所以不会交给整理器；并进上一轮的话，没等到回复的通知会让上一轮一直算没结束
-private fun memoryTurnsOf(messages: List<UIMessage>): List<MemoryTurn> {
+private fun memoryTurnsOf(messages: List<UIMessage>, includeAutonomousReplies: Boolean): List<MemoryTurn> {
     val indexed = messages.withIndex().filterNot { it.value.isContextCheckpoint }
-    val starts = indexed.indices.filter { indexed[it].value.role == MessageRole.USER }
+    // Pulse persists automatic replies without the temporary trigger. The first reply after a user
+    // belongs to that manual turn; each further assistant message is a separate automatic turn.
+    // Tool steps already live inside one UIMessage. Never insert a synthetic user into history.
+    val starts = indexed.indices.filter { index ->
+        indexed[index].value.role == MessageRole.USER ||
+            (includeAutonomousReplies && indexed[index].value.role == MessageRole.ASSISTANT &&
+                (index == 0 || indexed[index - 1].value.role == MessageRole.ASSISTANT))
+    }
     return starts.mapIndexed { i, start ->
         MemoryTurn(indexed.subList(start, starts.getOrElse(i + 1) { indexed.size }))
     }
 }
 
 // 只发了图片之类没有文字的轮次没有可提取的内容
-private val MemoryTurn.hasUserText: Boolean get() = userMessage.toText().isNotBlank()
+private val MemoryTurn.hasUserText: Boolean get() = anchorMessage.toText().isNotBlank()
 
 /**
  * 第一次跟踪一个对话时的整理进度：只回看最近 [MAX_TURNS_PER_CONVERSATION] 轮。
@@ -378,10 +395,12 @@ private val MemoryTurn.hasUserText: Boolean get() = userMessage.toText().isNotBl
 internal fun initialMemoryProgress(
     messages: List<UIMessage>,
     timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    includeAutonomousReplies: Boolean = false,
 ): Long {
-    val first = memoryTurnsOf(messages).filter { it.hasUserText }.takeLast(MAX_TURNS_PER_CONVERSATION).firstOrNull()
+    val first = memoryTurnsOf(messages, includeAutonomousReplies).filter { it.hasUserText }
+        .takeLast(MAX_TURNS_PER_CONVERSATION).firstOrNull()
         ?: return 0
-    return first.userMessage.createdAt.toInstant(timeZone).toEpochMilliseconds() - 1
+    return first.anchorMessage.createdAt.toInstant(timeZone).toEpochMilliseconds() - 1
 }
 
 /**
@@ -395,27 +414,30 @@ internal fun pendingMemoryTurns(
     updatedAt: Long,
     consolidatedAt: Long,
     timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    includeAutonomousReplies: Boolean = false,
 ): PendingMemoryTurns {
     fun UIMessage.time() = createdAt.toInstant(timeZone).toEpochMilliseconds()
 
-    val turns = memoryTurnsOf(messages)
-    var pending = turns.filter { it.userMessage.time() > consolidatedAt }
+    val turns = memoryTurnsOf(messages, includeAutonomousReplies)
+    var pending = turns.filter { it.anchorMessage.time() > consolidatedAt }
     var consolidatedThrough = maxOf(updatedAt, turns.lastOrNull()?.messages?.last()?.value?.time() ?: 0)
-    val last = turns.lastOrNull()
-    if (last != null && !last.isFinished) {
-        // 最后一轮还没结束：留到下次，进度停在它前面
-        pending = pending.filter { it !== last }
-        consolidatedThrough = last.userMessage.time() - 1
+    val unfinished = (if (includeAutonomousReplies) turns.firstOrNull { turn ->
+        turn.messages.any { (_, message) -> message.getTools().any { !it.isExecuted } }
+    } else null) ?: turns.lastOrNull()?.takeUnless { it.isFinished }
+    if (unfinished != null) {
+        // 脉搏可能在审批卡片后收到新消息，不能越过未完成轮次推进时间进度。
+        pending = pending.filter { it.position < unfinished.position }
+        consolidatedThrough = unfinished.anchorMessage.time() - 1
     }
 
     pending = pending.filter { it.hasUserText }
     val batch = pending.take(MAX_TURNS_PER_CONVERSATION)
     if (batch.isNotEmpty()) {
-        val batchEnd = batch.last().userMessage.time()
+        val batchEnd = batch.last().anchorMessage.time()
         // 积压超过一次能处理的量（比如模型连续失败）时从最早的开始，进度只推进到这一批为止，
         // 剩下的留给下一次；如果直接推进到对话末尾，没交给模型的轮次就再也不会被整理了
-        pending.drop(batch.size).firstOrNull { it.userMessage.time() > batchEnd }?.let { next ->
-            consolidatedThrough = next.userMessage.time() - 1
+        pending.drop(batch.size).firstOrNull { it.anchorMessage.time() > batchEnd }?.let { next ->
+            consolidatedThrough = next.anchorMessage.time() - 1
         }
         // 交给模型的轮次一定要算整理过。时间相同的轮次靠进度分不开（导入的对话可能整段都是同一个时间），
         // 进度停在它们前面的话就推不动了，同一批会被一遍遍地整理

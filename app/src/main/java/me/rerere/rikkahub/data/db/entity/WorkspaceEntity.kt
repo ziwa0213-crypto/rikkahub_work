@@ -35,7 +35,7 @@ data class WorkspaceEntity(
     val updatedAt: Long,
     @ColumnInfo("last_access_at")
     val lastAccessAt: Long? = null,
-    // 工具审批的用户覆盖项 (toolName -> needsApproval)，未覆盖的工具沿用默认值
+    // Legacy workspace-level approval overrides retained for on-disk compatibility.
     @ColumnInfo("tool_approvals", defaultValue = "{}")
     val toolApprovals: String = "{}",
     @ColumnInfo("shell_compatibility_mode", defaultValue = "0")
@@ -69,10 +69,6 @@ data class WorkspaceEntity(
 
     fun supportsTerminal(): Boolean =
         capabilities().terminal && shellStatus != WorkspaceShellStatus.DISABLED.name
-
-    fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
-        JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)
-    }.getOrDefault(emptyMap())
 
     fun toWorkspace(): Workspace = Workspace(
         id = id,

@@ -49,15 +49,23 @@ internal enum class ExtensionTab(
         @Composable get() = stringResource(labelRes)
 }
 
+/** Pulse exposes only quick messages and skills; other modes keep their existing tabs. */
+internal val PulseExtensionTabs = setOf(ExtensionTab.QUICK_MESSAGES, ExtensionTab.SKILLS)
+
+internal fun extensionTabs(includeQuickMessages: Boolean, allowedTabs: Set<ExtensionTab>?): List<ExtensionTab> =
+    ExtensionTab.entries
+        .filter { allowedTabs == null || it in allowedTabs }
+        .filter { allowedTabs != null || includeQuickMessages || it != ExtensionTab.QUICK_MESSAGES }
 
 @Composable
-fun ExtensionSelector(
+internal fun ExtensionSelector(
     modifier: Modifier = Modifier,
     assistant: Assistant,
     settings: Settings,
     onUpdate: (Assistant) -> Unit,
     includeQuickMessages: Boolean = true,
     groupMode: Boolean = false,
+    allowedTabs: Set<ExtensionTab>? = null,
     onUpdateModeInjectionIds: ((Set<Uuid>) -> Unit)? = null,
     onUpdateLorebookIds: ((Set<Uuid>) -> Unit)? = null,
     onUpdateEnabledSkills: ((Set<String>) -> Unit)? = null,
@@ -73,9 +81,7 @@ fun ExtensionSelector(
         skills = withContext(Dispatchers.IO) { skillManager.listSkills() }
     }
 
-    val tabs = remember(includeQuickMessages) {
-        ExtensionTab.entries.filter { includeQuickMessages || it != ExtensionTab.QUICK_MESSAGES }
-    }
+    val tabs = remember(includeQuickMessages, allowedTabs) { extensionTabs(includeQuickMessages, allowedTabs) }
     val pagerState = rememberPagerState { tabs.size }
 
     Column(

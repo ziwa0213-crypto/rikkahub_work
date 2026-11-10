@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.mutablePreferencesOf
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.rikkahub.data.datastore.*
 import me.rerere.rikkahub.data.repository.memoryId
+import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.*
 import org.junit.Test
@@ -16,6 +17,10 @@ class PulseConfigTest {
         assertFalse(pulse.keepAliveEnabled)
         assertFalse(pulse.enableHeartbeat)
         assertFalse(pulse.enableScheduledTasks)
+        assertFalse(pulse.enableAlarm)
+        assertFalse(pulse.autoConsolidateMemory)
+        assertFalse(JsonInstant.decodeFromString<PulseConfig>("{}").autoConsolidateMemory)
+        assertFalse(JsonInstant.decodeFromString<PulseConfig>("{}").enableAlarm)
         assertNull(pulse.conversationId)
     }
     @Test fun `pulse always reads live settings and never snapshots conversation config`() {
@@ -42,9 +47,14 @@ class PulseConfigTest {
     }
     @Test fun `all pulse settings survive preferences and JSON backup`() {
         val config = PulseConfig(chatModelId = Uuid.random(), systemPrompt = "custom", reasoningLevel = ReasoningLevel.HIGH,
-            contextMessageLimit = 10, enableMemory = false, conversationId = Uuid.random(), enableWebSearch = true,
+            contextMessageLimit = 10, enableMemory = false, autoConsolidateMemory = true,
+            conversationId = Uuid.random(), enableWebSearch = true,
             enableRecentChats = false, enabledSkills = listOf("future"), localTools = listOf("future"),
-            enableInformation = false, enableCalendarCreate = false, enableFileWrite = true, enableShell = true,
+            quickMessageIds = setOf(Uuid.random()), enableInformation = false, enableCalendarCreate = false, enableAlarm = true, enableFileWrite = true, enableShell = true,
+            enableNotificationReading = true, notificationWhitelist = listOf("chat"),
+            notificationRetentionHours = 12, notificationBufferLimit = 50,
+            enableSmsReading = true, enableSmsSending = true, smsPollEnabled = true,
+            smsPollMinutes = 30, smsWatermarkId = 123L, smsSenderWhitelist = listOf("95588"),
             enableMcp = true, enableHeartbeat = true, heartbeatIntervalMinutes = 15, heartbeatPrompt = "check",
             activeHoursStart = 22, activeHoursEnd = 6, heartbeatSilentWhenNoContent = false,
             enableScheduledTasks = true, keepAliveEnabled = true, lastHeartbeatAt = 120,
@@ -53,5 +63,43 @@ class PulseConfigTest {
         val prefs = mutablePreferencesOf().apply { putSettings(Settings(pulse = config)) }
         assertEquals(config, prefs.toSettings().pulse)
         assertEquals(config, JsonInstant.decodeFromString<PulseConfig>(JsonInstant.encodeToString(config)))
+    }
+
+    @Test fun `pulse extension selection updates only pulse skill and quick message settings`() {
+        val config = PulseConfig(
+            systemPrompt = "preserved",
+            enableShell = true,
+            enabledSkills = listOf("old"),
+            quickMessageIds = setOf(Uuid.random()),
+        )
+        val selectedQuickMessages = setOf(Uuid.random())
+        val updated = config.withAssistantUpdate(
+            config.toAssistant(Settings()).copy(
+                enabledSkills = setOf("new"),
+                quickMessageIds = selectedQuickMessages,
+            ),
+        )
+
+        assertEquals(listOf("new"), updated.enabledSkills)
+        assertEquals(selectedQuickMessages, updated.quickMessageIds)
+        assertEquals("preserved", updated.systemPrompt)
+        assertTrue(updated.enableShell)
+    }
+
+    @Test fun `alarm registration follows its independent switch`() {
+        assertFalse(LocalToolOption.Alarm in PulseConfig().toAssistant(Settings()).localTools)
+        val config = PulseConfig(enableInformation = false, enableCalendarCreate = false, enableAlarm = true)
+        assertEquals(listOf(LocalToolOption.Alarm), config.toAssistant(Settings()).localTools)
+    }
+
+    @Test fun `pulse dreaming follows its own opt in and does not change ordinary assistants`() {
+        val assistant = Assistant(autoConsolidateMemory = true)
+        val settings = Settings(assistants = listOf(assistant))
+        assertFalse(settings.pulse.toAssistant(settings).autoConsolidateMemory)
+        val enabled = settings.copy(pulse = settings.pulse.copy(autoConsolidateMemory = true))
+        assertTrue(enabled.pulse.toAssistant(enabled).autoConsolidateMemory)
+        assertEquals(PULSE_MEMORY_ID, enabled.pulse.toAssistant(enabled).memoryId)
+        assertSame(settings.assistants, enabled.assistants)
+        assertEquals(settings.pulse.copy(autoConsolidateMemory = true), enabled.pulse)
     }
 }

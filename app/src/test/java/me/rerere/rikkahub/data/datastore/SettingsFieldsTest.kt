@@ -142,6 +142,7 @@ private val SAMPLE = Settings(
     networkSetting = NetworkSetting(userAgent = "agent"),
     favoriteModels = listOf(id(30)),
     chatModelId = id(1),
+    lastCompressKeepRecentMessages = 7,
     fastModelId = id(2),
     fastModelReasoningLevel = ReasoningLevel.LOW,
     memoryModelId = id(6),
@@ -206,6 +207,7 @@ private val SAMPLE = Settings(
 )
 
 private val STORED_KEYS = setOf(
+    "last_compress_keep_recent_messages",
     "dynamic_color",
     "theme_id",
     "custom_themes",

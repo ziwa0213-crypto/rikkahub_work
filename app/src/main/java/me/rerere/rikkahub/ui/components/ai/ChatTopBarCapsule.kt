@@ -14,13 +14,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import me.rerere.rikkahub.data.datastore.DisplaySetting
@@ -38,19 +40,25 @@ fun ChatTopBarCapsule(
     content: @Composable RowScope.() -> Unit,
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val effectiveDisplaySetting = displaySetting.chatBackgroundSetting(forceLiquidGlass)
     val backgroundAlpha by animateFloatAsState(
         targetValue = if (showBackground) 1f else 0f,
         label = "ChatTopBarCapsuleBackground",
     )
     var glassBounds by remember { mutableStateOf<LiquidGlassInputBounds?>(null) }
+    val currentOnGlassBoundsChanged by rememberUpdatedState(onGlassBoundsChanged)
+    DisposableEffect(Unit) {
+        onDispose { currentOnGlassBoundsChanged?.invoke(null, 0f) }
+    }
     SideEffect {
         val alpha = if (forceLiquidGlass && backgroundAlpha > 0.01f) backgroundAlpha else 0f
         onGlassBoundsChanged?.invoke(if (alpha > 0f) glassBounds else null, alpha)
     }
     Box(
         modifier = modifier.onGloballyPositioned { coordinates ->
-            if (forceLiquidGlass && backgroundAlpha > 0.01f) {
-                val position = coordinates.positionInWindow()
+            // Cache layout even while transparent: an alpha change need not trigger another layout.
+            if (forceLiquidGlass) {
+                val position = coordinates.positionInRoot()
                 val bounds = LiquidGlassInputBounds(
                     x = position.x,
                     y = position.y,
@@ -73,14 +81,15 @@ fun ChatTopBarCapsule(
                     .then(
                         if (forceLiquidGlass) Modifier else Modifier.chatInputHaze(
                             hazeState = hazeState,
-                            displaySetting = displaySetting,
+                            displaySetting = effectiveDisplaySetting,
                             containerColor = containerColor,
                             shape = CircleShape,
                         )
                     ),
                 shape = CircleShape,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                color = if (displaySetting.enableBlurEffect) Color.Transparent else containerColor,
+                border = if (forceLiquidGlass) null else
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                color = if (effectiveDisplaySetting.enableBlurEffect) Color.Transparent else containerColor,
                 content = {},
             )
         }

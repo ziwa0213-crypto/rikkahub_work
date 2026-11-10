@@ -3,8 +3,7 @@ package me.rerere.rikkahub.ui.pages.group
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +43,7 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.ui.pages.chat.ChatList
 import me.rerere.rikkahub.ui.pages.chat.rememberChatSelectionState
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.rikkahub.data.model.compressionThreshold
 import me.rerere.rikkahub.ui.pages.group.LocalGroupChatContext
@@ -51,6 +51,8 @@ import kotlin.math.roundToInt
 import me.rerere.rikkahub.ui.components.ui.ItemAction
 import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
 import me.rerere.rikkahub.ui.components.ui.ErrorCardsDisplay
+import me.rerere.rikkahub.ui.components.ai.ChatTopBarCapsule
+import me.rerere.rikkahub.ui.components.ai.LiquidGlassInputBounds
 import me.rerere.hugeicons.stroke.Delete01
 
 @Composable
@@ -60,6 +62,9 @@ fun GroupChatContent(
     blocked: Boolean, onBlockedChange: (Boolean) -> Unit, vm: GroupVM = rememberGroupVM(),
     onQuote: (UIMessageAnnotation.GroupQuote) -> Unit = {},
     onMention: (String) -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
+    topBar: (@Composable () -> Unit)? = null,
+    onToggleFavorite: ((MessageNode) -> Unit)? = null,
 ) {
     val selectedId by vm.selectedGroupId.collectAsStateWithLifecycle()
     val group = settings.selectedGroup(selectedId)
@@ -71,13 +76,10 @@ fun GroupChatContent(
     val compressionPromptId by vm.compressionPromptConversationId.collectAsStateWithLifecycle()
     val contextUsage by vm.contextUsage.collectAsStateWithLifecycle()
     val compressedCount by vm.compressedMessageCount.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
     val navController = LocalNavController.current
-    val scope = rememberCoroutineScope()
     val resources = LocalResources.current
     val toaster = LocalToaster.current
     var creating by remember { mutableStateOf(false) }
-    var showMoreMenu by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     LaunchedEffect(compressedCount) {
@@ -98,46 +100,9 @@ fun GroupChatContent(
         GroupBackground(group, Modifier.fillMaxSize().hazeSource(hazeState))
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { Text(group?.name ?: stringResource(R.string.group_mode_group), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    navigationIcon = {
-                        if (!bigScreen) IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(HugeIcons.Menu03, stringResource(R.string.menu))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { navController.navigate(group?.let { Screen.GroupConfig(it.id.toString()) } ?: Screen.Groups) }) {
-                            Icon(HugeIcons.Settings03, stringResource(R.string.group_settings_title))
-                        }
-                        IconButton(onClick = {
-                            group?.let { current ->
-                                vm.createConversation(current.id) { id ->
-                                    navigateToChatPage(navController, id)
-                                }
-                            }
-                        }) {
-                            Icon(HugeIcons.MessageAdd01, stringResource(R.string.group_new_chat))
-                        }
-                        Box {
-                            IconButton(onClick = { showMoreMenu = true }) {
-                                Icon(HugeIcons.MoreVertical, stringResource(R.string.group_chat_options))
-                            }
-                            DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.assistant_page_tab_memory)) },
-                                    leadingIcon = { Icon(HugeIcons.Brain02, null) },
-                                    onClick = {
-                                        showMoreMenu = false
-                                        group?.let { current -> conversationId?.let {
-                                            navController.navigate(Screen.GroupMemory(current.id.toString(), it.toString()))
-                                        } }
-                                    },
-                                    enabled = conversationId != null,
-                                )
-                            }
-                        }
-                    },
+                if (topBar != null) topBar() else GroupChatTopBar(
+                    drawerState = drawerState, bigScreen = bigScreen, settings = settings,
+                    hazeState = hazeState, showBackground = listState.canScrollBackward, vm = vm,
                 )
             },
             bottomBar = {
@@ -164,6 +129,7 @@ fun GroupChatContent(
                         onEdit = { if (loadingJob == null) { vm.inputState.editingMessage = it.id; vm.inputState.setContents(it.parts) } },
                         onForkMessage = { vm.forkMessage(group.id, it) }, onUpdateMessage = vm::updateNode,
                         onToolApproval = vm::handleToolApproval, onToolAnswer = vm::handleToolAnswer,
+                        onToggleFavorite = onToggleFavorite,
                         onClickSuggestion = { vm.inputState.setMessageText(it) },
                         groupMode = true, onQuote = onQuote, onMention = onMention,
                     )
@@ -180,8 +146,7 @@ fun GroupChatContent(
                         textAlign = TextAlign.Center)
                 }
                 ErrorCardsDisplay(errors.filter { it.conversationId == conversationId }, vm::dismissError,
-                    vm::clearErrors, Modifier.align(Alignment.BottomCenter).heightIn(max = 240.dp)
-                        .verticalScroll(rememberScrollState()))
+                    vm::clearErrors, Modifier.align(Alignment.BottomCenter).heightIn(max = 240.dp))
             }
         }
     }
@@ -200,4 +165,78 @@ fun GroupChatContent(
             navController.navigate(Screen.GroupConfig(created.id.toString()))
         }
     }, onCreateMember = { navController.navigate(Screen.GroupMembers) }, onUpdateTags = vm::updateGroupTags)
+}
+
+@Composable
+internal fun GroupChatTopBar(
+    drawerState: DrawerState,
+    bigScreen: Boolean,
+    settings: Settings,
+    hazeState: HazeState,
+    showBackground: Boolean,
+    vm: GroupVM,
+    forceLiquidGlass: Boolean = false,
+    onTopStartGlassChanged: (LiquidGlassInputBounds?, Float) -> Unit = { _, _ -> },
+    onTopEndGlassChanged: (LiquidGlassInputBounds?, Float) -> Unit = { _, _ -> },
+) {
+    val selectedId by vm.selectedGroupId.collectAsStateWithLifecycle()
+    val group = settings.selectedGroup(selectedId)
+    val conversationId by vm.selectedConversationId.collectAsStateWithLifecycle()
+    val navController = LocalNavController.current
+    val scope = rememberCoroutineScope()
+    var showMoreMenu by remember { mutableStateOf(false) }
+    TopAppBar(
+        title = { Text(group?.name ?: stringResource(R.string.group_mode_group), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        navigationIcon = {
+            if (!bigScreen) ChatTopBarCapsule(
+                hazeState = hazeState, displaySetting = settings.displaySetting,
+                showBackground = showBackground, forceLiquidGlass = forceLiquidGlass,
+                onGlassBoundsChanged = onTopStartGlassChanged,
+                modifier = Modifier.padding(start = 8.dp, end = 4.dp),
+            ) {
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    Icon(HugeIcons.Menu03, stringResource(R.string.menu))
+                }
+            }
+        },
+        actions = {
+            // Share one region for all three actions; the host has a three-region budget.
+            ChatTopBarCapsule(
+                hazeState = hazeState, displaySetting = settings.displaySetting,
+                showBackground = showBackground, forceLiquidGlass = forceLiquidGlass,
+                onGlassBoundsChanged = onTopEndGlassChanged,
+                modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+            ) {
+                IconButton(onClick = { navController.navigate(group?.let { Screen.GroupConfig(it.id.toString()) } ?: Screen.Groups) }) {
+                    Icon(HugeIcons.Settings03, stringResource(R.string.group_settings_title))
+                }
+                IconButton(onClick = {
+                    group?.let { current ->
+                        vm.createConversation(current.id) { id -> navigateToChatPage(navController, id) }
+                    }
+                }, enabled = group != null) {
+                    Icon(HugeIcons.MessageAdd01, stringResource(R.string.group_new_chat))
+                }
+                Box {
+                    IconButton(onClick = { showMoreMenu = true }) {
+                        Icon(HugeIcons.MoreVertical, stringResource(R.string.group_chat_options))
+                    }
+                    DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.assistant_page_tab_memory)) },
+                            leadingIcon = { Icon(HugeIcons.Brain02, null) },
+                            onClick = {
+                                showMoreMenu = false
+                                group?.let { current -> conversationId?.let {
+                                    navController.navigate(Screen.GroupMemory(current.id.toString(), it.toString()))
+                                } }
+                            },
+                            enabled = group != null && conversationId != null,
+                        )
+                    }
+                }
+            }
+        },
+    )
 }

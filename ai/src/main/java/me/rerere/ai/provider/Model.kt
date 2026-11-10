@@ -53,6 +53,7 @@ enum class Modality {
 enum class ModelAbility {
     TOOL,
     REASONING,
+    VIDEO,
 }
 
 // 模型(提供商)提供的内置工具选项

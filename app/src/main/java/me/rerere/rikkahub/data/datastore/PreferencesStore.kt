@@ -113,6 +113,7 @@ class SettingsStore internal constructor(
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
         val SELECT_MODEL = stringPreferencesKey("chat_model")
+        val LAST_COMPRESS_KEEP_RECENT = intPreferencesKey("last_compress_keep_recent_messages")
         val FAST_MODEL = stringPreferencesKey("fast_model")
         val FAST_MODEL_REASONING_LEVEL = stringPreferencesKey("fast_model_reasoning_level")
         val MEMORY_MODEL = stringPreferencesKey("memory_model")

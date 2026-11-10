@@ -80,7 +80,9 @@ class ChatNotificationManager(
         if (lastSentAt != null && now - lastSentAt < LIVE_UPDATE_NOTIFICATION_THROTTLE_MS) return
         liveUpdateLastSentAt[event.conversationId] = now
 
-        sendLiveUpdateNotification(event.conversationId, event.lastMessage, event.senderName)
+        val message = if (event.conversationId == settingsStore.settingsFlow.value.pulse.conversationId)
+            UIMessage.assistant(context.getString(R.string.pulse_sensing_turn_summary)) else event.lastMessage
+        sendLiveUpdateNotification(event.conversationId, message, event.senderName)
     }
 
     private fun handleGenerationEnded(event: AppEvent.ChatGenerationEnded) {
@@ -92,7 +94,9 @@ class ChatNotificationManager(
                 val contentPreview = event.contentPreview?.takeIf { it.isNotBlank() } ?: return
                 if (isForeground.value) return
                 if (!settingsStore.settingsFlow.value.displaySetting.enableNotificationOnMessageGeneration) return
-                sendGenerationDoneNotification(event.conversationId, event.senderName, contentPreview)
+                sendGenerationDoneNotification(event.conversationId, event.senderName,
+                    if (event.conversationId == settingsStore.settingsFlow.value.pulse.conversationId)
+                        context.getString(R.string.pulse_sensing_turn_summary) else contentPreview)
             }
         }
     }
@@ -103,7 +107,9 @@ class ChatNotificationManager(
             notificationId = GENERATION_FAILURE_NOTIFICATION_ID,
         ) {
             title = context.getString(R.string.notification_generation_failed_title)
-            content = event.failureMessage?.takeIf { it.isNotBlank() }?.take(160)
+            content = if (event.conversationId == settingsStore.settingsFlow.value.pulse.conversationId)
+                context.getString(R.string.pulse_sensing_failure)
+            else event.failureMessage?.takeIf { it.isNotBlank() }?.take(160)
                 ?: context.getString(R.string.notification_generation_failed_message)
             subText = event.senderName
             autoCancel = true

@@ -25,6 +25,7 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.conversationIntent
 import me.rerere.rikkahub.pulseLogsIntent
 import me.rerere.rikkahub.data.datastore.*
+import me.rerere.rikkahub.data.model.isAwaitingToolApproval
 import me.rerere.rikkahub.data.repository.PulseRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.pulse.PulseRuntimeStore
@@ -65,6 +66,7 @@ class PulseRuntime(
     private val watcherSampler = PulseWatcherSampler(context, workspaceRepository)
 
     init {
+        PulseNotificationInbox.settingsProvider = { settingsStore }
         scope.launch {
             ProcessLifecycleOwner.get().lifecycle.addObserver(LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_START) {
@@ -77,8 +79,9 @@ class PulseRuntime(
             foreground = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         }
         scope.launch {
-            settingsStore.settingsFlow.map { it.pulse }.distinctUntilChanged().collect { config ->
-                if (!settingsStore.settingsFlow.value.init) {
+            settingsStore.settingsFlow.map { it.init to it.pulse }.distinctUntilChanged().collect { (loading, config) ->
+                if (!loading) {
+                    PulseNotificationInbox.buffer.synchronize(config)
                     if (config.keepAliveEnabled && foreground) startDaemon()
                     if (!config.keepAliveEnabled) PulseDaemonService.stop(context)
                     rearm()
@@ -113,7 +116,7 @@ class PulseRuntime(
     private suspend fun runDue(manual: Boolean) {
         var config = settingsStore.awaitLoaded().pulse
         if (!foreground && !config.keepAliveEnabled) return
-        if (!config.enableHeartbeat && !config.enableScheduledTasks && !(config.enableWatchers && config.watchers.any { it.enabled })) return
+        if (!config.enableHeartbeat && !config.enableScheduledTasks && !(config.enableWatchers && config.watchers.any { it.enabled }) && !config.smsPollingEnabled()) return
         val now = System.currentTimeMillis()
         val zone = ZoneId.systemDefault()
         // Recompute cron after a timezone change. Never make up missed occurrences.
@@ -127,13 +130,13 @@ class PulseRuntime(
         if (config.keepAliveEnabled && foreground) startDaemon()
         if (!manual && !pulseWithinHours(now, config.activeHoursStart, config.activeHoursEnd)) return
         val id = repository.ensurePulseConversation()
-        if (chat.value.getGenerationJobStateFlow(id).firstOrNull()?.isActive == true) return
+        if (conversationBusy(id)) return
 
         val pending = storage.getString("claim", null)?.let { JsonInstant.decodeFromString<PulseClaim>(it) }
         val interrupted = pending?.takeIf { claim ->
             claim.until <= now && claim.isPendingFor(config)
         }
-        val interval = config.heartbeatIntervalMinutes.coerceIn(15, 240) * 60_000L
+        val interval = config.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
         var heartbeatRan = false
         val heartbeatDue = config.enableHeartbeat && !interrupted?.key.orEmpty().startsWith("task:") &&
             (manual || now >= heartbeatRetryAt) &&
@@ -149,9 +152,9 @@ class PulseRuntime(
         }
         config = settingsStore.settingsFlow.value.pulse
         if (config.enableWatchers) sampleDueWatchers(id, config)
-        if (!config.enableScheduledTasks) return
         var count = 0
-        val tasks = settingsStore.settingsFlow.value.pulse.tasks.sortedBy { if (interrupted?.key?.startsWith("task:${it.id}:") == true) 0 else 1 }
+        val tasks = settingsStore.settingsFlow.value.pulse.tasks.filter { config.enableScheduledTasks }
+            .sortedBy { if (interrupted?.key?.startsWith("task:${it.id}:") == true) 0 else 1 }
         for (task in tasks) {
             if (!task.enabled || count >= 10) continue
             val tickNow = System.currentTimeMillis()
@@ -175,6 +178,41 @@ class PulseRuntime(
             }
             if (execute(id, "task:${task.id}:$slot", task.title, task, task.prompt, slot)) count++
         }
+        if (!conversationBusy(id)) maybePollSms(id)
+    }
+
+    private suspend fun maybePollSms(id: Uuid) {
+        val config = settingsStore.settingsFlow.value.pulse
+        val now = System.currentTimeMillis()
+        val state = PulseRuntimeStore.load(context)
+        if (smsNextPollAt(config, state.lastSmsPollAt, now) > now) return
+        PulseRuntimeStore.update(context) { it.copy(lastSmsPollAt = now) }
+        if (!me.rerere.rikkahub.data.pulse.SmsReader.hasPermission(context)) return
+        try {
+            if (!state.smsBaselineReady && config.smsWatermarkId == 0L) {
+                val baseline = me.rerere.rikkahub.data.pulse.SmsReader.currentMaxId(context)
+                settingsStore.update { it.copy(pulse = it.pulse.copy(smsWatermarkId = baseline)) }
+                PulseRuntimeStore.update(context) { it.copy(smsBaselineReady = true) }
+                return
+            }
+            PulseRuntimeStore.update(context) { it.copy(smsBaselineReady = true) }
+            val discovery = me.rerere.rikkahub.data.pulse.SmsReader.discover(context, config.smsWatermarkId, config.smsSenderWhitelist)
+            val latest = settingsStore.settingsFlow.value.pulse
+            if (!latest.smsPollingEnabled() || latest.smsSenderWhitelist != config.smsSenderWhitelist) return
+            if (discovery.senders.isEmpty()) {
+                settingsStore.update { it.copy(pulse = it.pulse.copy(smsWatermarkId = maxOf(it.pulse.smsWatermarkId, discovery.maxScannedId))) }
+                return
+            }
+            val instruction = context.getString(R.string.pulse_sms_discovered, discovery.senders.size,
+                discovery.senders.distinct().take(20).joinToString(", "))
+            val hint = context.getString(R.string.pulse_sensing_summary_sms, discovery.senders.size, discovery.senderCount)
+            execute(id, "sms:${discovery.maxScannedId}:$now", context.getString(R.string.pulse_sms_read_title), null,
+                instruction, discovery.maxScannedId, eventKind = "sms", summaryHint = hint)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            // Provider/ROM errors may contain phone numbers. Keep diagnostics free of SMS data.
+            Log.w("Pulse", "SMS poll unavailable; check system permissions")
+        }
     }
 
     /** True only when the turn was attempted; a claimed but skipped heartbeat did not run. */
@@ -186,7 +224,10 @@ class PulseRuntime(
         prompt: String,
         slot: Long,
         watcher: PulseWatcher? = null,
+        eventKind: String? = null,
+        summaryHint: String? = null,
     ): Boolean {
+        if (conversationBusy(id)) return false
         val claim = mutex.withLock { claims.claim(key, System.currentTimeMillis(), false) } ?: return false
         val start = SystemClock.uptimeMillis()
         var startedAt = System.currentTimeMillis()
@@ -194,8 +235,15 @@ class PulseRuntime(
         var summary = ""
         var promptTokens = 0
         var completionTokens = 0
-        val heartbeat = task == null && watcher == null
+        var cachedTokens = 0
+        val heartbeat = task == null && watcher == null && eventKind == null
+        // Preserve failure privacy if the user disables sensing while this turn is running.
+        val initialConfig = settingsStore.settingsFlow.value.pulse
+        val sensingEnabledAtStart = initialConfig.enableNotificationReading || initialConfig.enableSmsReading || initialConfig.enableSmsSending
+        // Old tool results can be paraphrased in later turns, even after the switches are disabled.
+        val sensingHistory = pulseHasSensingData(chat.value.getConversation(id)?.currentMessages.orEmpty(), eventKind)
         val kind = when {
+            eventKind != null -> eventKind
             heartbeat -> "heartbeat"
             watcher != null -> "watcher"
             else -> "task"
@@ -222,14 +270,15 @@ class PulseRuntime(
                     val now = ZonedDateTime.now()
                     val contextPrompt = "$prompt\n\n## Context\nCurrent local time: $now (${now.zone.id})"
                     val result = chat.value.runPulseTurn(
-                        id, contextPrompt, toolContext(key, claim), skipIfUnanswered = heartbeat,
+                        id, contextPrompt, toolContext(key, claim), skipIfUnanswered = heartbeat || eventKind == "sms",
                     ) {
+                        if (eventKind == "sms") settingsStore.update { it.copy(pulse = it.pulse.copy(smsWatermarkId = maxOf(it.pulse.smsWatermarkId, slot))) }
                         if (heartbeat) {
                             startedAt = System.currentTimeMillis()
                             val current = settingsStore.settingsFlow.value.pulse
                             nextHeartbeat = pulseNextHeartbeatAt(
                                 startedAt,
-                                current.heartbeatIntervalMinutes.coerceIn(15, 240) * 60_000L,
+                                current.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L,
                                 current,
                             )
                             setHeartbeatRetryAt(0L)
@@ -240,22 +289,28 @@ class PulseRuntime(
                     if (result == null) {
                         status = "SKIPPED"
                         // Recheck pending input without changing the last actual heartbeat start.
-                        setHeartbeatRetryAt(System.currentTimeMillis() + PULSE_HEARTBEAT_RECHECK_MS)
-                        summary = "等待用户消息的回复，本轮心跳跳过"
+                        if (heartbeat) setHeartbeatRetryAt(System.currentTimeMillis() + PULSE_HEARTBEAT_RECHECK_MS)
+                        summary = context.getString(R.string.pulse_turn_skipped_pending)
                         recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), status, summary, "")
                     } else {
                         result.response.lastRequestUsage()?.let { usage ->
                             val totalUsage = result.response.usage ?: usage
                             promptTokens = totalUsage.promptTokens.coerceAtLeast(0)
                             completionTokens = totalUsage.completionTokens.coerceAtLeast(0)
+                            cachedTokens = totalUsage.cachedTokens.coerceAtLeast(0)
                         }
-                        val silent = task == null && watcher == null && isSilentPulse(result.text)
+                        val silent = heartbeat && !result.awaitingApproval && isSilentPulse(result.text)
                         if (!silent || !settingsStore.settingsFlow.value.pulse.heartbeatSilentWhenNoContent) {
                             chat.value.persistPulseTurn(result)
                         }
-                        status = if (silent) "OK" else "REPORTED"
-                        summary = result.text.lineSequence().firstOrNull().orEmpty().take(60)
-                        val report = writeReport(kind, watcher?.id ?: task?.id.orEmpty(), title, result, status,
+                        status = if (result.awaitingApproval) "WAITING_APPROVAL" else if (silent) "OK" else "REPORTED"
+                        val sensitive = sensingHistory || pulseHasSensingData(listOf(result.response), eventKind)
+                        summary = when {
+                            result.awaitingApproval -> context.getString(R.string.pulse_approval_waiting)
+                            sensitive -> summaryHint ?: context.getString(R.string.pulse_sensing_summary_tools)
+                            else -> result.text.lineSequence().firstOrNull().orEmpty().take(60)
+                        }
+                        val report = if (sensitive || result.awaitingApproval) "" else writeReport(kind, watcher?.id ?: task?.id.orEmpty(), title, result, status,
                             SystemClock.uptimeMillis() - start)
                         if (!silent) {
                             recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), status, summary, report)
@@ -272,9 +327,14 @@ class PulseRuntime(
             recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), status, "", "")
             throw cancelled
         } catch (error: Exception) {
-            summary = error.message?.takeIf { it.isNotBlank() }?.take(200)
+            // A failed turn may have consumed sensing data before it could return its tool history.
+            // Switches guard only failure details, never successful activity summaries.
+            val config = settingsStore.settingsFlow.value.pulse
+            val sensitiveFailure = sensingHistory || sensingEnabledAtStart || config.enableNotificationReading || config.enableSmsReading || config.enableSmsSending
+            summary = if (sensitiveFailure) context.getString(R.string.pulse_sensing_failure)
+                else error.message?.takeIf { it.isNotBlank() }?.take(200)
                 ?: context.getString(R.string.pulse_failure_unknown)
-            val report = runCatching { writeFailureReport(kind, watcher?.id ?: task?.id.orEmpty(), title, summary) }
+            val report = if (sensitiveFailure) "" else runCatching { writeFailureReport(kind, watcher?.id ?: task?.id.orEmpty(), title, summary) }
                 .onFailure { Log.w("Pulse", "Failed to write failure report", it) }
                 .getOrDefault("")
             recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), "FAILED", summary, report)
@@ -295,7 +355,7 @@ class PulseRuntime(
                     ) }
                     val finalConfig = settingsStore.settingsFlow.value.pulse
                     val skippedHeartbeatNext = if (heartbeat && status == "SKIPPED" && finalConfig.enableHeartbeat) {
-                        val interval = finalConfig.heartbeatIntervalMinutes.coerceIn(15, 240) * 60_000L
+                        val interval = finalConfig.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
                         pulseNextHeartbeatAt(
                             finalConfig.lastHeartbeatAt.takeIf { it > 0 } ?: (finishedAt - interval),
                             interval,
@@ -304,11 +364,11 @@ class PulseRuntime(
                         )
                     } else null
                     PulseRuntimeStore.update(context) { state ->
-                        val successfulHeartbeat = heartbeat && status != "FAILED" && status != "CANCELLED"
+                        val successfulHeartbeat = heartbeat && status in setOf("OK", "REPORTED")
                         state.copy(
                             todaySuccessCount = if (successfulHeartbeat && status != "SKIPPED") state.todaySuccessCount + 1 else state.todaySuccessCount,
                             lastHeartbeatOk = when {
-                                !heartbeat || status == "CANCELLED" || status == "SKIPPED" -> state.lastHeartbeatOk
+                                !heartbeat || status in setOf("CANCELLED", "SKIPPED", "WAITING_APPROVAL") -> state.lastHeartbeatOk
                                 else -> successfulHeartbeat
                             },
                             runningSince = 0L,
@@ -332,6 +392,7 @@ class PulseRuntime(
                         durationMs = SystemClock.uptimeMillis() - start,
                         promptTokens = promptTokens,
                         completionTokens = completionTokens,
+                        cachedTokens = cachedTokens,
                         note = if (status == "FAILED") summary.take(200) else "",
                     ))
                 }
@@ -344,6 +405,7 @@ class PulseRuntime(
         val now = System.currentTimeMillis()
         val due = duePulseWatchers(config.watchers, now)
         for (watcher in due) {
+            if (conversationBusy(conversationId)) break
             val latestPulse = settingsStore.settingsFlow.value.pulse
             if (!latestPulse.enableWatchers) break
             val latest = latestPulse.watchers.firstOrNull { it.id == watcher.id } ?: continue
@@ -519,12 +581,12 @@ class PulseRuntime(
 
     private suspend fun rearmUnchecked() {
         val config = settingsStore.settingsFlow.value.pulse
-        if (!config.keepAliveEnabled || (!config.enableHeartbeat && !config.enableScheduledTasks && !config.enableWatchers)) {
+        if (!config.keepAliveEnabled || (!config.enableHeartbeat && !config.enableScheduledTasks && !config.enableWatchers && !config.smsPollingEnabled())) {
             PulseScheduler.cancel(context)
             return
         }
         val now = System.currentTimeMillis()
-        val interval = config.heartbeatIntervalMinutes.coerceIn(15, 240) * 60_000L
+        val interval = config.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
         val nextHeartbeat = if (config.enableHeartbeat) pulseNextHeartbeatAt(
             config.lastHeartbeatAt.takeIf { it > 0 } ?: (now - interval),
             interval,
@@ -545,18 +607,21 @@ class PulseRuntime(
             .minOfOrNull { if (it.kind == PulseTaskKind.ONCE) it.dueAt else it.nextAt.takeIf { at -> at > 0 } ?: Long.MAX_VALUE } ?: Long.MAX_VALUE
         val watcher = config.watchers.filter { config.enableWatchers && it.enabled }
             .minOfOrNull { watcherNextAt(it, now) } ?: Long.MAX_VALUE
+        val sms = smsNextPollAt(config, PulseRuntimeStore.load(context).lastSmsPollAt, now)
         val pending = storage.getString("claim", null)?.let { JsonInstant.decodeFromString<PulseClaim>(it) }
         val recovery = pending?.takeIf { it.isPendingFor(config) }?.until ?: Long.MAX_VALUE
-        val candidate = if (pending?.done == false && pending.until > now) recovery else minOf(heartbeat, watcher, task, recovery)
-        val generationActive = config.conversationId?.let { conversationId ->
-            chat.value.getGenerationJobStateFlow(conversationId).firstOrNull()?.isActive == true
-        } == true
+        val candidate = pulseCandidateAfterLease(pending, now, minOf(heartbeat, watcher, task, sms, recovery))
+        val generationActive = config.conversationId?.let { conversationBusy(it) } == true
         // User turns can outlive a due alarm. Keep retries bounded instead of scheduling
         // the same already-due watcher/task again every second while generation is active.
         val target = pulseDispatchTarget(candidate, now, generationActive)
         if (target != Long.MAX_VALUE) PulseScheduler.schedule(context,
             pulseNextActiveAt(target, config.activeHoursStart, config.activeHoursEnd))
     }
+
+    private suspend fun conversationBusy(id: Uuid): Boolean =
+        chat.value.getGenerationJobStateFlow(id).firstOrNull()?.isActive == true ||
+            chat.value.getConversation(id)?.isAwaitingToolApproval == true
 
     private fun notify(id: Uuid, title: String, message: String, failure: Boolean, reportPath: String = "") {
         val manager = context.getSystemService(NotificationManager::class.java)

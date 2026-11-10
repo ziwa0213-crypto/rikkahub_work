@@ -222,7 +222,7 @@ fun MarkdownBlock(
  * Markdown 解析器会对 src 做百分号编码 (空格、中文等), 需取解码后的 path 并丢掉 query/fragment
  */
 @Composable
-private fun rememberWorkspaceImageUrl(url: String): String? {
+internal fun rememberWorkspaceImageUrl(url: String): String? {
     val workspaceId = LocalWorkspaceId.current
     if (workspaceId == null || !url.startsWith("/") || url.startsWith("//")) return url
     val path = remember(url) { url.toUri().path } ?: return url

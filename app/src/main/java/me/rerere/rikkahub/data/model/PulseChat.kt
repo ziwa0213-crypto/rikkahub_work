@@ -40,11 +40,13 @@ fun PulseConfig.toAssistant(settings: Settings): Assistant = Assistant(
     reasoningLevel = reasoningLevel,
     contextMessageLimit = contextMessageLimit,
     enableMemory = enableMemory,
+    autoConsolidateMemory = autoConsolidateMemory,
     useGlobalMemory = false,
     memoryGroupId = null,
     enableRecentChatsReference = enableInformation && enableRecentChats,
     enableWebSearch = enableInformation && enableWebSearch,
     enabledSkills = enabledSkills.toSet(),
+    quickMessageIds = quickMessageIds,
     localTools = buildList {
         if (enableInformation) {
             add(LocalToolOption.TimeInfo)
@@ -52,8 +54,19 @@ fun PulseConfig.toAssistant(settings: Settings): Assistant = Assistant(
             add(LocalToolOption.Clipboard)
         }
         if (enableInformation || enableCalendarCreate) add(LocalToolOption.Calendar)
+        if (enableAlarm) add(LocalToolOption.Alarm)
     },
     toolApprovalMode = ToolApprovalMode.AllowAll,
     streamOutput = true,
     workspaceId = workspaceId,
+)
+
+/** Only the fields exposed by Pulse chat controls may be changed through the assistant facade. */
+fun PulseConfig.withAssistantUpdate(assistant: Assistant): PulseConfig = copy(
+    chatModelId = assistant.chatModelId,
+    reasoningLevel = assistant.reasoningLevel,
+    enableWebSearch = assistant.enableWebSearch,
+    contextMessageLimit = assistant.contextMessageLimit,
+    enabledSkills = assistant.enabledSkills.toList(),
+    quickMessageIds = assistant.quickMessageIds,
 )

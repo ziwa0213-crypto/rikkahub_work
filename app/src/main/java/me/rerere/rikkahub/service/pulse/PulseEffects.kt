@@ -22,7 +22,7 @@ internal class PulseEffects(
             .digest("$run:$name:${canonical(args)}".toByteArray()).joinToString("") { "%02x".format(it) }
         val prior = load(key)
         check(prior != "PENDING") {
-            "Previous write outcome is unknown; automatic repetition was blocked. Check the calendar or memory before retrying."
+            "Previous write outcome is unknown; automatic repetition was blocked. Check the external destination before retrying."
         }
         if (prior != null) return@withLock JsonInstant.decodeFromString<List<UIMessagePart>>(prior)
         save(key, "PENDING")

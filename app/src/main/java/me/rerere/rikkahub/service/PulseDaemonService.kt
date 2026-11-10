@@ -60,7 +60,9 @@ class PulseDaemonService : Service() {
         refreshNotification(force = true)
         handler.removeCallbacks(tick)
         handler.post(tick)
-        if (!settings.settingsFlow.value.init && !settings.settingsFlow.value.pulse.keepAliveEnabled) {
+        // init=true is Settings.dummy(): wait for disk settings before honoring a disabled flag.
+        val current = settings.settingsFlow.value
+        if (!current.init && !current.pulse.keepAliveEnabled) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -137,14 +139,14 @@ class PulseDaemonService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setShowWhen(false)
+            .setShowWhen(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_rikkahub)
                 .setContentTitle(getString(R.string.pulse_daemon_public_title))
                 .setContentText(getString(R.string.pulse_daemon_public_text))
-                .setShowWhen(false)
+                .setShowWhen(true)
                 .build())
         val power = getSystemService(PowerManager::class.java)
         if (power != null && !power.isIgnoringBatteryOptimizations(packageName)) {

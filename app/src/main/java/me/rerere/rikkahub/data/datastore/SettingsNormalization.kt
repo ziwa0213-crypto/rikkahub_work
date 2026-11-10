@@ -109,6 +109,14 @@ internal fun Settings.withoutInvalidReferences(): Settings {
 
 // 把取值收回合法范围，比如删掉搜索服务后选中的下标可能越界
 private fun Settings.withValuesInRange(): Settings = copy(
+    pulse = pulse.copy(
+        notificationRetentionHours = pulse.notificationRetentionHours.coerceIn(1, 72),
+        notificationBufferLimit = pulse.notificationBufferLimit.coerceIn(20, 500),
+        notificationWhitelist = pulse.notificationWhitelist.map(String::trim).filter(String::isNotEmpty).distinct(),
+        smsPollMinutes = pulse.smsPollMinutes.coerceIn(5, 240),
+        smsWatermarkId = pulse.smsWatermarkId.coerceAtLeast(0),
+        smsSenderWhitelist = pulse.smsSenderWhitelist.map(String::trim).filter(String::isNotEmpty).distinct(),
+    ),
     displaySetting = displaySetting.normalizeLegacyBackgroundEffect(),
     memoryGroups = memoryGroups.distinctBy { it.id },
     browserToolsDisabled = browserToolsDisabled.distinct(),

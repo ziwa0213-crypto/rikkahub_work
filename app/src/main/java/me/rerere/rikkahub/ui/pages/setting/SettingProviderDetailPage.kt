@@ -711,7 +711,12 @@ private fun ModelSettingsForm(
                         tools = model.tools,
                         onUpdateTools = { tools ->
                             onModelChange(model.copy(tools = tools))
-                        }
+                        },
+                        videoInput = ModelAbility.VIDEO in model.abilities,
+                        onUpdateVideoInput = { enabled ->
+                            onModelChange(model.copy(abilities = if (enabled) (model.abilities + ModelAbility.VIDEO).distinct()
+                                else model.abilities - ModelAbility.VIDEO))
+                        },
                     )
                 }
             }
@@ -1142,7 +1147,7 @@ fun ModalAbilitySelector(
         style = MaterialTheme.typography.titleSmall
     )
     ConnectedMultiChoiceButtons(
-        options = ModelAbility.entries,
+        options = ModelAbility.entries.filterNot { it == ModelAbility.VIDEO },
         selected = abilities,
         onToggle = { ability, checked ->
             onUpdateAbilities(if (checked) abilities + ability else abilities - ability)
@@ -1153,6 +1158,7 @@ fun ModalAbilitySelector(
                 when (ability) {
                     ModelAbility.TOOL -> R.string.setting_provider_page_tool
                     ModelAbility.REASONING -> R.string.setting_provider_page_reasoning
+                    ModelAbility.VIDEO -> R.string.setting_page_model_video_input
                 }
             ),
             selected = selected,
@@ -1387,7 +1393,9 @@ private fun ModelCard(
 @Composable
 private fun BuiltInToolsSettings(
     tools: Set<BuiltInTools>,
-    onUpdateTools: (Set<BuiltInTools>) -> Unit
+    onUpdateTools: (Set<BuiltInTools>) -> Unit,
+    videoInput: Boolean,
+    onUpdateVideoInput: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1439,6 +1447,19 @@ private fun BuiltInToolsSettings(
                     supportingContent = { Text(description) },
                 )
             }
+        }
+        Text(
+            text = stringResource(R.string.setting_page_model_input_capability),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        CardGroup {
+            switchItem(
+                checked = videoInput,
+                onCheckedChange = onUpdateVideoInput,
+                colors = itemColors,
+                headlineContent = { Text(stringResource(R.string.setting_page_model_video_input)) },
+                supportingContent = { Text(stringResource(R.string.setting_page_model_video_input_desc)) },
+            )
         }
     }
 }

@@ -108,8 +108,6 @@ import me.rerere.hugeicons.stroke.Tag01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.ai.tools.WorkspaceFileWriteToolNames
-import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import androidx.compose.ui.res.stringResource
 import me.rerere.rikkahub.R
@@ -269,7 +267,6 @@ fun WorkspaceDetailPage(id: String) {
                         lastInstallVerified = state.lastInstallVerified,
                         lastInstallLocal = state.lastInstallLocal,
                         onInstallRootfs = { showInstallDialog = true },
-                        onToolApprovalChange = vm::setToolApproval,
                         onShellCompatibilityModeChange = vm::setShellCompatibilityMode,
                         onEditSsh = { navController.navigate(Screen.WorkspaceSshEditor(id)) },
                     )
@@ -439,7 +436,6 @@ private fun WorkspaceBasicPage(
     lastInstallVerified: Boolean?,
     lastInstallLocal: Boolean,
     onInstallRootfs: () -> Unit,
-    onToolApprovalChange: (String, Boolean) -> Unit,
     onShellCompatibilityModeChange: (Boolean) -> Unit,
     onEditSsh: () -> Unit,
 ) {
@@ -548,13 +544,6 @@ private fun WorkspaceBasicPage(
             }
         }
 
-        item {
-            WorkspaceToolApprovalCard(
-                workspace = workspace,
-                onToolApprovalChange = onToolApprovalChange,
-            )
-        }
-
     }
 }
 
@@ -626,56 +615,6 @@ private fun ShellStatusBadge(status: String?) {
         )
     }
 }
-
-@Composable
-private fun WorkspaceToolApprovalCard(
-    workspace: WorkspaceEntity?,
-    onToolApprovalChange: (String, Boolean) -> Unit,
-) {
-    val overrides = workspace?.toolApprovalOverrides().orEmpty()
-    val fileWriteTools = workspace?.capabilities()?.fileWriteTools ?: true
-    val tools = workspaceToolApprovalItems().filter { (toolName) ->
-        fileWriteTools || toolName !in WorkspaceFileWriteToolNames
-    }
-
-    CardGroup(
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.workspace_detail_tool_approval))
-                Text(
-                    text = stringResource(R.string.workspace_detail_tool_approval_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-    ) {
-        tools.forEach { (toolName, label, icon) ->
-            switchItem(
-                checked = resolveWorkspaceToolApproval(toolName, overrides),
-                onCheckedChange = { onToolApprovalChange(toolName, it) },
-                enabled = workspace != null,
-                supportingContent = {
-                    Text(
-                        text = toolName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                leadingContent = { CardGroupIcon(icon) },
-                headlineContent = { Text(label) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun workspaceToolApprovalItems() = listOf(
-    Triple("workspace_read_file", stringResource(R.string.workspace_detail_tool_read_file), HugeIcons.FileView),
-    Triple("workspace_write_file", stringResource(R.string.workspace_detail_tool_write_file), HugeIcons.PencilEdit01),
-    Triple("workspace_edit_file", stringResource(R.string.workspace_detail_tool_edit_file), HugeIcons.FileEdit),
-    Triple("workspace_shell", stringResource(R.string.workspace_detail_tool_shell), HugeIcons.ComputerTerminal01),
-)
 
 @Composable
 private fun RootfsProgress(progress: RootfsInstallProgress) {

@@ -1,7 +1,16 @@
 package me.rerere.rikkahub.data.repository
 
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import kotlin.uuid.Uuid
+
 /** Adds missing Pulse workspace guidance without replacing files edited by the user. */
 internal object PulseWorkspaceProvisioner {
+    private const val PULSE_WORKSPACE_NAME = "Pulse"
+    private val workspaceMutex = Mutex()
+
     val templates: Map<String, String> = linkedMapOf(
         "README.md" to """# 脉搏工作区
 
@@ -38,9 +47,38 @@ internal object PulseWorkspaceProvisioner {
 
 运行前确认工具已经启用。只访问当前工作区允许的文件和命令；
 没有执行成功的操作，不要报告为已完成。
+
+<!-- 可选通知检查：只有用户明确要求，并开启读取通知与系统授权后，
+才在自检提示中加入“需要时调用 read_notifications”。默认不自动引导每次读取。 -->
 """.trimIndent(),
     )
 
     suspend fun provision(writeIfAbsent: suspend (path: String, content: String) -> Boolean): List<String> =
         templates.mapNotNull { (name, content) -> name.takeIf { writeIfAbsent(it, content) } }
+
+    suspend fun ensureWorkspace(repository: WorkspaceRepository, configuredId: Uuid?): WorkspaceEntity =
+        workspaceMutex.withLock {
+            val workspaces = repository.listFlow().first()
+            val existing = configuredId?.let { id ->
+                workspaces.firstOrNull { it.id == id.toString() && it.owner == "pulse" }
+            } ?: workspaces.firstOrNull { it.owner == "pulse" }
+
+            if (existing != null) {
+                if (existing.name.any { it.code > 0x7F }) {
+                    val targetName = if (repository.isNameTaken(PULSE_WORKSPACE_NAME, existing.id)) "Pulse2" else PULSE_WORKSPACE_NAME
+                    val safeName = if (targetName == "Pulse2" && repository.isNameTaken(targetName, existing.id)) {
+                        "Pulse-${existing.id.take(6)}"
+                    } else targetName
+                    repository.rename(existing.id, safeName)
+                    return@withLock repository.getById(existing.id) ?: existing.copy(name = safeName)
+                }
+                return@withLock existing
+            }
+
+            val name = if (repository.isNameTaken(PULSE_WORKSPACE_NAME, null)) "Pulse2" else PULSE_WORKSPACE_NAME
+            val safeName = if (name == "Pulse2" && repository.isNameTaken(name, null)) {
+                "Pulse-${Uuid.random().toString().take(6)}"
+            } else name
+            repository.create(safeName, owner = "pulse")
+        }
 }

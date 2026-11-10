@@ -298,20 +298,6 @@ class WorkspaceDetailVM(
         }
     }
 
-    fun setToolApproval(toolName: String, needsApproval: Boolean) {
-        viewModelScope.launch {
-            try {
-                if (!repository.setToolApproval(id, toolName, needsApproval)) {
-                    _settingsError.value = "工作区不存在"
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                _settingsError.value = error.message.orEmpty()
-            }
-        }
-    }
-
     private var installJob: Job? = null
 
     fun installRootfs(entry: RootfsEntry) = launchInstall(entry.sha256.isNotBlank(), local = false) { workspace ->

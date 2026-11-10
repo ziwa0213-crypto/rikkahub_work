@@ -108,6 +108,7 @@ import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
 import me.rerere.rikkahub.ui.pages.memory.MemoryFilePage
+import me.rerere.rikkahub.ui.pages.pulse.PulseMemoryPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspacePage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailPage
@@ -530,6 +531,8 @@ class RouteActivity : ComponentActivity() {
                                 MemoryFilePage(memoryId = key.memoryId, path = key.path)
                             }
 
+                            entry<Screen.PulseMemory> { PulseMemoryPage() }
+
                             entry<Screen.AssistantRequest> { key ->
                                 AssistantRequestPage(key.id)
                             }
@@ -855,6 +858,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class AssistantMemory(val id: String) : Screen
+
+    @Serializable
+    data object PulseMemory : Screen
 
     /** 记忆库 [memoryId] 里的一个文件，[path] 为 null 时新建 */
     @Serializable

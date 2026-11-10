@@ -27,7 +27,7 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 201
+        versionCode = 202
         versionName = "3.1.2-work.1"
 
         // Filter dependency translations as well as the app's own resources.
