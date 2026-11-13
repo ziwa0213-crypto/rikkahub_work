@@ -1,3 +1,76 @@
+# 源码同步准备 — 3.2.0-work.2 / 205
+
+日期：2026-11-13。维护者要求“整理源码，给我命令，我来推送”。本轮准备本地提交与精简源码ZIP，
+推送和标签对齐由维护者执行。下面“不commit”等内容是构建阶段的历史记录，当前状态以本节与git log为准。
+
+- 范围：3.2.0-work.2/205的心跳提示词读取闭环、原有写入/权限保护及配套测试/台账。产品与heartbeat-prompt-read-release-20261113的已验证205清单一致，仅AGENTS、FEATURES、DELIVERY三份文档补记同步状态；无新功能改动，不重跑已通过且无变化的产品测试，也不重新构建APK。
+- 当前本地分支merge/upstream-3.2.0；基线/父提交为152ad5208706f1261de5a688d40b5d8b848b069a（3.2.0-work.1/204）。本地新提交的实际SHA记录于交付目录SYNC-VERIFICATION.json，完整上游3.2.0与此前fork功能保留。
+- 本轮fetch并读取远端：origin/master=152ad5208706f1261de5a688d40b5d8b848b069a，远端3.2.0-work.2标签也仍指向它，其源码实际为204/work.1。须先普通推送新HEAD到master，再用限定旧值的force-with-lease对齐这个标签；不强推master，不改work.1。
+- origin为git@github.com:ziwa0213-crypto/rikkahub_work.git，继续使用SSH。提供的命令以&&连接，master失败时不会继续更新标签；标签旧值变化时租约检查会拒绝覆盖，需重新核对。
+- 新源码与记录：artifacts/3.2.0-work.2/source-push-preparation-20261113/。ZIP保留1815项源码、2个软链、Unix权限与根DELIVERY，不含.git、APK、构建缓存、本机配置、签名私钥、artifacts或两份参考仓库。源清单、CRC、逐文件内容和提交树一致性记录随包外提供。
+- 已有三个205签名Release保持在heartbeat-prompt-read-release-20261113目录，本轮校验其SHA256未变，不重复构建。原测试统计1719通过/1项既有PDF跳过（App930项本轮执行、其他模块复用报告），C1/C4及其他设备/真实模型验收仍待维护者完成。
+- 本轮没有push、修改远端标签、发布Release、操作设备或调用真实模型；旧交付保留。最终ZIP SHA256放包外SHA256SUMS，避免自引用。
+
+# 心跳提示词读取闭环 — 3.2.0-work.2 / 205（本地 Release）
+
+日期：2026-11-13。依据本轮附带的《00-先读我（提示词读取闭环）》及《10-修正单·心跳提示词读取闭环》。
+交付目录：`artifacts/3.2.0-work.2/heartbeat-prompt-read-release-20261113/`。
+增量基线：`152ad5208706f1261de5a688d40b5d8b848b069a`，已包含上游3.2.0及此前全部fork修改。
+本轮只读核实远端master、3.2.0-work.1标签均为此提交，work.1/204为正式Release；
+附件要求下版code至少205，依仓库同上游版本内work序号递增规则采用work.2/205。数据库仍33。
+本轮不commit/tag/push/发布，不操作设备、模拟器或真实模型账号。下方旧批次状态保留作历史。
+
+## 改动范围与边界
+
+两个功能文件：
+
+1. `app/src/main/java/me/rerere/rikkahub/data/ai/tools/pulse/PulsePromptTool.kt`
+2. `app/src/main/java/me/rerere/rikkahub/data/ai/tools/pulse/PulseToolPolicy.kt`
+
+另更新`app/build.gradle.kts`版本、两份现有工具测试、AGENTS/CHANGES/FEATURES/本文件及参考台账。
+不创建新工具、设置、语言key或数据字段。未提供独立02-AGENTS附件，本轮保留根文件并追加当前规则。
+
+- read必须显式传，参数prompt不再schema必填；省略action仍按edit，写逻辑保持原样，包括trim、非空/4000字符和主/子开关校验。
+- 读取当前SettingsStore的heartbeatPrompt，空白时回落DEFAULT_HEARTBEAT_PROMPT；返回content/is_default/length。显式存入默认全文时is_default=false，只有空白存储才标默认回落。
+- 不使用当轮synthetic user、任务/监视器/SMS描述或人格推测原文。原样返回全文，包括空格换行与超过工具写上限的手动保存内容；不写设置、不新增日志或已读状态。
+- 源码实际还有写操作回执层，附件示例未涉及：只给本工具read增加只读例外，避免读取被当成写入去重或回放。edit/rewrite与其他写工具原守卫不变，schedule_task list原例外保持。
+- read执行时按与文本同一份最新pulse快照重查主开关，使已注册工具也不能越过随后关闭的开关。Factory和needsApproval不改。允许重写只控制rewrite，read/edit不依赖子开关。
+- 写前read是模型工具描述要求，不是强制已读状态或事务；不宣称能保证模型原文复述或一定遵循工具调用顺序。
+- UI确认保存、人格、默认提示词、设置/DB33、供应商限制、审批、通知/调度/保活、原21身份图标和仅三语资源均保持基线。
+
+## C1–C8逐条验收记录
+
+下表自动化证据只覆盖代码和工具执行契约；真实模型对话、页面操作和覆盖安装均未执行。
+**C1和C4尚未完成实机验收，不能标记为通过。**
+
+| 编号 | 自动化验证范围 | 设备/真实模型结果 |
+| --- | --- | --- |
+| C1 | 真实SettingsStore工具read返回完整原文、长度和默认标志，不读人格 | **待实机**：在脉搏问当前心跳提示词，核对先read再原文复述 |
+| C2 | 同一工具实例跨多次SettingsStore更新立即读取新值，不使用旧注册快照 | 待实机：手动编辑并确认后再问 |
+| C3 | 空串/全空白回落默认、is_default=true；显式存入默认全文则false；读取不写回 | 待实机：清空确认并询问，核对模型说明默认回落 |
+| C4 | 取值只来自SettingsStore；Policy在PulseToolContext下重复read不进入写回执 | **待实机**：计划任务轮询问，核对工具结果是心跳原文而非任务内容 |
+| C5 | read→默认edit→read→授权rewrite→read回环、人格不变，写入仍校验长度/非空 | 待实机：核对模型先read后写并能再读到新值 |
+| C6 | Policy主开关关闭移除整个工具；关闭后旧工具实例执行read/写均拒绝 | 待实机：关闭主开关后检查实际发给模型的工具清单 |
+| C7 | 子开关关闭时read/edit可用，rewrite拒绝；主开关不能被子开关越过 | 待实机：分别调用三个动作 |
+| C8 | 省略action并传prompt仍按edit；省略prompt时写入拒绝；其他工具默认动作未放宽 | 待实机：检查省略action调用结果 |
+
+## 构建与归档
+
+- 实际成功命令：`./gradlew test :app:assembleGithubRelease --no-daemon --no-parallel --offline --console=plain`，用时3分21秒，876项Gradle任务中60项执行、816项UP-TO-DATE。主代码编译、Release R8、资源优化、lintVital及打包通过，没有生成Debug APK。
+- 首次调用复用的旧Gradle守护进程无法启动ninja子进程，报`Failed to exec spawn helper`；ninja单独运行正常。换用新的一次性构建进程后成功，未修改产品或工具链规避测试，首轮失败日志保留为`build-attempt1.log`，成功日志为`build-combined.log`。
+- 254个唯一套件1720项：1719通过、0失败、0错误、1项既有PdfCorpusTest.extractCorpus缺语料跳过。本轮App GitHub的930项重新执行，Play变体亦成功但不重复计数；其余模块UP-TO-DATE报告复用，不宣称全部重跑。新增3个测试，两份工具/策略套件合计14项均本轮通过，包含真实PreferenceDataStore工具执行与回执守卫检查。
+- 源码审计以已发布204清单核对1815项：本轮只改列明的10个文件，其余1805项保持一致。原写分支逐字相同，Policy仅增加read动作/只读例外，版本文件只有204→205及work.1→work.2；Factory、PulseConfig、编辑UI、PulseTurnInput、PulseRuntime及其余功能不变。Git HEAD和index保持基线，无自动提交。
+- 三个APK均为205/3.2.0-work.2，包名`me.rerere.rikkahub.plus`、应用名`RikkaHub Work`，非debuggable；沿用原正式签名，v2校验通过，证书SHA256为`671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`。ABI、仅三语、原21身份图标源文件/20张PNG像素、deepseek_sha3.wasm和ZIP CRC均已核验。
+- 精简源码ZIP保留1815项源码、2个符号链接、Unix权限及根DELIVERY；不含APK、.git、构建缓存、本机配置、签名私钥或两份参考仓库。文件清单/逐文件哈希、压缩包CRC与本地一致性分别记录于SOURCE-MANIFEST.json、SOURCE-VERIFICATION.json；最终ZIP哈希放包外SHA256SUMS，避免归档自引用。旧交付保持。
+- 自动验证记录为本目录TEST-RESULTS.json、SOURCE-AUDIT.json和APK-VERIFICATION.json。Kai/PalmClaw参考边界记docs/f015-keepalive-reference-review.md。**未操作设备/真实模型，C1/C4必须实机验证的要求尚未完成**；其余交互/模型验收也保留待验，不把工具单测称为整版验收完成。
+
+| 交付文件 | 字节数 | MiB |
+| --- | ---: | ---: |
+| RikkaHub.Work-3.2.0-work.2-arm64-v8a-release.apk | 16463737 | 15.70 |
+| RikkaHub.Work-3.2.0-work.2-x86_64-release.apk | 16562666 | 15.80 |
+| RikkaHub.Work-3.2.0-work.2-universal-release.apk | 19294845 | 18.40 |
+| RikkaHub.Work-3.2.0-work.2-source.zip | 见SOURCE-VERIFICATION.json | 约24.6 |
+
 # 源码同步准备 — 3.2.0-work.1 / 204
 
 日期：2026-11-13，Asia/Shanghai。维护者要求“整理源码，给我命令，我来推送”。

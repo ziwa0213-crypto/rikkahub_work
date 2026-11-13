@@ -1,5 +1,22 @@
 # Repository Guidelines
 
+## 当前源码同步准备（2026-11-13，3.2.0-work.2 / 205）
+
+- 维护者要求“整理源码，给我命令，我来推送”，授权将本批读取闭环及配套台账整理为本地提交，覆盖下方构建阶段“不commit”的历史限制；远端推送、标签对齐和Release操作由维护者执行。
+- 本轮不修改功能或重新构建APK。以heartbeat-prompt-read-release-20261113的205源码清单为准，只有AGENTS/FEATURES/DELIVERY补记同步状态，其他1812项内容保持一致；既有测试与C1/C4实机待验结论保持。
+- 已fetch核对origin/master为152ad5208706f1261de5a688d40b5d8b848b069a，本地HEAD与其一致；远端3.2.0-work.2标签也指向该204旧提交。先普通推送HEAD到master，成功后以限定标签旧值的force-with-lease对齐work.2，不强推master，不改work.1。
+- 新精简源码与同步记录放artifacts/3.2.0-work.2/source-push-preparation-20261113/，保留根DELIVERY、软链及权限；忽略APK/构建缓存/本机配置/签名私钥/artifacts/参考仓库。旧交付保留，origin继续使用SSH，不自动push/tag/发布或操作设备。
+
+## 当前增量：心跳提示词读取闭环（2026-11-13，3.2.0-work.2 / 205）
+
+- 依据维护者新附两份读取闭环修正单，只给既有 update_heartbeat_prompt 增加显式 action=read。3.2.0-work.1/204 的远端 master、标签已于本轮只读核对为152ad520，Release已正式发布；依同上游版本内递增规则，本批使用3.2.0-work.2/205，DB33。
+- read从当前SettingsStore读取heartbeatPrompt，空白回落DEFAULT_HEARTBEAT_PROMPT，返回content/is_default/length；不读取人格或当轮任务指令，不截断文本、不trim、不写设置/回执/已读状态。读取重查主开关，旧注册工具也不能绕过关闭状态。
+- prompt在schema中非必填；read必须显式传，省略action仍edit。写分支原样保留非空/4000字符、trim与两个开关校验；read/edit受主开关，rewrite还受子开关。描述要求写前先读，此为模型约束，不新增强制已读状态。needsApproval及Factory不改。
+- PulsePolicy仅让本工具read绕过写回执，与原schedule_task list并列；edit/rewrite和其他写工具仍受原保护。供应商限制、调度/保活、UI确认保存、原图标、三语及数据库均保持。
+- 改前参考固定Kai的HeartbeatTools/HeartbeatPromptBuilder与PalmClaw的HeartbeatGetTool/HeartbeatSetTool，采用读取当前存储和区分基础提示/当轮指令的边界，不拆工具或复制参考源码。参考仓库继续保留，详见参考台账。
+- 沿用三个原签名GitHub Release APK与含根DELIVERY的精简源码ZIP，目录artifacts/3.2.0-work.2/heartbeat-prompt-read-release-20261113/；不commit/tag/push/发布或操作设备/真实账号。C1–C8自动验证与实机结果分开记录，C1/C4未实机验证不得标通过。
+- 本批完整test与assembleGithubRelease已成功（新一次性Gradle进程，3分21秒）：254套件1720项中1719通过、1项既有PDF跳过；App930项本轮执行，其余模块复用未变化报告。两个工具套件14项通过；10文件增量/其余1805项保持、三个APK205版本/原签名/ABI/三语/图标/WASM核验通过，精简源码含1815项及根DELIVERY。C1/C4仍待实机。
+
 ## 当前源码同步准备（2026-11-13，3.2.0-work.1 / 204）
 
 - 维护者最新要求为“整理源码，给我命令，我来推送”：授权整理并完成本地合并提交，远端推送由维护者执行。此要求覆盖下面历史批次“不commit”的限制；不自动push、移动远端标签、发布Release或操作设备。

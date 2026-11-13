@@ -27,8 +27,8 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 204
-        versionName = "3.2.0-work.1"
+        versionCode = 205
+        versionName = "3.2.0-work.2"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")

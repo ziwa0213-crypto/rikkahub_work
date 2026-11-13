@@ -31,7 +31,7 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
         val actions = when (tool.name) {
             "clipboard_tool" -> setOf("read")
             "memory_tool" -> setOf("create", "edit")
-            "update_heartbeat_prompt" -> setOf("edit") + if (pulse.enableSelfPromptRewrite) setOf("rewrite") else emptySet()
+            "update_heartbeat_prompt" -> setOf("read", "edit") + if (pulse.enableSelfPromptRewrite) setOf("rewrite") else emptySet()
             else -> null
         }
         val execute = tool.execute
@@ -45,7 +45,8 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
                         ?: if (tool.name == "update_heartbeat_prompt") "edit" else null
                     require(actions == null || action in actions) { "Action is unavailable in Pulse mode." }
                     val guard = currentCoroutineContext()[PulseToolContext]
-                    val readOnly = tool.name == "schedule_task" && action == "list"
+                    val readOnly = (tool.name == "schedule_task" && action == "list") ||
+                        (tool.name == "update_heartbeat_prompt" && action == "read")
                     if (writes && !readOnly && guard != null) guard.execute(tool.name, args) { execute(args) } else execute(args)
                 },
             )

@@ -26,6 +26,26 @@ class PulseToolPolicyTest {
         applyPulseToolPolicy(all.take(1), PulseConfig(enableSelfPromptRewrite = true)).single()
             .execute(buildJsonObject { put("action", "rewrite") })
         assertEquals(2, edits)
+        offered.first().execute(buildJsonObject { put("action", "read") })
+        assertEquals(3, edits)
+    }
+
+    @Test fun `heartbeat reads bypass durable receipts while edit and rewrite stay guarded`() = runBlocking {
+        var executions = 0
+        val guarded = mutableListOf<String>()
+        val tool = applyPulseToolPolicy(listOf(tool("update_heartbeat_prompt") { executions++ }),
+            PulseConfig(enableSelfPromptRewrite = true)).single()
+        withContext(PulseToolContext { name, _, block -> guarded += name; block() }) {
+            repeat(2) { tool.execute(buildJsonObject { put("action", "read") }) }
+            assertEquals(2, executions)
+            assertTrue(guarded.isEmpty())
+            tool.execute(buildJsonObject { put("prompt", "default edit") })
+            tool.execute(buildJsonObject { put("action", "edit"); put("prompt", "edit") })
+            tool.execute(buildJsonObject { put("action", "rewrite"); put("prompt", "rewrite") })
+            assertTrue(runCatching { tool.execute(buildJsonObject { put("action", "unknown") }) }.isFailure)
+        }
+        assertEquals(5, executions)
+        assertEquals(List(3) { "update_heartbeat_prompt" }, guarded)
     }
 
     @Test fun `task listing bypasses write receipt while mutations remain guarded`() = runBlocking {

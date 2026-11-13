@@ -1,5 +1,24 @@
 # RikkaHub 二次开发功能台账
 
+## [源码同步准备] 3.2.0-work.2 / 205（2026-11-13）
+
+- 维护者授权整理本地提交，远端由维护者手动推送。本批将既有心跳提示词读取工具、Policy只读例外、205版本及测试/文档一起提交；不修改产品或重新构建。
+- 产品/测试与已验证205交付逐文件一致，仅AGENTS、DELIVERY和本文件补充同步状态；保留1720项中1719通过/1项既有PDF跳过、App930项本轮执行及C1/C4实机待验的边界，不以源码打包新增验收结论。
+- 提交父版本为已发布204的152ad5208706f1261de5a688d40b5d8b848b069a，完整上游3.2.0合并仍在祖先链中。实际新提交SHA、父提交与ZIP/提交树一致性记新目录SYNC-VERIFICATION.json，避免提交内容自引用。
+- 源码1815项及2个软链、根DELIVERY和权限完整保留；ZIP不含APK、缓存、密钥或参考仓库，新目录source-push-preparation-20261113，旧APK/ZIP不变。
+- 已核对远端master与3.2.0-work.2标签均为旧204提交152ad520；提供普通master推送和指定标签旧值的force-with-lease命令，不强推master、不改work.1、不自动推送。产品回滚范围沿用下面读取闭环章节。
+
+## [F015 心跳提示词读取闭环] 3.2.0-work.2 / 205（2026-11-13，本地 Release）
+
+- 基线为已提交并发布的152ad5208706f1261de5a688d40b5d8b848b069a（3.2.0-work.1/204）；本轮不提交，无新commit。仅两个功能文件PulsePromptTool.kt、PulseToolPolicy.kt；另改版本文件、两份既有测试及本批台账文档。
+- 同名工具增加显式read，直接读取SettingsStore当前pulse配置，主开关执行时重查；返回完整有效heartbeatPrompt、是否空白回落、实际长度，不触碰systemPrompt或写设置。参数required为空，默认edit和其后原有写分支逐字保留；read不需prompt，写入仍校验非空/4000及原授权。
+- PulsePolicy动作增加read；仅本工具的read绕过PulseToolContext写回执，原schedule_task list例外保持，所有edit/rewrite仍受回执保护。Factory/needsApproval/供应商过滤与其他工具不改，不建立“已读”状态或新增日志。
+- 测试扩展现有PulsePromptToolTest/PulseToolPolicyTest：同一工具读取多次实际DataStore更新、空白与显式默认值区别、全文/长度与人格不变、关闭开关后旧注册拒绝、读写回环、缺prompt拒绝、默认edit及回执边界。自动化不等于C1/C4真实设备对话验收。
+- 写前读仅由英文工具描述要求，明确任务/监视器指令不等于心跳原文；不强制修改已有写协议。没有新语言key、配置字段、依赖、数据库迁移、UI或调度变更。
+- 上游重套：保留同一工具的read/schema/描述和Policy只读例外，默认仍edit、写分支和主/子开关原约束保持。回滚参照git diff 152ad520 -- <本节两个功能文件>逐块撤销，版本递增单独评估；不整树恢复或改动既有提交。参考阅读范围与自动化/设备验收见参考台账和根DELIVERY。
+- 交付三个原签名Release APK及根含DELIVERY的精简源码ZIP，独立目录artifacts/3.2.0-work.2/heartbeat-prompt-read-release-20261113/。不commit/tag/push/发布或操作设备、真实账号，旧交付保留。
+- 验证完成：完整test与GitHub Release成功，254套件1720项中1719通过、1项既有PDF跳过，App930项本轮执行（其他模块复用报告）。两份工具测试14项通过；相对204只有本节10文件变化，其余1805项保持；三个205APK的版本、原签名/图标、架构、三语和WASM已校验。精简源码1815项含根DELIVERY，C1/C4仍明确标为实机待验。
+
 ## [源码同步准备] 3.2.0-work.1 / 204（2026-11-13）
 
 - 维护者授权整理本地提交并自行推送；结束merge/upstream-3.2.0的未提交合并，将上游3.2.0、脉搏八项和204提示词编辑修正完整提交。不会在本轮自动推送或发布，先前未提交记录作为构建阶段历史保留。

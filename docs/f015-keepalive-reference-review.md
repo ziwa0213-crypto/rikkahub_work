@@ -1,5 +1,20 @@
 # F015 包 0：后台保活参考复核
 
+## 2026-11-13：心跳提示词读取闭环（205）
+
+本增量改动前直接阅读固定Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的
+`composeApp/src/commonMain/kotlin/com/inspiredandroid/kai/tools/HeartbeatTools.kt` 全文及
+`data/HeartbeatPromptBuilder.kt` 的基础提示/任务事件装配部分（1–145行），并阅读固定PalmClaw
+`75a42aeda0e580ebad0de4a38c00c94146148366` 的
+`app/src/main/java/com/palmclaw/tools/HeartbeatSettingsTools.kt` 内HeartbeatGetTool、HeartbeatSetTool
+（所读文件1–255行，未将后续HeartbeatTriggerTool标为完整复核）。
+
+借鉴Kai区分自定义/默认基础指令与临时事件、操作前读取真实设置的职责边界，以及PalmClaw Get工具
+通过实时存储回调返回完整文档的方式。本项目按修正单把read加入现有多动作工具，直接使用SettingsStore，
+不拆Get/Set工具、不采用Kai修改人格/遗忘记忆的行为，也不引入参考存储、回调系统或调度逻辑。
+read绕过本项目写回执但仍检查主开关，既有edit/rewrite和审批不变；写前读是描述要求，不记录已读标志。
+参考仓库继续保留在产品仓库外，不fetch、不复制源码、不打入交付ZIP。没有真实模型或设备操作，C1/C4仍待实机验收。
+
 ## 2026-11-13：脉搏提示词编辑体验（204）
 
 本增量修改前直接阅读本机Kai固定commit `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的
