@@ -48,4 +48,63 @@ class PulseTaskRepositoryTest {
         assertTrue(runCatching { repo.create("x", "prompt", "cron", null, "invalid") }.isFailure)
         assertTrue(store.settingsFlow.value.pulse.tasks.isEmpty())
     }
+
+    @Test fun `partial update keeps execution history and rescheduling resets slot`() = test { repo, store ->
+        val task = repo.create("daily", "original", "cron", null, "0 9 * * *")
+        store.update { it.copy(pulse = it.pulse.copy(tasks = listOf(task.copy(
+            lastRunAt = 123, lastResult = "REPORTED", lastSlot = Long.MAX_VALUE)))) }
+        val paused = repo.update(task.id, enabled = false)
+        assertFalse(paused.enabled)
+        assertEquals(Long.MAX_VALUE, paused.lastSlot)
+        assertEquals(task.nextAt, paused.nextAt)
+        val updated = repo.update(task.id, title = "new title", cron = "0 8 * * *", enabled = true)
+        assertEquals(0L, updated.lastSlot)
+        assertEquals("0 8 * * *", updated.cron)
+        assertTrue(updated.nextAt > System.currentTimeMillis())
+        assertEquals(123L, updated.lastRunAt)
+        assertEquals("REPORTED", updated.lastResult)
+        assertEquals(task.createdAt, updated.createdAt)
+        assertEquals(task.timeZoneId, updated.timeZoneId)
+        assertEquals(task.prompt, updated.prompt)
+    }
+
+    @Test fun `list update and delete remain available at task limit and missing ids are explicit`() = test { repo, _ ->
+        repeat(50) { repo.create("t$it", "prompt", "heartbeat", null, null) }
+        assertEquals(50, repo.list().size)
+        assertTrue(runCatching { repo.create("overflow", "prompt", "heartbeat", null, null) }.isFailure)
+        val id = repo.list().first().id
+        repo.update(id, prompt = "changed")
+        assertEquals("changed", repo.list().first().prompt)
+        assertTrue(repo.delete(id))
+        assertFalse(repo.delete(id))
+        val error = runCatching { repo.update(id, enabled = true) }.exceptionOrNull()
+        assertTrue(error?.message.orEmpty().contains("action=list"))
+        assertEquals(49, repo.list().size)
+    }
+
+    @Test fun `concurrent partial updates preserve each others fields`() = test { repo, _ ->
+        val task = repo.create("title", "prompt", "heartbeat", null, null)
+        coroutineScope {
+            listOf(async { repo.update(task.id, title = "renamed") }, async { repo.update(task.id, prompt = "new prompt") }).awaitAll()
+        }
+        val latest = repo.list().single()
+        assertEquals("renamed", latest.title)
+        assertEquals("new prompt", latest.prompt)
+    }
+
+    @Test fun `tool preserves old create arguments and lists only bounded prompt preview`() = test { repo, _ ->
+        val tool = me.rerere.rikkahub.data.ai.tools.pulse.pulseTaskTool(repo)
+        tool.execute(kotlinx.serialization.json.buildJsonObject {
+            put("title", kotlinx.serialization.json.JsonPrimitive("old call"))
+            put("prompt", kotlinx.serialization.json.JsonPrimitive("x".repeat(300)))
+            put("when", kotlinx.serialization.json.JsonPrimitive("heartbeat"))
+        })
+        val result = tool.execute(kotlinx.serialization.json.buildJsonObject { put("action", kotlinx.serialization.json.JsonPrimitive("list")) })
+            .filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>().single().text
+        val item = me.rerere.rikkahub.utils.JsonInstant.parseToJsonElement(result) as kotlinx.serialization.json.JsonArray
+        val json = item.single() as kotlinx.serialization.json.JsonObject
+        assertEquals(200, (json["prompt"] as kotlinx.serialization.json.JsonPrimitive).content.length)
+        assertTrue(json.containsKey("next_at_local"))
+        assertEquals(300, repo.list().single().prompt.length)
+    }
 }

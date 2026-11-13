@@ -12,6 +12,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PulseToolPolicyTest {
+    @Test fun `H9 missing action defaults only for heartbeat prompt and rewrite follows both switches`() = runBlocking {
+        var edits = 0
+        val all = listOf(tool("update_heartbeat_prompt") { edits++ }, tool("clipboard_tool") { edits++ }, tool("memory_tool") { edits++ })
+        val offered = applyPulseToolPolicy(all, PulseConfig())
+        offered.first().execute(buildJsonObject {})
+        assertEquals(1, edits)
+        assertTrue(runCatching { offered[1].execute(buildJsonObject {}) }.isFailure)
+        assertTrue(runCatching { offered[2].execute(buildJsonObject {}) }.isFailure)
+        assertTrue(runCatching { offered.first().execute(buildJsonObject { put("action", "rewrite") }) }.isFailure)
+        assertEquals(1, edits)
+        assertTrue(applyPulseToolPolicy(all.take(1), PulseConfig(enableSelfPromptEdit = false, enableSelfPromptRewrite = true)).isEmpty())
+        applyPulseToolPolicy(all.take(1), PulseConfig(enableSelfPromptRewrite = true)).single()
+            .execute(buildJsonObject { put("action", "rewrite") })
+        assertEquals(2, edits)
+    }
+
+    @Test fun `task listing bypasses write receipt while mutations remain guarded`() = runBlocking {
+        val guarded = mutableListOf<String>()
+        val tool = applyPulseToolPolicy(listOf(tool("schedule_task")), PulseConfig(enableScheduledTasks = true)).single()
+        withContext(PulseToolContext { name, _, block -> guarded += name; block() }) {
+            tool.execute(buildJsonObject { put("action", "list") })
+            assertTrue(guarded.isEmpty())
+            tool.execute(buildJsonObject { put("action", "delete"); put("id", "x") })
+            tool.execute(buildJsonObject {})
+        }
+        assertEquals(listOf("schedule_task", "schedule_task"), guarded)
+    }
     @Test fun `alarm is opt in independent of information and uses scheduled receipt guard`() = runBlocking {
         val alarm = tool("set_alarm")
         assertTrue(applyPulseToolPolicy(listOf(alarm), PulseConfig(enableInformation = false)).isEmpty())

@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID
+import me.rerere.rikkahub.PULSE_RUN_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.conversationIntent
 import org.koin.android.ext.android.inject
@@ -37,14 +38,24 @@ class ChatGenerationForegroundService : Service() {
         private const val EXTRA_GENERATION_ID = "generation_id"
         private const val EXTRA_CONVERSATION_ID = "conversation_id"
         private const val WAKE_LOCK_TAG = "rikkahub:generation"
+        private const val EXTRA_ACTIVITY = "activity"
+        private const val EXTRA_IS_PULSE = "is_pulse"
 
         const val NOTIFICATION_ID = 2002
 
-        fun acquire(context: Context, generationId: Uuid, conversationId: Uuid): Boolean {
+        fun acquire(
+            context: Context,
+            generationId: Uuid,
+            conversationId: Uuid,
+            activity: SessionActivity = SessionActivity.Generating,
+            isPulse: Boolean = false,
+        ): Boolean {
             val intent = Intent(context, ChatGenerationForegroundService::class.java).apply {
                 action = ACTION_ACQUIRE
                 putExtra(EXTRA_GENERATION_ID, generationId.toString())
                 putExtra(EXTRA_CONVERSATION_ID, conversationId.toString())
+                putExtra(EXTRA_ACTIVITY, activity.name)
+                putExtra(EXTRA_IS_PULSE, isPulse)
             }
             return runCatching {
                 ContextCompat.startForegroundService(context, intent)
@@ -67,7 +78,9 @@ class ChatGenerationForegroundService : Service() {
         }
     }
 
-    private val activeGenerations = linkedMapOf<String, String>()
+    private data class ActiveGeneration(val conversationId: String, val activity: SessionActivity, val isPulse: Boolean)
+
+    private val activeGenerations = linkedMapOf<String, ActiveGeneration>()
     private var isForeground = false
     private var isStopping = false
     private var wakeLock: PowerManager.WakeLock? = null
@@ -110,7 +123,7 @@ class ChatGenerationForegroundService : Service() {
         releaseWakeLock()
         Log.e(TAG, "Foreground service timed out (type=$fgsType)")
         activeGenerations.values
-            .mapNotNull { runCatching { Uuid.parse(it) }.getOrNull() }
+            .mapNotNull { runCatching { Uuid.parse(it.conversationId) }.getOrNull() }
             .distinct()
             .forEach { conversationId ->
                 appScope.launch {
@@ -124,8 +137,11 @@ class ChatGenerationForegroundService : Service() {
     private fun acquire(intent: Intent, startId: Int) {
         val generationId = intent.getStringExtra(EXTRA_GENERATION_ID) ?: return stopSelf(startId)
         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID) ?: return stopSelf(startId)
-        activeGenerations[generationId] = conversationId
-        updateForegroundNotification(conversationId)
+        val activity = SessionActivity.entries.find { it.name == intent.getStringExtra(EXTRA_ACTIVITY) }
+            ?: SessionActivity.Generating
+        val generation = ActiveGeneration(conversationId, activity, intent.getBooleanExtra(EXTRA_IS_PULSE, false))
+        activeGenerations[generationId] = generation
+        updateForegroundNotification(notificationGeneration())
         wakeLockRenewal.start()
     }
 
@@ -139,7 +155,7 @@ class ChatGenerationForegroundService : Service() {
             // with ForegroundServiceDidNotStartInTimeException. onDestroy() removes the notification.
             stopSelf(startId)
         } else {
-            updateForegroundNotification(activeGenerations.values.last())
+            updateForegroundNotification(notificationGeneration())
             wakeLockRenewal.start()
         }
     }
@@ -175,10 +191,10 @@ class ChatGenerationForegroundService : Service() {
             .onFailure { Log.w(TAG, "Unable to release generation wake lock", it) }
     }
 
-    private fun updateForegroundNotification(conversationId: String) {
+    private fun updateForegroundNotification(generation: ActiveGeneration) {
         if (isStopping) return
         try {
-            val notification = buildNotification(conversationId)
+            val notification = buildNotification(generation)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 ServiceCompat.startForeground(
                     this,
@@ -208,15 +224,26 @@ class ChatGenerationForegroundService : Service() {
         stopSelf()
     }
 
-    private fun buildNotification(conversationId: String) =
-        NotificationCompat.Builder(this, CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID)
+    private fun notificationGeneration(): ActiveGeneration = activeGenerations.values.lastOrNull { !it.isPulse }
+        ?: activeGenerations.values.last()
+
+    private fun buildNotification(generation: ActiveGeneration) =
+        NotificationCompat.Builder(this, if (generation.isPulse) PULSE_RUN_NOTIFICATION_CHANNEL_ID else CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rikkahub)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.notification_live_update_title))
-            .setContentIntent(getConversationPendingIntent(conversationId))
+            .setContentText(
+                getString(
+                    if (generation.isPulse) R.string.notification_pulse_running else when (generation.activity) {
+                        SessionActivity.Generating -> R.string.notification_live_update_title
+                        SessionActivity.Compressing -> R.string.chat_page_compressing
+                    }
+                )
+            )
+            .setContentIntent(getConversationPendingIntent(generation.conversationId))
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(generation.isPulse)
             .build()
 
     private fun getConversationPendingIntent(conversationId: String): PendingIntent {

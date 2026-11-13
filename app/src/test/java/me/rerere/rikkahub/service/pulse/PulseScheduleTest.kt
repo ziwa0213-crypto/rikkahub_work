@@ -49,6 +49,26 @@ class PulseScheduleTest {
     @Test fun `unanswered user message blocks automatic heartbeat`() {
         assertTrue(isAwaitingPulseReply(listOf(UIMessage.user("pending"))))
         assertFalse(isAwaitingPulseReply(listOf(UIMessage.assistant("reply"))))
+        val checkpoint = UIMessage.user("summary").copy(isContextCheckpoint = true)
+        assertFalse(isAwaitingPulseReply(listOf(UIMessage.user("hi"), UIMessage.assistant("hello"), checkpoint)))
+        assertTrue(isAwaitingPulseReply(listOf(UIMessage.assistant("hello"), checkpoint, UIMessage.user("real question"))))
+        assertFalse(isAwaitingPulseReply(listOf(checkpoint)))
+        assertFalse(isAwaitingPulseReply(listOf(checkpoint, UIMessage.assistant("done"))))
+        assertTrue(isAwaitingPulseReply(listOf(UIMessage.user("pending"), checkpoint)))
+    }
+
+    @Test fun `minute windows and next opening share exact boundaries`() {
+        val config = PulseConfig(activeStartMinute = 8 * 60 + 30, activeEndMinute = 9 * 60 + 15)
+        assertFalse(pulseWithinHours(at("08:29"), config, utc))
+        assertTrue(pulseWithinHours(at("08:30"), config, utc))
+        assertTrue(pulseWithinHours(at("09:14"), config, utc))
+        assertFalse(pulseWithinHours(at("09:15"), config, utc))
+        assertEquals(at("08:30"), pulseNextActiveAt(at("06:00"), config, utc))
+        val night = config.copy(activeStartMinute = 22 * 60 + 15, activeEndMinute = 6 * 60 + 45)
+        assertTrue(pulseWithinHours(at("06:44"), night, utc))
+        assertFalse(pulseWithinHours(at("06:45"), night, utc))
+        assertTrue(pulseWithinHours(at("22:15"), night, utc))
+        assertTrue(pulseWithinHours(at("12:00"), config.copy(activeEndMinute = config.activeStartMinute), utc))
     }
 
     @Test fun `due dispatch backs off while a user generation is active`() {

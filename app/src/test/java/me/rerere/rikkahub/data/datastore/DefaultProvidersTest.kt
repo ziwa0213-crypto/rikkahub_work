@@ -26,7 +26,7 @@ class DefaultProvidersTest {
 
         val provider = vercelProviders.single()
         assertEquals("https://ai-gateway.vercel.sh/v1", provider.baseUrl)
-        assertFalse(provider.enabled)
+        assertTrue(provider.enabled)
         assertTrue(provider.builtIn)
         assertTrue(provider.quotaQuery.enabled)
         assertEquals("{{baseUrl}}/credits", provider.quotaQuery.url)

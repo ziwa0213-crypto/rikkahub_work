@@ -56,6 +56,10 @@ data class PulseConfig(
     val heartbeatPrompt: String = DEFAULT_HEARTBEAT_PROMPT,
     val activeHoursStart: Int = 8,
     val activeHoursEnd: Int = 23,
+    val activeStartMinute: Int = -1,
+    val activeEndMinute: Int = -1,
+    val enableSelfPromptEdit: Boolean = true,
+    val enableSelfPromptRewrite: Boolean = false,
     val heartbeatSilentWhenNoContent: Boolean = true,
     val enableScheduledTasks: Boolean = false,
     val keepAliveEnabled: Boolean = false,
@@ -125,9 +129,30 @@ data class PulseRunLog(
 )
 
 /** Shared half-open active-hours semantics used by scheduling and the daemon notification. */
+val PulseConfig.effectiveStartMinute: Int
+    get() = if (activeStartMinute < 0) activeHoursStart.coerceIn(0, 23) * 60 else activeStartMinute.coerceIn(0, 1439)
+val PulseConfig.effectiveEndMinute: Int
+    get() = if (activeEndMinute < 0) activeHoursEnd.coerceIn(0, 23) * 60 else activeEndMinute.coerceIn(0, 1439)
+
+fun formatPulseMinute(minute: Int): String = "%02d:%02d".format(java.util.Locale.ROOT, minute / 60, minute % 60)
+
+/** Accept hours, H:m, HH:mm and compact HHmm without rewriting unfinished input. */
+fun parsePulseMinute(input: String): Int? {
+    val text = input.trim()
+    val parts = if (text.contains(":")) text.split(":") else when (text.length) {
+        1, 2 -> listOf(text, "0")
+        3, 4 -> listOf(text.dropLast(2), text.takeLast(2))
+        else -> return null
+    }
+    if (parts.size != 2 || parts.any { it.isEmpty() || it.length > 2 || !it.all(Char::isDigit) }) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    return (hour * 60 + minute).takeIf { hour in 0..23 && minute in 0..59 }
+}
+
 fun PulseConfig.isInActiveHours(now: LocalTime): Boolean {
-    val start = LocalTime.of(activeHoursStart.coerceIn(0, 23), 0)
-    val end = LocalTime.of(activeHoursEnd.coerceIn(0, 23), 0)
+    val start = LocalTime.of(effectiveStartMinute / 60, effectiveStartMinute % 60)
+    val end = LocalTime.of(effectiveEndMinute / 60, effectiveEndMinute % 60)
     return when {
         start == end -> true
         start < end -> !now.isBefore(start) && now.isBefore(end)

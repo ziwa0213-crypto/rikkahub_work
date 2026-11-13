@@ -1,5 +1,35 @@
 # F015 包 0：后台保活参考复核
 
+## 2026-11-13：脉搏提示词编辑体验（204）
+
+本增量修改前直接阅读本机Kai固定commit `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的
+`composeApp/src/commonMain/kotlin/com/inspiredandroid/kai/ui/settings/AgentSettings.kt` 中SoulEditor，
+以及PalmClaw固定commit `75a42aeda0e580ebad0de4a38c00c94146148366` 的
+`app/src/main/java/com/palmclaw/ui/chat/ChatDialogs.kt` 中HeartbeatEditorSheet。
+Kai使用本地editedText、改动判定和显式onSaveSoul；PalmClaw将编辑值与保存状态从外部传入界面。
+
+本项目按新修正单使用remember(stored)草稿及确认保存，两个提示词共用组件；不照搬Kai的空值回填、
+trim、4000字符编辑限制或重置立即保存，也不将PalmClaw的编辑回调等同于本项目确认保存。
+两份默认提示词、配置结构、AI工具和运行时空值兜底保持原样；不复制参考源码、不新增存储层或复杂合并。
+参考目录继续保留且不打入产品源码包。未操作设备、真实模型或剪贴板，未做真机粘贴验证。
+
+## 2026-11-13：上游3.2.0与脉搏八项修复
+
+实施前直接复核本机Kai固定commit `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的
+`composeApp/src/commonMain/kotlin/com/inspiredandroid/kai/data/TaskScheduler.kt` 心跳临时历史/通知段
+及`HeartbeatPromptBuilder.kt`，以及PalmClaw固定commit `75a42aeda0e580ebad0de4a38c00c94146148366` 的
+`app/src/main/java/com/palmclaw/heartbeat/HeartbeatService.kt` 与`tools/CronTools.kt` 的任务创建、列表、
+修改、删除和部分更新逻辑。参考目录`/home/li/CDX/rikkahub-references/F015/`继续保留，没有打入源码包。
+
+采用Kai临时历史与接受后保存、自动心跳不扰动聊天展示的职责边界，以及PalmClaw任务CRUD读取最新存储后
+只改请求字段的方式；本项目保留SettingsStore、PulseTask序列化、PulseClaims/PulseEffects和既有调度器。
+运行完成回调额外保护用户删除/改期，不按旧快照重建任务。没有复制参考源码、引入参考执行超时或按消息总数截断历史。
+
+自动压缩直接使用上游3.2.0的token比例机制。群组按成员模型与grp记忆桶请求；自动脉搏只在回复被接受且保存成功后
+调用同一上游入口，避免静默临时回复触发旧历史压缩。没有实现第二套脉搏阈值/压缩器。
+前台服务只增脉搏渠道选择，WakeLock获取/续租/释放保留；独立MIN渠道不能保证所有ROM完全隐藏系统服务提示，
+设备上的悬浮窗、通知、自启动和真实模型行为仍需维护者验证。JVM/静态检查不等于设备验收。
+
 ## 2026-11-10：主界面用量与等待约束
 
 实施前直接复核Kai固定commit `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的

@@ -21,6 +21,7 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
             MemoryToolNames.STR_REPLACE, MemoryToolNames.APPEND -> pulse.enableMemory
             "calendar_create" -> pulse.enableCalendarCreate
             "schedule_task" -> pulse.enableScheduledTasks
+            "update_heartbeat_prompt" -> pulse.enableSelfPromptEdit
             "read_notifications" -> pulse.enableNotificationReading
             "read_sms" -> pulse.enableSmsReading
             "send_sms" -> pulse.enableSmsSending
@@ -30,19 +31,22 @@ internal fun applyPulseToolPolicy(tools: List<Tool>, pulse: PulseConfig): List<T
         val actions = when (tool.name) {
             "clipboard_tool" -> setOf("read")
             "memory_tool" -> setOf("create", "edit")
+            "update_heartbeat_prompt" -> setOf("edit") + if (pulse.enableSelfPromptRewrite) setOf("rewrite") else emptySet()
             else -> null
         }
         val execute = tool.execute
         val writes = tool.name in (MemoryToolNames.WRITES + setOf(
-            "memory_tool", "calendar_create", "schedule_task", "workspace_write_file", "workspace_edit_file", "workspace_shell", "send_sms", "set_alarm",
+            "memory_tool", "calendar_create", "schedule_task", "update_heartbeat_prompt", "workspace_write_file", "workspace_edit_file", "workspace_shell", "send_sms", "set_alarm",
         ))
         tool.copy(
                 description = tool.description + if (actions == null) "" else "\nOnly these actions are available: ${actions.joinToString()}.",
                 execute = { args ->
                     val action = ((args as? JsonObject)?.get("action") as? JsonPrimitive)?.content
+                        ?: if (tool.name == "update_heartbeat_prompt") "edit" else null
                     require(actions == null || action in actions) { "Action is unavailable in Pulse mode." }
                     val guard = currentCoroutineContext()[PulseToolContext]
-                    if (writes && guard != null) guard.execute(tool.name, args) { execute(args) } else execute(args)
+                    val readOnly = tool.name == "schedule_task" && action == "list"
+                    if (writes && !readOnly && guard != null) guard.execute(tool.name, args) { execute(args) } else execute(args)
                 },
             )
     }

@@ -64,6 +64,15 @@ class ConversationConfigTest {
     }
 
     @Test
+    fun `group compression resolves actual reply model and pulse resolves its own model`() {
+        val group = Conversation(assistantId = GROUP_CHAT_ASSISTANT_ID, messageNodes = listOf(
+            me.rerere.ai.ui.UIMessage.assistant("reply").copy(modelId = modelB.id).toMessageNode()))
+        assertEquals(modelB, settings().getChatModelOf(group))
+        val pulse = Conversation(assistantId = PULSE_ASSISTANT_ID, messageNodes = emptyList())
+        assertEquals(modelA, settings().copy(pulse = me.rerere.rikkahub.data.datastore.PulseConfig(chatModelId = modelA.id)).getChatModelOf(pulse))
+    }
+
+    @Test
     fun `binding snapshots the assistant configuration`() {
         val bound = conversation().bindConfig(settings())
 

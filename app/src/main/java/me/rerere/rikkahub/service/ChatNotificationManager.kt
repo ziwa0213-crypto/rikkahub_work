@@ -23,6 +23,7 @@ import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.event.GenerationOutcome
 import me.rerere.rikkahub.data.model.GenerationPhase
 import me.rerere.rikkahub.data.model.generationPhase
+import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.utils.cancelNotification
 import me.rerere.rikkahub.utils.sendNotification
 import java.util.concurrent.ConcurrentHashMap
@@ -41,9 +42,12 @@ class ChatNotificationManager(
     appScope: AppScope,
     eventBus: AppEventBus,
     private val settingsStore: SettingsStore,
+    private val lazyChatService: Lazy<ChatService>,
 ) {
     private val isForeground = MutableStateFlow(false)
     private val liveUpdateLastSentAt = ConcurrentHashMap<Uuid, Long>()
+    private fun isPulse(conversationId: Uuid): Boolean =
+        lazyChatService.value.getConversationFlow(conversationId).value.isPulseChat()
 
     init {
         // ProcessLifecycleOwner 要求在主线程注册观察者
@@ -70,6 +74,7 @@ class ChatNotificationManager(
     }
 
     private fun handleGenerationUpdate(event: AppEvent.ChatGenerationUpdate) {
+        if (isPulse(event.conversationId)) return
         if (isForeground.value) return
         val displaySetting = settingsStore.settingsFlow.value.displaySetting
         if (!displaySetting.enableNotificationOnMessageGeneration) return
@@ -86,6 +91,7 @@ class ChatNotificationManager(
     }
 
     private fun handleGenerationEnded(event: AppEvent.ChatGenerationEnded) {
+        if (isPulse(event.conversationId)) return
         cancelLiveUpdateNotification(event.conversationId)
         when (event.outcome) {
             GenerationOutcome.CANCELLED -> Unit

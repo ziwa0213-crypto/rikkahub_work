@@ -1,3 +1,172 @@
+# 源码同步准备 — 3.2.0-work.1 / 204
+
+日期：2026-11-13，Asia/Shanghai。维护者要求“整理源码，给我命令，我来推送”。
+本轮整理本地合并提交并提供推送命令，不自动推送、改远端标签或发布Release。
+下面“未提交”等描述是当时构建阶段的历史记录；当前同步状态以本节和本地git log为准。
+
+- 范围：完整上游3.2.0合并、脉搏八项、三处补充修订及204提示词编辑修复，全部保留；版本3.2.0-work.1/204，数据库33。
+- 产品代码与pulse-prompt-editor-release-20261113的204源码清单逐文件一致，仅AGENTS、FEATURES、DELIVERY三份文档补记同步状态。本轮未修改功能或重新构建；此前测试、签名APK校验及设备待验记录继续适用。
+- 在merge/upstream-3.2.0上完成本地合并提交，父提交为原fork 8faae5d67042527355aebcfd1c62a0ae1c7f937d和上游e033a47d395fe57d16db2144069c3abdb7117547。实际新提交SHA在交付目录SYNC-VERIFICATION.json记录，避免在提交自身内容中自引用。
+- 准备时已读取远端：master=8faae5d67042527355aebcfd1c62a0ae1c7f937d，3.2.0-work.1标签也指向该旧提交，版本实际为3.1.2-work.1/202。先普通推送master，再用针对该标签、校验明确旧值的force-with-lease对齐；不强推master。
+- origin为git@github.com:ziwa0213-crypto/rikkahub_work.git，使用已有SSH访问方式。推送仍由维护者执行，本轮未联网调用模型或操作设备。
+- 新源码ZIP与核验材料位于artifacts/3.2.0-work.1/source-push-preparation-20261113/。保留1815项源码、2个符号链接、根DELIVERY及文件权限，排除.git、APK、构建缓存、本机配置、签名私钥和参考仓库。旧APK和旧源码ZIP保持不变。
+- 不为源码同步重复构建APK；已验证的204三个Release仍在pulse-prompt-editor-release-20261113目录。最终SHA、源码文件及提交树一致性详见新目录审计记录。
+
+# 脉搏提示词编辑体验 — 3.2.0-work.1 / 204（本地 Release）
+
+日期：2026-11-13，Asia/Shanghai。依据《08-修正单·脉搏提示词编辑体验（20261113）》实施。
+交付目录：`artifacts/3.2.0-work.1/pulse-prompt-editor-release-20261113/`。
+增量基线为上一批203的`SOURCE-MANIFEST.json`及源码ZIP；本批仍包含此前合并的完整上游3.2.0与脉搏八项。
+当前分支`merge/upstream-3.2.0`，HEAD=`8faae5d6`，MERGE_HEAD=`e033a47d395fe57d16db2144069c3abdb7117547`。
+保留未提交合并，没有commit/tag/push/发布。以下203及更早章节均为历史交付，不能替代本批204的验证记录。
+
+## 本次改动
+
+- 人格、心跳提示词共用本地草稿编辑器，显示原始存储值；清空保持为空，可保存空文本。输入不再逐字符写DataStore，确认后才更新对应字段。
+- 恢复默认只更改草稿，也需确认；左侧恢复默认、右侧确认，无改动时确认禁用。退出页面未保存的修改放弃，字数显示草稿长度。
+- 保留运行时`heartbeatPrompt.ifBlank { DEFAULT_HEARTBEAT_PROMPT }`、PulseConfig字段和默认值、两份默认提示词及AI的update_heartbeat_prompt工具。接受外部stored变动时remember(stored)重置草稿，不新增合并逻辑。
+- 版本名保持3.2.0-work.1，versionCode203→204；数据库仍33，只新增一个确认按钮key的三语值。
+
+产品改动实际为4个文件（任务单写“3个”但列的是1+3）：
+
+1. `app/src/main/java/me/rerere/rikkahub/ui/pages/pulse/PulseSettingsPage.kt`
+2. `app/src/main/res/values/strings.xml`
+3. `app/src/main/res/values-zh/strings.xml`
+4. `app/src/main/res/values-zh-rTW/strings.xml`
+
+另改版本文件`app/build.gradle.kts`，并同步AGENTS、CHANGES、FEATURES、本文件与参考台账。
+增量文件清单与保护项哈希核对记录在`SOURCE-AUDIT.json`；所有非本批文件按203源码清单核验。
+
+## A1–A10逐条结果
+
+下表“已落实”仅指源码检查及编译证据，不代表已经在手机上操作。没有设备或真实模型调用。
+
+| 编号 | 已落实的源码行为及证据 | 设备/真实模型待验 |
+| --- | --- | --- |
+| A1 | 心跳调用传原始config.heartbeatPrompt，草稿由stored初始化，不加UI默认替换 | 进入心跳Tab核对当前内容 |
+| A2 | onValueChange只设置draft，空字符串无回填分支 | 全选删除后输入框持续为空 |
+| A3 | 文本框直接接收新draft，不拼接默认提示词 | 删空后用实际输入法粘贴，确认只有粘贴内容 |
+| A4 | 输入不调用update；仅确认的onSave更新设置，remember不持久化草稿 | 修改后不确认退出，再进仍为旧值 |
+| A5 | 确认将完整draft交给已有SettingsStore.update，只改对应字段 | 确认后退出/重进/重启核对持久化 |
+| A6 | enabled=dirty，dirty严格比较draft与stored | 未改动时按钮置灰，改动后可点 |
+| A7 | 恢复默认回调只有draft=defaultValue，没有设置写入 | 恢复后不确认退出仍是旧值，确认后才生效 |
+| A8 | 人格与心跳复用同一PulsePrompt，均传原始存储值与各自默认值 | 人格页重复A1–A7 |
+| A9 | PulseRuntime的默认心跳兜底与PulseConfig逐字匹配203基线，没有改变运行时路径 | 清空并确认后真实触发一次心跳，核对仍带默认指令 |
+| A10 | AI工具未改，页面仍收集最新settings；stored变化时重置草稿，重进读取最新值 | AI成功修改后重新进入设置核对内容 |
+
+**未做真机粘贴验证**；未操作剪贴板、输入法、设备/模拟器、真实账号或真实心跳。
+本轮没有新增单测，不以静态检查代替A1–A10的实际交互与模型验证。
+
+## 构建与归档
+
+- 验证命令：`./gradlew test :app:assembleGithubRelease --no-parallel --offline --console=plain`。
+- 本次构建成功，用时4分21秒，876项Gradle任务中86项执行、790项UP-TO-DATE；Release Kotlin、R8、资源优化、lintVital与打包完成。日志为本目录`build-combined.log`，没有复用203的构建结论。
+- 现有测试任务图254套件1717项：1716通过、0失败、0错误、1项既有PdfCorpusTest.extractCorpus缺语料跳过。本轮App GitHub的927项实际执行，Play变体也执行成功但重复报告不重复计数；其他模块UP-TO-DATE报告复用，未宣称全部重新执行。明细见`TEST-RESULTS.json`。
+- 源码静态审计44项通过：相对203只有前述10文件变化，其余1805个源码文件保持一致；三语各2557个唯一且相同key，运行时、配置、两份默认提示词、AI工具与数据库逐字保持基线。审计不代替设备交互测试。
+- 交付三个签名GitHub Release APK：ARM64、x86_64、Universal。包名me.rerere.rikkahub.plus、应用名RikkaHub Work，沿用既有正式签名，不交Debug APK。
+- 精简源码ZIP根含本文件，排除.git、APK、build/缓存、本机配置、私钥及参考仓库；保存文件清单、符号链接、权限和CRC校验。APK与ZIP的体积、版本、签名、ABI及SHA256写入本目录验证JSON和SHA256SUMS。
+- Kai SoulEditor与PalmClaw HeartbeatEditorSheet在改前已阅读，具体采用与未采用范围记`docs/f015-keepalive-reference-review.md`；本机参考仓库继续保留。
+
+| 交付APK | 字节数 | MiB |
+| --- | ---: | ---: |
+| RikkaHub.Work-3.2.0-work.1-arm64-v8a-release.apk | 16463641 | 15.70 |
+| RikkaHub.Work-3.2.0-work.1-x86_64-release.apk | 16562566 | 15.80 |
+| RikkaHub.Work-3.2.0-work.1-universal-release.apk | 19294749 | 18.40 |
+
+三个APK均核验204/3.2.0-work.1、原包名/应用名、非debuggable、签名v2、各自ABI、三语、原图标像素、WASM和ZIP CRC。
+证书SHA256为`671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`。
+归档包含1815项源码（含2个符号链接及根DELIVERY），最终ZIP SHA见包外`SHA256SUMS`，避免归档自引用。
+
+# 合并上游3.2.0与脉搏八项修复 — 3.2.0-work.1 / 203（本地 Release）
+
+日期：2026-11-13，Asia/Shanghai。依据维护者提供的20261112任务包和20261113三处修订；后者优先。
+交付目录：`artifacts/3.2.0-work.1/upstream-pulse-release-20261113/`。
+基线：`8faae5d6`；上游3.2.0：`e033a47d395fe57d16db2144069c3abdb7117547`。
+分支：`merge/upstream-3.2.0`。冲突已消解并登记，保留未提交合并状态；本批没有commit/tag/push/发布。
+下面旧批次章节作为历史记录保留，其中旧版本、旧HEAD和旧交付要求不代表本批。
+
+## 交付内容
+
+- `RikkaHub.Work-3.2.0-work.1-arm64-v8a-release.apk`
+- `RikkaHub.Work-3.2.0-work.1-x86_64-release.apk`
+- `RikkaHub.Work-3.2.0-work.1-universal-release.apk`
+- `RikkaHub.Work-3.2.0-work.1-source.zip`：工作区实际源码，含本文件，不含.git、APK、构建缓存、签名私钥、本机配置或参考仓库。
+- `APK-VERIFICATION.json`、`TEST-RESULTS.json`、`SOURCE-AUDIT.json`、`SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json`、`SHA256SUMS`。
+- `CHANGED-FILES.txt`记录本批相对基线各文件增删行数；`SOURCE-CHANGES.patch`供审核，完整源码ZIP为主要交付。
+- `build-stage1.log`、`build-combined.log`和浏览器离线脚本验收记录；完整用户可读更新说明在根`CHANGES.md`首节。
+
+三个APK沿用原正式证书，包名`me.rerere.rikkahub.plus`、应用名RikkaHub Work，非debuggable。
+证书SHA256：`671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`。
+Release优化已开启，实际任务包含R8和资源优化。Universal仅包含本项目支持的ARM64/x86_64，不含ARM32。
+体积与文件SHA以本目录验证JSON和SHA256SUMS为准，不手填尚未产生的归档hash。
+
+## 顺序与验证结果
+
+1. 在新分支合并上游3.2.0，解决15个内容冲突与5个不支持语言的删除冲突；保留上游其它自动合并结果。
+2. 第一阶段先运行`:app:compileGithubReleaseKotlin test --no-parallel --offline`，编译及完整测试成功后才开始脉搏八项修复；没有构建中间测试APK。
+3. 第二阶段编译/专项回归通过后，运行`./gradlew test :app:assembleGithubRelease --no-parallel --offline --console=plain`，全量测试、lintVital、Release打包成功。
+4. 最后静态复核清理两处整点兼容入口对旧字段的引用，保持对外小时参数语义但立即转换分钟；重新构建期间发现既有浏览器测试的并发夹具写入问题，已修复为临时文件加原子替换，并再次完整验证成功。
+5. 最终任务图254套件、1717项，1716通过、0失败、0错误，1项既有`PdfCorpusTest.extractCorpus`缺语料跳过。GitHub App测试927项本轮执行，Play测试也执行成功但不重复计数；其他模块UP-TO-DATE报告复用，未宣称全部重新执行。
+6. 三个APK逐一校验签名、版本、包名、Release标志、ABI、语言、原图标像素、WASM内容和ZIP CRC；源码ZIP逐文件校验内容、权限、符号链接、UTF-8文件名、清单与CRC。
+
+本轮没有连接设备/模拟器、没有登录真实模型账号、没有触发真实心跳/立即运行、短信或日历。
+未跑真机心跳间隔验证，也没有用手动立即运行冒充长时间验证。APK/UI/通知行为待维护者安装验收。
+
+## 上游合并接缝与验收
+
+| 项目 | 已落实及自动证据 | 尚需实机/真实模型验证 |
+| --- | --- | --- |
+| 上游构建/测试A1–A4 | Release编译、完整test与最终三个APK成功；203/3.2.0-work.1，源码仅三语 | 安装/启动 |
+| F007与新推理格式 | 保留DeepSeek强制reasoning_content与上游OpenRouter/Mistral回传；Claude/Mistral及视频回归通过 | 真实供应商多轮请求 |
+| F009/F004/F012/F013 | 输出防护、工具能力过滤、原审批、群组/浏览器接线保留；相关JVM测试通过 | 真实对话/群组/浏览器/审批 |
+| 自动压缩C1–C3 | 上游阈值默认关闭、80%、5%步进；保留中途压缩和先压缩再inbox。群组按实际模型/成员/记忆桶，脉搏接受并保存后复用同一入口 | 三模式阈值触发、真实usage、检查点与排队行为 |
+| 上下文token来源 | AgentLoop保留最后一次usage；普通/群组共用collector，临时脉搏保留Finished消息后按ID保存；getChatModelOf模式解析回归通过 | 供应商实际是否返回usage；无usage时不会猜测token |
+| Phone Use C4–C5 | 聊天助手页保留权限引导；群组/脉搏隐藏且Factory双供应商类型过滤；PhoneUsePolicyTest/上游工具回归通过 | 无障碍授权、操作手机及不同ROM表现 |
+| 模型刷新/快捷消息/地图C6–C8 | 上游源码完整合并，Release编译通过；快捷消息短按追加换行、长按替换 | 实际点击、长对话滑动 |
+| 老数据D1–D2 | DB33无迁移，Settings原68字段与PulseConfig原52字段名称/类型保留，PulseTask逐字未改 | 使用原数据覆盖安装 |
+
+自动脉搏的回复最初只在临时历史中；因此它的完成回调不压缩尚未保存的旧历史，而是在persistPulseTurn成功保存后
+调用同一个launchAutoCompressIfNeeded。静默未保存结果不触发压缩，不新建独立脉搏压缩器或消息条数阈值。
+群组现有专属历史装配/成员提示保留，上游压缩请求追加当前组员和grp记忆作用域，避免误用当前普通助手配置。
+
+## 脉搏八项逐条验收
+
+| 修正 | 落点和自动证据 | 设备待验步骤 |
+| --- | --- | --- |
+| 1 检查点导致永久暂缓 | PulseSchedule取最后一个非checkpoint消息；PulseScheduleTest覆盖仅检查点、回复后检查点、真实user尾部/审批；暂缓文案区分待回复/待审批 | 保留0/8条分别压缩，之后心跳及短信轮次仍可执行；手动聊天回归 |
+| 2 schedule_task CRUD | PulseTaskRepository最新SettingsStore.update部分更新，工具默认create且追加list/update/delete，list提示词最多200字符；时间改动清lastSlot，限额只约束create。测试覆盖CRUD、历史/时区保留、并发字段保留和旧用法 | AI列出ID、改时间/内容、暂停/恢复/删除；运行中删除/改期后不复活/覆盖 |
+| 3 分钟时段输入 | 保留旧小时字段，新增默认-1分钟字段；有效分钟访问器用于运行时/状态/下次心跳。测试覆盖旧JSON、输入解析、分钟边界、全天及跨午夜 | 输入08:30/22:45、简写8/830；非法25:00不覆盖原值，失焦/Done保存，重进/重启保持 |
+| 4 任务只读详情 | 单条AlertDialog、选择复制完整prompt、滚动Column；包含状态/类型/执行时间/最近结果，旧数据空prompt显示“—”，不含输入框/保存，原开关整行切换保留 | 长提示词滚动、复制、关闭；查看不同任务不串内容 |
+| 5 网页版不能自动执行 | PulseProviderPolicy检查模型归属和覆盖类型；选择器过滤、归一化只清脉搏显式选择。runDue和请求前兜底；webBlockedUntil按普通心跳间隔记录SKIPPED，不发请求/短重试/消费任务。测试覆盖API名称不误伤、全局选择/供应商不变 | 全局设网页版且脉搏继承，见警示和SKIPPED；切回API后正常；无联网请求/日志风暴 |
+| 6 脉搏不显示悬浮窗 | getConversationJobsForFloating专用流同时观察任务和会话类型；原getConversationJobs保持全量。测试覆盖混合任务/运行中类型变化 | 脉搏后台无悬浮窗，聊天/群组正常；混合运行只显示正常会话 |
+| 7 调整/重写心跳提示词 | PulsePromptTool仅写heartbeatPrompt，空或>4000拒绝；最新开关二次校验，只豁免本工具二次审批，回执守卫保留。PulsePromptToolTest/Policy/Config覆盖动作默认和开关存储 | 开关切换、执行修改后下次心跳采用；人格与默认恢复保留 |
+| 8 静默运行通知 | 新pulse_run独立MIN渠道且静默；WakeLock续租不变。普通任务优先，ChatNotificationManager更新/结束两入口脉搏提前return；报告通知保持 | 不出现重复生成进度/完成/失败通知；原聊天/群组通知与脉搏报告正常；检查ROM最低通知展示 |
+
+### 20261113三处修订
+
+- 不恢复生成看门狗、空闲超时、时长上限或休眠取消。静态扫描未新增相关生成计时逻辑；原WakeLock租约更新实现逐字保留。Android系统自身的服务超时回调属于既有系统生命周期处理，不是本轮加入的生成时限。
+- H10：关闭“调整”保留“重写”的存储值、隐藏其UI、运行时禁用动作；重新打开恢复原值。PulseConfigTest覆盖序列化/归一化，PulsePromptToolTest覆盖执行时读最新开关。
+- H9：仅update_heartbeat_prompt省略action默认edit；clipboard_tool/memory_tool仍需显式action，PulseToolPolicyTest覆盖正反例，未扩大默认行为。
+
+## 自查、边界与参考
+
+- SOURCE-AUDIT记录47项源码契约检查：三语各2556个唯一且相同key、数据库/版本、既有字段兼容、检查点USER角色、无冲突标记、F003更新地址、api.rikka-ai.com、F007、审批与通知/过滤接线。grep字符串只能证明接线存在，不能替代运行验证。
+- 按任务书grep口径：pulse_turn_skipped_approval三语各1处；pulse_task_view/prompt_label/state_*三语各4行；有效分钟访问器引用14行；PulseConfig之外旧activeHoursStart/End引用0行；自改提示词开关声明2行。有效分钟访问器沿用本批实现名effectiveStartMinute/effectiveEndMinute，对应任务书activeStartTotalMinutes/activeEndTotalMinutes。网页版判断集中为PulseProviderPolicy的类型检查，UI/归一化/运行时调用该策略，不能仅凭某个文件没有类型名断定缺少过滤。
+- 源码原21份launcher身份资源与既有基线`643191229dcbeb4972e3772986818605633ace92`逐字一致；APK内PNG按像素匹配，关于页继续引用原图标。上游Phone Use等普通功能图标照常合并。
+- Settings新增上游enableAutoCompress/autoCompressThreshold，PulseConfig新增4个有默认值字段；未删除或改类型，PulseTask未增加字段。仅支持values/values-zh/values-zh-rTW，i18n目标同步裁剪。
+- BrowserContractTest原子发布离线夹具，修复GitHub/Play并行写同名文件的测试竞态；tools/verify-browser-js.mjs的8项DOM夹具验证通过。此为离线JavaScript语义校验，非真实WebView/站点测试。失败与最终成功构建日志均留在交付目录。
+- 修改前已直接复核本机Kai固定ed6a3e0c48e10de9e2852e939fa4531975352bff的TaskScheduler/HeartbeatPromptBuilder与PalmClaw固定75a42aeda0e580ebad0de4a38c00c94146148366的HeartbeatService/CronTools。采用临时历史、最新存储部分更新与调度/通知分工，未复制源码，未把参考仓库打入ZIP；具体采用边界见docs/f015-keepalive-reference-review.md。
+- 不宣称已验证实际账号/模型行为、覆盖安装、手机无障碍、ROM通知隐藏、后台6小时保活或真实心跳间隔；这些仍需维护者用三个Release包验收。
+
+## 审核与回退
+
+维护者尚未要求提交或推送。Git保留MERGE_HEAD并已登记解决冲突，可先审核暂存差异再自行提交合并。
+源码ZIP是可审核快照，不含Git历史和本机签名私钥；复现签名构建需维护者自己的local.properties/正式密钥。
+回退应以基线8faae5d6和本批差异逐块评估，不整文件覆盖共享ChatService/请求工厂，不为回退删除已持久化兼容字段。
+历史产物保留，交付目录与旧3.1.2批次分离。没有上传GitHub或修改现有Release。
+
+---
+
 # F015 主界面用量与等待约束 — 3.1.2-work.1 / 202（本地 Release）
 
 日期：2026-11-10，Asia/Shanghai。依据维护者提供的用量/等待补丁两文档。

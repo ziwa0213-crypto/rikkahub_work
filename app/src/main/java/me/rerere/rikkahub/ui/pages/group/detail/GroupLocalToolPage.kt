@@ -30,7 +30,7 @@ fun GroupLocalToolPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
         }, modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor,
     ) { padding ->
-        AssistantLocalToolContent(padding, proxy, showBrowser = false) { updated ->
+        AssistantLocalToolContent(padding, proxy, showBrowser = false, showPhoneUse = false) { updated ->
             vm.updateGroup(group.id) { it.copy(localTools = updated.localTools) }
         }
     }

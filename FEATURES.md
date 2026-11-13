@@ -1,5 +1,37 @@
 # RikkaHub 二次开发功能台账
 
+## [源码同步准备] 3.2.0-work.1 / 204（2026-11-13）
+
+- 维护者授权整理本地提交并自行推送；结束merge/upstream-3.2.0的未提交合并，将上游3.2.0、脉搏八项和204提示词编辑修正完整提交。不会在本轮自动推送或发布，先前未提交记录作为构建阶段历史保留。
+- 产品文件相对204已验证源码清单保持一致，仅本文件、AGENTS与DELIVERY补记当前状态；本轮无需重复编译或重跑无变化的产品测试。既有1716通过/1项PDF跳过及设备待验边界保持。
+- 整理后的源码ZIP独立放source-push-preparation-20261113，保留根DELIVERY、软链和权限，不含APK、缓存或密钥。同步审计记录实际本地提交SHA、父提交与源码清单一致性，不把旧HEAD误写为新源码版本。
+- 准备时远端master及3.2.0-work.1标签均为8faae5d67042527355aebcfd1c62a0ae1c7f937d，实际版本3.1.2-work.1/202；提供SSH普通master推送与指定标签的旧值租约命令，远端写入由维护者完成。
+
+## [F015 提示词编辑体验] 3.2.0-work.1 / 204（2026-11-13，本地 Release）
+
+- 增量基线为上一批 `upstream-pulse-release-20261113/SOURCE-MANIFEST.json`，而非尚未包含整个合并的HEAD。产品改动4个文件：PulseSettingsPage.kt及values/values-zh/values-zh-rTW三份strings.xml；另app/build.gradle.kts仅203→204。任务单“3个文件”的数字与其列出的1+3不符，按实际4个产品文件记录。
+- 共用PulsePrompt由直接写设置改为remember(stored)草稿、dirty判定、显式onSave；两个调用点移除ifBlank并只保存对应字段。清空与空白文本不修剪，恢复默认仅改草稿，两按钮两端对齐。无改动确认禁用，离开页面未确认的草稿不持久化；外部AI更新stored重置草稿是任务单接受的边界。
+- PulseRuntime、PulseConfig、DEFAULT_PULSE_PROMPT所在模型文件及PulsePromptTool逐字保持上一批；DB33、原21身份图标、三语及全部合并改动保留。只新增pulse_prompt_save一个key的三语值，没有新增测试、依赖或数据字段。
+- 修改前直接阅读固定Kai SoulEditor与PalmClaw HeartbeatEditorSheet，采用UI草稿/存储分离；不复制参考源码、不引入默认回填、trim、字符上限或参考的自动保存。参考目录继续保留且不打入源码ZIP。
+- 当前仍为merge/upstream-3.2.0，HEAD=8faae5d6，MERGE_HEAD=e033a47d395fe57d16db2144069c3abdb7117547；本增量未提交，无新commit。增量差异单独按203源码清单记录，完整源码仍包含之前全部上游合并和fork改动。
+- 回滚仅对照203源码ZIP逐块反向撤销两个调用点、PulsePrompt及三语新key，版本号单独评估，不整文件checkout，不动现有Git合并或其它增量。将来同步上游时保留原始stored传参和确认保存语义，不将运行时兜底搬回UI。
+- 交付目录 `artifacts/3.2.0-work.1/pulse-prompt-editor-release-20261113/`，三个原签名Release与含根DELIVERY的精简源码ZIP；A1–A10逐项区分静态证据与设备待验，未做真机粘贴验证、不推送或发布。
+- 验证完成：test与assembleGithubRelease成功，1717项中1716通过、1项既有PDF语料跳过；本轮App927项执行，其余UP-TO-DATE报告复用。44项源码审计通过，其他1805文件保持203基线；三个APK的204版本、原签名/图标、ABI、三语和WASM均已核验。
+
+## [上游3.2.0 + F015脉搏八项] 3.2.0-work.1 / 203（2026-11-13，本地 Release）
+
+- 合并基线8faae5d6，上游3.2.0=e033a47d395fe57d16db2144069c3abdb7117547；20个Git冲突条目包含5份上游恢复的非支持语言，均已消解。保留完整上游自动合并结果，先通过Release Kotlin编译与完整test，再进行脉搏修改；未自动提交合并。
+- 上游接缝：ChatService/ChatRequestFactory保留pauseAfterTools、先压缩再inbox、SessionActivity与续写；ChatCompletionsAPI合并ReasoningReplayFormat与fork强制DeepSeek reasoning、视频；LocalTools/DI同时保留Browser、Alarm和PhoneUse。群组压缩解析最后实际模型及组员/记忆桶；临时脉搏只在接受回复成功保存后调用上游launchAutoCompressIfNeeded。
+- Phone Use通过ChatToolFactory.shouldOfferPhoneUse集中检查模式、模型归属和覆盖供应商，GroupLocalToolPage隐藏Browser/PhoneUse，脉搏固定列表不加入PhoneUse；新增PhoneUsePolicyTest，原工具实现/测试取上游。
+- PulseSchedule过滤checkpoint；PulseTaskRepository/PulseTaskTool增加CRUD与最新配置部分更新，保留PulseTask字段，PulseRuntime完成时保护删除和重排。PulseConfig新增分钟字段与有效分钟访问器，PulseSettingsPage提供HH:mm输入和单条只读任务详情；PulseStatusRow/运行时统一分钟判定。
+- PulseProviderPolicy、SettingsNormalization、模型选择器及runDue/runPulseTurn双层预检阻止网页版自动执行；独立webBlockedUntil按心跳间隔延后，不设heartbeat短重试。ConversationSessionManager新悬浮窗专用流按实时类型过滤脉搏，原全量任务流保持。
+- PulsePromptTool仅写heartbeatPrompt，Factory注册、Policy动作/回执限制与设置页父子开关同步；仅该工具绕过二次审批，不修改ask_user/SMS。新pulse_run MIN渠道与前台服务isPulse接线，聊天通知事件提前返回；保留WakeLock及报告渠道。
+- 回归覆盖checkpoint/分钟/跨天、任务部分更新与旧JSON、提示词动作/父子存储、DeepSeekWeb归属/覆盖与全局不变、PhoneUse模式限制、悬浮窗实时类型变化及群组/脉搏模型解析。完整test含Play变体通过；去重后254套件1717项，1项既有PDF语料跳过。真实设备行为仍待验。
+- 交付复核补齐旧空prompt占位与任务类型说明，详情三语key与修正单命名对齐；旧小时参数兼容入口立即转换分钟，旧字段仅留配置声明/回落。BrowserContractTest夹具改为原子发布，消除两flavor同时写入的测试竞态，产品浏览器代码不变。
+- 三语key集合各2556，无重复；原21身份图标、DB33、F003个人仓更新、F004/F007/F009边界保留。Kai/PalmClaw实际参考记录在docs/f015-keepalive-reference-review.md，源码ZIP不含参考仓库/构建缓存/密钥。
+- 上游重套须一起保留：临时回复接受后压缩、群组请求作用域、PhoneUse集中过滤、schedule_task兼容默认create、旧小时字段回落、网页预检、悬浮窗专用流、提示词开关存储语义和独立静默通知。回滚按本批差异逐块撤销，不整文件覆盖共享ChatService或删除兼容字段。
+- 本批未commit/tag/push；当前分支merge/upstream-3.2.0的合并索引保留，维护者可审核后提交。三个签名Release、精简源码和审计位于artifacts/3.2.0-work.1/upstream-pulse-release-20261113/，根DELIVERY随源码交付。
+
 ## [F015 主界面用量与等待约束] 3.1.2-work.1 / 202（2026-11-10，本地 Release）
 
 - 产品范围：app/build.gradle.kts仅versionCode201→202；PulseStatusRow仅compact默认值与渲染门控，ChatPage仅主界面compact=true，ChatDrawer逐字保持；PulseTurnInput增加固定system约束，末尾synthetic user和历史不变。

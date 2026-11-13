@@ -44,4 +44,8 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("alarm")
     data object Alarm : LocalToolOption()
+
+    @Serializable
+    @SerialName("phone_use")
+    data object PhoneUse : LocalToolOption()
 }

@@ -74,7 +74,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "APIMart",
         baseUrl = "https://api.apimart.ai/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         description = {
             Text(
@@ -150,7 +150,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "Vercel AI Gateway",
         baseUrl = "https://ai-gateway.vercel.sh/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         quotaQuery = QuotaQuery(
             enabled = true,
@@ -163,7 +163,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "阿里云百炼",
         baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true
     ),
     ProviderSetting.OpenAI(
@@ -171,7 +171,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "火山引擎",
         baseUrl = "https://ark.cn-beijing.volces.com/api/v3",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true
     ),
     ProviderSetting.OpenAI(
@@ -179,7 +179,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "智谱AI开放平台",
         baseUrl = "https://open.bigmodel.cn/api/paas/v4",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true
     ),
     ProviderSetting.OpenAI(
@@ -187,7 +187,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "阶跃星辰",
         baseUrl = "https://api.stepfun.com/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true
     ),
     ProviderSetting.OpenAI(
@@ -195,7 +195,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "302.AI",
         baseUrl = "https://api.302.ai/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         description = {
             Text(
@@ -215,7 +215,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "腾讯Hunyuan",
         baseUrl = "https://tokenhub.tencentmaas.com/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true
     ),
     ProviderSetting.OpenAI(
@@ -223,7 +223,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "xAI",
         baseUrl = "https://api.x.ai/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         useResponseApi = true,
     ),
@@ -232,7 +232,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "随想AI网关",
         baseUrl = "https://sui-xiang.com/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         description = {
             Text(
@@ -258,7 +258,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "MaruCode",
         baseUrl = "https://api.muteki.site/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
         description = {
             Text(
@@ -281,12 +281,37 @@ val DEFAULT_PROVIDERS = listOf(
         },
         useResponseApi = true,
     ),
+    ProviderSetting.OpenAI(
+        id = Uuid.parse("3de58b04-7ac6-4f25-8880-2e2638aeb1d6"),
+        name = "STA1N API🍪",
+        baseUrl = "https://sta1n.ai/v1",
+        apiKey = "",
+        enabled = true,
+        builtIn = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("主要为 RP 玩家服务的站点")
+                    appendLine()
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://sta1n.ai")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://sta1n.ai")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text("主要为 RP 玩家服务的站点")
+        },
+    ),
     ProviderSetting.Claude(
         id = Uuid.parse("b4deabea-20fb-4101-a74c-65679c7e4754"),
         name = "MiniMax",
         baseUrl = "https://api.minimaxi.com/anthropic/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
     ),
     ProviderSetting.DeepSeekWeb(
@@ -303,7 +328,7 @@ val DEFAULT_PROVIDERS = listOf(
         name = "MIMO",
         baseUrl = "https://api.xiaomimimo.com/v1",
         apiKey = "",
-        enabled = false,
+        enabled = true,
         builtIn = true,
     ),
 )

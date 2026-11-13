@@ -36,6 +36,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.PulseConfig
+import me.rerere.rikkahub.data.datastore.effectiveStartMinute
+import me.rerere.rikkahub.data.datastore.effectiveEndMinute
+import me.rerere.rikkahub.data.datastore.formatPulseMinute
 import me.rerere.rikkahub.data.db.dao.UsageRecordDAO
 import me.rerere.rikkahub.data.db.dao.UsageTotals
 import me.rerere.rikkahub.data.pulse.PulseRuntimeStore
@@ -72,7 +75,7 @@ fun PulseStatusRow(config: PulseConfig, compact: Boolean = false, onClick: () ->
     }.collectAsStateWithLifecycle(initialValue = calculatePulseDailyCost(UsageTotals(), config, dayStart))
     val next = runtimeState.nextHeartbeatAt.takeIf { it > 0 }
         ?: (config.lastHeartbeatAt.takeIf { it > 0 } ?: now) + config.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
-    val withinHours = pulseWithinHours(now, config.activeHoursStart, config.activeHoursEnd)
+    val withinHours = pulseWithinHours(now, config)
     val failed = config.heartbeatLog.firstOrNull()?.result?.startsWith("FAILED") == true
     val statusColor = when {
         !config.enableHeartbeat || !withinHours -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -82,7 +85,7 @@ fun PulseStatusRow(config: PulseConfig, compact: Boolean = false, onClick: () ->
     val text = when {
         !config.enableHeartbeat -> stringResource(R.string.pulse_status_off)
         !withinHours -> stringResource(R.string.pulse_status_paused,
-            "%02d:00".format(config.activeHoursStart), "%02d:00".format(config.activeHoursEnd))
+            formatPulseMinute(config.effectiveStartMinute), formatPulseMinute(config.effectiveEndMinute))
         failed -> stringResource(R.string.pulse_status_failed)
         else -> stringResource(R.string.pulse_status_running)
     }

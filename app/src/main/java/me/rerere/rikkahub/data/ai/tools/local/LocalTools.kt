@@ -5,6 +5,9 @@ import me.rerere.ai.core.Tool
 import me.rerere.rikkahub.browser.BrowserController
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.phoneuse.PhoneUseManager
+import me.rerere.rikkahub.phoneuse.isFloatingChatWindowOn
 import me.rerere.tts.provider.TTSManager
 import kotlin.uuid.Uuid
 
@@ -14,6 +17,8 @@ class LocalTools(
     private val ttsManager: TTSManager,
     private val settingsStore: SettingsStore,
     private val browserController: BrowserController,
+    private val phoneUseManager: PhoneUseManager,
+    private val filesManager: FilesManager,
 ) {
     val javascriptTool by lazy { buildJavascriptTool() }
 
@@ -34,7 +39,23 @@ class LocalTools(
     val calendarDeleteTool by lazy { buildCalendarDeleteTool(context) }
     val chartDisplayTool by lazy { buildChartDisplayTool() }
     val alarmTool by lazy { buildAlarmTool() }
-    fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null): List<Tool> {
+
+    val phoneUseTool by lazy {
+        buildPhoneUseTool(
+            ownPackageName = context.packageName,
+            manager = phoneUseManager,
+            isFloatingWindowOn = { isFloatingChatWindowOn(context, settingsStore.settingsFlow.value) },
+            saveScreenshot = { bytes ->
+                filesManager.createChatFilesByByteArrays(
+                    byteArrays = listOf(bytes),
+                    displayName = "screenshot.jpg",
+                    mimeType = "image/jpeg",
+                ).first().toString()
+            },
+        )
+    }
+
+    fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null, allowPhoneUse: Boolean = true): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
@@ -67,6 +88,10 @@ class LocalTools(
         }
         if (options.contains(LocalToolOption.Alarm)) {
             tools.add(alarmTool)
+        }
+        // 不支持的渠道和系统版本上，之前在别处开过（比如导入的备份）也不提供
+        if (options.contains(LocalToolOption.PhoneUse) && allowPhoneUse && PhoneUseManager.isSupported) {
+            tools.add(phoneUseTool)
         }
         return tools
     }

@@ -37,6 +37,10 @@ internal fun shouldUseExternalWebSearch(assistant: Assistant, model: Model): Boo
     return assistant.enableWebSearch && BuiltInTools.Search !in model.tools
 }
 
+internal fun shouldOfferPhoneUse(allowedByMode: Boolean, model: Model, providers: List<ProviderSetting>): Boolean =
+    allowedByMode && model.findProvider(providers, checkOverwrite = false) !is ProviderSetting.DeepSeekWeb &&
+        model.findProvider(providers) !is ProviderSetting.DeepSeekWeb
+
 class InvalidMcpServerNamesException(val names: List<String>) :
     IllegalStateException("Invalid MCP server names: ${names.joinToString(", ")}")
 
@@ -61,6 +65,7 @@ class ChatToolFactory(
         memoryScope: String? = null,
         conversationScopeAssistantId: Uuid? = assistant.id,
         conversationId: Uuid? = null,
+        allowPhoneUse: Boolean = true,
     ): List<Tool> {
         val workspaceTools = createWorkspaceToolsIfReady(
             assistant.workspaceId?.toString(),
@@ -74,6 +79,7 @@ class ChatToolFactory(
         )
         val tools = buildList {
             if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID) {
+                if (settings.pulse.enableSelfPromptEdit) add(me.rerere.rikkahub.data.ai.tools.pulse.updateHeartbeatPromptTool(settingsStore))
                 if (settings.pulse.enableNotificationReading) add(me.rerere.rikkahub.data.ai.tools.pulse.readNotificationsTool(context, settingsStore))
                 if (settings.pulse.enableSmsReading) add(me.rerere.rikkahub.data.ai.tools.pulse.readSmsTool(context, settingsStore))
                 if (settings.pulse.enableSmsSending) add(me.rerere.rikkahub.data.ai.tools.pulse.sendSmsTool(context, settingsStore))
@@ -89,7 +95,9 @@ class ChatToolFactory(
             if (shouldUseExternalWebSearch(assistant, model)) {
                 addAll(createSearchTools(settings))
             }
-            addAll(localTools.getTools(assistant.localTools, conversationId))
+            addAll(localTools.getTools(assistant.localTools, conversationId,
+                allowPhoneUse = shouldOfferPhoneUse(allowPhoneUse && memoryScope == null &&
+                    assistant.id != me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID, model, settings.providers)))
             if (assistant.enableRecentChatsReference) {
                 addAll(createConversationTools(conversationRepository, conversationScopeAssistantId,
                     pulse = assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID))
@@ -149,7 +157,11 @@ class ChatToolFactory(
         val modeTools = if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID) {
             me.rerere.rikkahub.data.ai.tools.pulse.applyPulseToolPolicy(prepared, settings.pulse)
         } else prepared
-        return applyApprovalMode(modeTools, assistant.toolApprovalMode)
+        return modeTools.map { tool ->
+            // This Pulse-only tool is explicitly authorized by its two settings switches.
+            if (assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID && tool.name == "update_heartbeat_prompt") tool
+            else applyApprovalMode(listOf(tool), assistant.toolApprovalMode).single()
+        }
     }
 
     private fun withOutputTruncation(tool: Tool): Tool {

@@ -1,5 +1,33 @@
 # Repository Guidelines
 
+## 当前源码同步准备（2026-11-13，3.2.0-work.1 / 204）
+
+- 维护者最新要求为“整理源码，给我命令，我来推送”：授权整理并完成本地合并提交，远端推送由维护者执行。此要求覆盖下面历史批次“不commit”的限制；不自动push、移动远端标签、发布Release或操作设备。
+- 将本轮上游3.2.0合并、脉搏八项及提示词编辑修正完整纳入本地提交，不改产品代码、不重新构建APK；产品内容以pulse-prompt-editor-release-20261113的已验证204清单为准。仅补充AGENTS、FEATURES和DELIVERY的源码同步状态。
+- origin使用SSH；准备时远端master为8faae5d67042527355aebcfd1c62a0ae1c7f937d。远端3.2.0-work.1标签也指向这个旧提交，其版本实际为3.1.2-work.1/202；维护者需先推master，再用明确旧值的force-with-lease单独对齐该标签，不能强推master。
+- 新精简源码和同步记录放artifacts/3.2.0-work.1/source-push-preparation-20261113/，根含DELIVERY，旧APK/源码保留。忽略artifacts、构建缓存、本机配置和签名私钥；两份参考仓库继续保留且不纳入产品仓库。
+
+## 当前增量：脉搏提示词编辑体验（2026-11-13，Release）
+
+- 当前目标 `3.2.0-work.1 / 204`，DB33；下面203章节是上一批历史。沿用三个原签名 GitHub Release APK 与根含 DELIVERY 的精简源码 ZIP，新目录 `artifacts/3.2.0-work.1/pulse-prompt-editor-release-20261113/`。保留未提交合并与旧交付，不commit/tag/push/发布、不操作设备或真实账号。
+- PulseSettingsPage 两处编辑器传原始存储值，共用 `remember(stored)` 草稿；输入只更新草稿，确认才写对应设置，未改动时确认禁用。恢复默认只改草稿，允许空文本确认保存，不trim、不在UI回填默认值；接受外部修改stored时重置草稿，不加合并逻辑。
+- 保留PulseRuntime空心跳提示词的默认指令兜底，PulseConfig字段/default、两份默认提示词、update_heartbeat_prompt工具及其开关不改。三语各加pulse_prompt_save，仍只支持英文/简中/繁中；原图标、数据库和前批合并功能保持。
+- 改前已参考固定Kai的SoulEditor及PalmClaw的HeartbeatEditorSheet，采用编辑状态与存储分离，按本修正单显式确认，不照搬参考的空值回填、trim或自动保存。参考台账与本批DELIVERY记录采用边界；构建/测试结果和A1–A10静态证据独立于设备验收，未做真机粘贴验证。
+- 当前增量完整test与assembleGithubRelease成功（4分21秒）；去重254套件1717项中1716通过、1项既有PDF跳过。App927项本次执行，其他模块UP-TO-DATE报告复用；44项静态核验通过，相对203其余1805个源码文件保持一致。三个APK204版本/签名/ABI/图标/三语/WASM核验通过，设备粘贴与真实心跳仍待维护者验收。
+
+## 当前交付：合并上游 3.2.0 与脉搏八项修复（2026-11-13，Release）
+
+- 本批为 `3.2.0-work.1 / 203`，DB33；基线 `8faae5d6`，上游标签3.2.0固定于 `e033a47d395fe57d16db2144069c3abdb7117547`。在 `merge/upstream-3.2.0` 合并，先通过 Release Kotlin 编译和完整 test，再实施脉搏修正。交付三个原签名 GitHub Release APK 与含根 DELIVERY 的精简源码 ZIP；不自动提交、tag、push或发布，不操作设备/真实账号。
+- 保留上游按token比例的自动压缩、工具轮中途压缩、先压缩再收件箱、SessionActivity和Phone Use。Phone Use仅普通聊天且非DeepSeekWeb；群组/脉搏UI隐藏，Factory统一过滤模型归属和覆盖供应商。群组压缩保留成员配置与grp记忆桶；自动脉搏临时回复成功保存后才走同一个上游自动压缩入口，不创建另一套阈值/压缩器。
+- 脉搏待回复判断忽略上下文检查点，仍识别真实用户消息和审批；schedule_task维持名称与默认create，追加list/update/delete，部分更新读取最新配置，时间变化重算并清lastSlot，完成回调不得复活已删除任务或覆盖新时间。
+- PulseConfig保留旧小时字段，新增默认-1的分钟字段；运行时/状态/UI统一有效分钟，输入在失焦/Done校验保存，非法值保留原配置。任务详情只读、可选择完整提示词，滚动Column，不加编辑/保存。
+- 脉搏选择器排除DeepSeekWeb，显式旧选择归一化清理，继承全局网页版显示警示；调度预检和请求前再拦截，不发请求、不启用60秒短重试、不消费任务槽位。聊天供应商与全局选择保持。
+- 悬浮窗单独消费过滤后的任务流，getConversationJobs仍包括脉搏。脉搏前台服务使用独立MIN静默channel；普通聊天/群聊优先展示原channel通知。ChatNotificationManager脉搏更新/完成/失败直接返回，报告通知保留；WakeLock获取、续租和释放保持，不新增生成超时或休眠取消。
+- update_heartbeat_prompt仅脉搏注册，仅写heartbeatPrompt，允许1..4000字符；edit默认、rewrite须两个开关。主开关关时保留子开关存储值且隐藏/禁用；仅本工具省略action默认edit，clipboard/memory仍须显式action。本工具的设置开关即授权，不扩大全局审批豁免，ask_user/SMS原规则保留。
+- 三语仅English/简中/繁中，包括i18n目标配置；原21个launcher/About身份图标继续与既有基线一致，其余上游图标照常合并。保留F003本仓更新、F007 DeepSeek reasoning、F009工具边界、F012群组、F013浏览器与工作区归属。
+- 修改前直接参考本机Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的TaskScheduler/HeartbeatPromptBuilder和PalmClaw `75a42aeda0e580ebad0de4a38c00c94146148366` 的HeartbeatService/CronTools。采用临时历史、原子部分更新和调度/通知分工，不复制源码或引入参考执行时限；参考仓库继续保留且不打进产品源码包。
+- 验证：完整test和assembleGithubRelease成功，254套件1717项中1716通过、1项既有PDF语料跳过；Play重复报告不重复计数，缓存复用见交付清单。APK版本/签名/ABI/三语/原图标/WASM及源码归档分别核验。新目录 `artifacts/3.2.0-work.1/upstream-pulse-release-20261113/`；设备覆盖安装、通知/悬浮窗/Phone Use及真实模型自动压缩待维护者验收，不以静态检查冒充实测。
+
 ## 当前后续：F015 主界面用量与等待约束（2026-11-10，Release）
 
 - 维护者指定 `3.1.2-work.1 / 202`，覆盖附件201/不改版本号。仍交三个签名 GitHub Release APK 与含根 DELIVERY 的精简源码 ZIP，新目录 `artifacts/3.1.2-work.1/f015-usage-wait-release-20261110/`；不提交/tag/push/发布或操作设备、真实账号，旧产物保留。

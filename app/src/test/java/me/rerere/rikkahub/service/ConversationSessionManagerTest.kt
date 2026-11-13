@@ -23,6 +23,28 @@ import org.junit.Test
 import kotlin.uuid.Uuid
 
 class ConversationSessionManagerTest {
+    @Test
+    fun `floating jobs exclude pulse and follow loaded conversation state while full registry stays intact`() = runBlocking {
+        val rig = Rig()
+        try {
+            var floating: Map<Uuid, Job?> = emptyMap()
+            val observer = rig.scope.launch { rig.manager.getConversationJobsForFloating().collect { floating = it } }
+            val chat = rig.manager.getOrCreate(Uuid.random())
+            val group = rig.manager.getOrCreate(Uuid.random())
+            val pulse = rig.manager.getOrCreate(Uuid.random())
+            for (session in listOf(chat, group, pulse)) {
+                session.initialize(load = { Conversation.ofId(session.id) })
+                session.setJob(rig.scope.launch(start = CoroutineStart.LAZY) { awaitCancellation() })
+            }
+            group.update { it.copy(assistantId = me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID) }
+            pulse.update { it.copy(assistantId = me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID) }
+            assertEquals(setOf(chat.id, group.id), floating.keys)
+            assertEquals(setOf(chat.id, group.id, pulse.id), rig.manager.getConversationJobs().first().keys)
+            assertTrue(pulse.isGenerating)
+            observer.cancel()
+        } finally { rig.close() }
+    }
+
     private class Rig {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         val completions = mutableListOf<ConversationSession>()

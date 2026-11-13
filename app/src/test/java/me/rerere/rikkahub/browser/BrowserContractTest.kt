@@ -6,6 +6,8 @@ import me.rerere.rikkahub.data.ai.tools.ToolTier
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
@@ -56,7 +58,7 @@ class BrowserContractTest {
     }
     @Test fun exportActualScriptsForOfflineDomFixture() {
         val dir = File("build/browser-js-contract").apply { mkdirs() }
-        File(dir, "scripts.json").writeText(Json.encodeToString(mapOf(
+        val payload = Json.encodeToString(mapOf(
             "list" to BrowserJsScripts.listClickables(60, "fixture"),
             "relist" to BrowserJsScripts.listClickables(60, "updated"),
             "click" to BrowserJsScripts.click("fixture-0"),
@@ -65,7 +67,18 @@ class BrowserContractTest {
             "read" to BrowserJsScripts.readText,
             "state" to BrowserJsScripts.titleAndUrl,
             "selection" to BrowserJsScripts.selection,
-        )))
-        assertTrue(File(dir, "scripts.json").length() > 0)
+        ))
+        // GitHub and Play test workers can export the same fixture concurrently.
+        // Publish a complete file atomically instead of truncating a shared destination.
+        val staging = File.createTempFile("scripts-", ".json", dir)
+        val destination = File(dir, "scripts.json")
+        try {
+            staging.writeText(payload)
+            Files.move(staging.toPath(), destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            assertEquals(payload, destination.readText())
+        } finally {
+            staging.delete()
+        }
     }
 }

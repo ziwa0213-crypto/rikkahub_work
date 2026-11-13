@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.isPulseChat
 import kotlin.uuid.Uuid
 
 /** Owns runtime sessions; loading and message dispatch belong to ChatService, persistence goes through [ConversationStore]. */
@@ -111,6 +112,11 @@ class ConversationSessionManager(
             session?.generationJob ?: flowOf(null)
         }
 
+    fun getActivityFlow(conversationId: Uuid): Flow<SessionActivity?> =
+        sessions.map { it[conversationId] }.distinctUntilChanged().flatMapLatest { session ->
+            session?.activity ?: flowOf(null)
+        }
+
     fun getConversationJobs(): Flow<Map<Uuid, Job?>> = sessions.flatMapLatest { current ->
         if (current.isEmpty()) {
             flowOf(emptyMap())
@@ -121,5 +127,13 @@ class ConversationSessionManager(
                 pairs.filter { it.second != null }.toMap()
             }
         }
+    }
+
+    fun getConversationJobsForFloating(): Flow<Map<Uuid, Job?>> = sessions.flatMapLatest { current ->
+        if (current.isEmpty()) flowOf(emptyMap()) else combine(current.values.map { session ->
+            combine(session.generationJob, session.state) { job, conversation ->
+                session.id to job.takeUnless { conversation.isPulseChat() }
+            }
+        }) { pairs -> pairs.filter { it.second != null }.toMap() }
     }
 }

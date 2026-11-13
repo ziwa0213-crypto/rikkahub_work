@@ -5,6 +5,9 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import me.rerere.ai.provider.ModelType
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.stroke.Copy01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -69,6 +73,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
     val clipboard = LocalClipboardManager.current
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     var deleting by remember { mutableStateOf<PulseTask?>(null) }
+    var viewing by remember { mutableStateOf<PulseTask?>(null) }
     var addWatcher by remember { mutableStateOf(false) }
     var editingWatcher by remember { mutableStateOf<PulseWatcher?>(null) }
     var deletingWatcher by remember { mutableStateOf<PulseWatcher?>(null) }
@@ -138,18 +143,21 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                     0 -> {
                         item { CardGroup {
                             formItem(headlineContent = { Text(stringResource(R.string.pulse_model)) }) {
-                                ModelSelector(config.chatModelId ?: settings.chatModelId, settings.providers, ModelType.CHAT) { model ->
+                                val pulseProviders = remember(settings.providers) { settings.providers.filterNot { it is ProviderSetting.DeepSeekWeb } }
+                                ModelSelector(config.chatModelId ?: settings.chatModelId, pulseProviders, ModelType.CHAT) { model ->
                                     update { it.copy(chatModelId = model.id) }
                                 }
+                                if (settings.pulseUsesWebProvider()) Text(stringResource(R.string.pulse_model_web_blocked),
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                             }
                             switchItem(checked = config.enableMemory, onCheckedChange = { value -> update { it.copy(enableMemory = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_memory_enabled)) })
                             item(onClick = { nav.navigate(Screen.PulseBackgroundSettings) },
                                 headlineContent = { Text(stringResource(R.string.pulse_background_title)) })
                         } }
-                        item { PulsePrompt(config.systemPrompt.ifBlank { DEFAULT_PULSE_PROMPT }, R.string.pulse_prompt_persona,
-                            onChange = { text -> update { it.copy(systemPrompt = text) } },
-                            restore = { update { it.copy(systemPrompt = DEFAULT_PULSE_PROMPT) } }) }
+                        item { PulsePrompt(config.systemPrompt, DEFAULT_PULSE_PROMPT, R.string.pulse_prompt_persona) { text ->
+                            update { it.copy(systemPrompt = text) }
+                        } }
                         item { TextButton(onClick = { nav.navigate(Screen.PulseSettings(logs = true)) }) { Text(stringResource(R.string.pulse_view_logs)) } }
                     }
                     1 -> {
@@ -163,27 +171,23 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                                 }
                             }
                             formItem(headlineContent = { Text(stringResource(R.string.pulse_active_hours)) }) {
-                                val hours = "%02d:00–%02d:00".format(config.activeHoursStart, config.activeHoursEnd)
-                                Text(when {
-                                    config.activeHoursStart == config.activeHoursEnd -> stringResource(R.string.pulse_all_day)
-                                    config.activeHoursStart > config.activeHoursEnd -> stringResource(R.string.pulse_active_hours_cross_midnight,
-                                        "%02d:00".format(config.activeHoursStart), "%02d:00".format(config.activeHoursEnd))
-                                    else -> hours
-                                })
-                                Text(stringResource(R.string.pulse_start_hour))
-                                Slider(config.activeHoursStart.toFloat(), { value -> update { it.copy(activeHoursStart = value.roundToInt()) } },
-                                    valueRange = 0f..23f, steps = 22)
-                                Text(stringResource(R.string.pulse_end_hour))
-                                Slider(config.activeHoursEnd.toFloat(), { value -> update { it.copy(activeHoursEnd = value.roundToInt()) } },
-                                    valueRange = 0f..23f, steps = 22)
+                                PulseActiveTimeInput(config.effectiveStartMinute, R.string.pulse_start_hour) { minute ->
+                                    update { it.copy(activeStartMinute = minute) }
+                                }
+                                PulseActiveTimeInput(config.effectiveEndMinute, R.string.pulse_end_hour) { minute ->
+                                    update { it.copy(activeEndMinute = minute) }
+                                }
+                                if (config.effectiveStartMinute == config.effectiveEndMinute) Text(stringResource(R.string.pulse_all_day))
+                                else if (config.effectiveStartMinute > config.effectiveEndMinute) Text(stringResource(R.string.pulse_active_hours_cross_midnight,
+                                    formatPulseMinute(config.effectiveStartMinute), formatPulseMinute(config.effectiveEndMinute)))
                             }
                             switchItem(checked = config.heartbeatSilentWhenNoContent,
                                 onCheckedChange = { value -> update { it.copy(heartbeatSilentWhenNoContent = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_silent_when_ok)) })
                         } }
-                        item { PulsePrompt(config.heartbeatPrompt.ifBlank { DEFAULT_HEARTBEAT_PROMPT }, R.string.pulse_prompt_heartbeat,
-                            onChange = { text -> update { it.copy(heartbeatPrompt = text) } },
-                            restore = { update { it.copy(heartbeatPrompt = DEFAULT_HEARTBEAT_PROMPT) } }) }
+                        item { PulsePrompt(config.heartbeatPrompt, DEFAULT_HEARTBEAT_PROMPT, R.string.pulse_prompt_heartbeat) { text ->
+                            update { it.copy(heartbeatPrompt = text) }
+                        } }
                         item { Button(onClick = { runtime.trigger(manual = true) }, enabled = config.enableHeartbeat) {
                             Text(stringResource(R.string.pulse_run_now))
                         } }
@@ -218,6 +222,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                                     }
                                     Text(kind + if (task.lastRunAt > 0) "\n${pulseTime(task.lastRunAt)} · ${pulseResultLabel(task.lastResult)}" else "")
                                 })
+                                item(onClick = { viewing = task }, headlineContent = { Text(stringResource(R.string.pulse_task_view)) })
                                 item(onClick = { deleting = task }, headlineContent = { Text(stringResource(R.string.pulse_delete_task), color = MaterialTheme.colorScheme.error) })
                             }
                         }
@@ -249,6 +254,14 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_memory)) })
                             switchItem(checked = config.enableCalendarCreate, onCheckedChange = { value -> update { it.copy(enableCalendarCreate = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_calendar)) })
+                            switchItem(checked = config.enableSelfPromptEdit,
+                                onCheckedChange = { value -> update { it.copy(enableSelfPromptEdit = value) } },
+                                headlineContent = { Text(stringResource(R.string.pulse_self_prompt_edit)) },
+                                supportingContent = { Text(stringResource(R.string.pulse_self_prompt_edit_desc)) })
+                            if (config.enableSelfPromptEdit) switchItem(checked = config.enableSelfPromptRewrite,
+                                onCheckedChange = { value -> update { it.copy(enableSelfPromptRewrite = value) } },
+                                headlineContent = { Text(stringResource(R.string.pulse_self_prompt_rewrite)) },
+                                supportingContent = { Text(stringResource(R.string.pulse_self_prompt_rewrite_desc)) })
                             switchItem(checked = config.enableAlarm, onCheckedChange = { value -> update { it.copy(enableAlarm = value) } },
                                 headlineContent = { Text(stringResource(R.string.pulse_tool_alarm)) },
                                 supportingContent = { Text(stringResource(R.string.pulse_tool_alarm_desc)) })
@@ -351,6 +364,26 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
         },
         dismissButton = { TextButton(onClick = { expandedActivity = null }) { Text(stringResource(R.string.pulse_close)) } },
     ) }
+    viewing?.let { task -> AlertDialog(
+        onDismissRequest = { viewing = null },
+        title = { Text(task.title) },
+        text = { SelectionContainer {
+            Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.pulse_task_details))
+                Text(stringResource(if (task.enabled) R.string.pulse_task_state_on else R.string.pulse_task_state_off))
+                Text(when (task.kind) {
+                    PulseTaskKind.ONCE -> stringResource(R.string.pulse_task_once) + " · " + pulseTime(task.dueAt)
+                    PulseTaskKind.CRON -> stringResource(R.string.pulse_task_recurring) + " · " + task.cron + " · " + pulseTime(task.nextAt)
+                    PulseTaskKind.ON_HEARTBEAT -> stringResource(R.string.pulse_task_on_heartbeat)
+                })
+                if (task.lastRunAt > 0) Text(pulseTime(task.lastRunAt) + " · " + pulseResultLabel(task.lastResult))
+                Text(stringResource(R.string.pulse_task_prompt_label))
+                Text(task.prompt.ifBlank { "—" })
+            }
+        } },
+        confirmButton = { TextButton(onClick = { viewing = null }) { Text(stringResource(R.string.pulse_close)) } },
+    ) }
     deleting?.let { task -> AlertDialog(onDismissRequest = { deleting = null },
         title = { Text(stringResource(R.string.pulse_delete_task)) }, text = { Text(task.title) },
         confirmButton = { TextButton(onClick = {
@@ -408,11 +441,34 @@ private fun PulseWatcherEditor(workspaceReady: Boolean, initial: PulseWatcher?, 
 }
 
 @Composable
-private fun PulsePrompt(value: String, label: Int, onChange: (String) -> Unit, restore: () -> Unit) {
+private fun PulsePrompt(
+    stored: String,
+    defaultValue: String,
+    label: Int,
+    onSave: (String) -> Unit,
+) {
+    var draft by remember(stored) { mutableStateOf(stored) }
+    val dirty = draft != stored
     Column {
-        OutlinedTextField(value, onChange, modifier = Modifier.fillMaxWidth(), minLines = 4,
-            label = { Text(stringResource(label)) }, supportingText = { Text("${value.length}") })
-        TextButton(onClick = restore) { Text(stringResource(R.string.pulse_restore_default)) }
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            label = { Text(stringResource(label)) },
+            supportingText = { Text("${draft.length}") },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            TextButton(onClick = { draft = defaultValue }) {
+                Text(stringResource(R.string.pulse_restore_default))
+            }
+            TextButton(onClick = { onSave(draft) }, enabled = dirty) {
+                Text(stringResource(R.string.pulse_prompt_save))
+            }
+        }
     }
 }
 
@@ -447,6 +503,28 @@ private fun HeartbeatIntervalInput(value: Int, onCommit: (Int) -> Unit) {
                 Text(stringResource(R.string.pulse_interval_cost_warning))
             }
         },
+    )
+}
+
+@Composable
+private fun PulseActiveTimeInput(value: Int, label: Int, onCommit: (Int) -> Unit) {
+    var text by remember(value) { mutableStateOf(formatPulseMinute(value)) }
+    var focused by remember { mutableStateOf(false) }
+    val minute = parsePulseMinute(text)
+    fun commit() {
+        minute?.let { text = formatPulseMinute(it); if (it != value) onCommit(it) }
+    }
+    OutlinedTextField(
+        text, { if (it.length <= 5 && it.all { c -> c.isDigit() || c == ':' }) text = it },
+        modifier = Modifier.fillMaxWidth().onFocusChanged {
+            if (focused && !it.isFocused) commit()
+            focused = it.isFocused
+        },
+        singleLine = true, isError = minute == null,
+        label = { Text(stringResource(label)) },
+        supportingText = { Text(stringResource(R.string.pulse_active_time_format)) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { commit() }),
     )
 }
 

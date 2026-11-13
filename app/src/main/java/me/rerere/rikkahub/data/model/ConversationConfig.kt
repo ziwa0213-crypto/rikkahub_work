@@ -112,6 +112,14 @@ fun Settings.getAssistantOf(conversation: Conversation): Assistant {
 
 /** 会话使用的聊天模型；会话开始后内置搜索以会话上固定的开关为准。 */
 fun Settings.getChatModelOf(conversation: Conversation): Model? {
+    if (conversation.isGroupChat()) {
+        val lastReply = conversation.currentMessages.lastOrNull { it.role == me.rerere.ai.core.MessageRole.ASSISTANT }
+        findModelById(lastReply?.modelId)?.let { return it }
+        val group = groups.find { conversation.id in it.conversationIds } ?: return null
+        val member = group.members.firstOrNull { it.enabled }
+            ?.let { ref -> groupMembers.find { it.id == ref.memberId } } ?: return null
+        return findModelById(member.chatModelId ?: chatModelId)
+    }
     val assistantModel = findModelById(getStoredAssistantOf(conversation).chatModelId ?: chatModelId)
     if (conversation.isPulseChat()) return assistantModel
     val config = conversation.config ?: return assistantModel

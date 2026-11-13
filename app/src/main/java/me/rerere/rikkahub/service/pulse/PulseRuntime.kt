@@ -55,6 +55,7 @@ class PulseRuntime(
     private var active: Job? = null
     @Volatile private var foreground = false
     @Volatile private var heartbeatRetryAt = storage.getLong(HEARTBEAT_RETRY_KEY, 0L)
+    @Volatile private var webBlockedUntil = storage.getLong("web_blocked_until", 0L)
     private val claims = PulseClaims(
         load = { storage.getString("claim", null)?.let { JsonInstant.decodeFromString<PulseClaim>(it) } ?: PulseClaim() },
         save = { check(storage.edit().putString("claim", JsonInstant.encodeToString(it)).commit()) { "Cannot save Pulse claim" } },
@@ -118,6 +119,14 @@ class PulseRuntime(
         if (!foreground && !config.keepAliveEnabled) return
         if (!config.enableHeartbeat && !config.enableScheduledTasks && !(config.enableWatchers && config.watchers.any { it.enabled }) && !config.smsPollingEnabled()) return
         val now = System.currentTimeMillis()
+        if (settingsStore.settingsFlow.value.pulseUsesWebProvider()) {
+            deferWebProvider(config, now)
+            return
+        }
+        if (webBlockedUntil != 0L) {
+            webBlockedUntil = 0L
+            storage.edit().remove("web_blocked_until").apply()
+        }
         val zone = ZoneId.systemDefault()
         // Recompute cron after a timezone change. Never make up missed occurrences.
         settingsStore.update { settings -> settings.copy(pulse = settings.pulse.copy(tasks = settings.pulse.tasks.map { task ->
@@ -128,7 +137,7 @@ class PulseRuntime(
         })) }
         config = settingsStore.settingsFlow.value.pulse
         if (config.keepAliveEnabled && foreground) startDaemon()
-        if (!manual && !pulseWithinHours(now, config.activeHoursStart, config.activeHoursEnd)) return
+        if (!manual && !pulseWithinHours(now, config)) return
         val id = repository.ensurePulseConversation()
         if (conversationBusy(id)) return
 
@@ -159,7 +168,7 @@ class PulseRuntime(
             if (!task.enabled || count >= 10) continue
             val tickNow = System.currentTimeMillis()
             val latest = settingsStore.settingsFlow.value.pulse
-            if (!latest.enableScheduledTasks || !pulseWithinHours(tickNow, latest.activeHoursStart, latest.activeHoursEnd)) break
+            if (!latest.enableScheduledTasks || !pulseWithinHours(tickNow, latest)) break
             if (latest.tasks.none { it.id == task.id && it.enabled }) continue
             val recoveredSlot = interrupted?.key?.takeIf { it.startsWith("task:${task.id}:") }?.substringAfterLast(':')?.toLongOrNull()
             val slot = recoveredSlot ?: when (task.kind) {
@@ -290,7 +299,8 @@ class PulseRuntime(
                         status = "SKIPPED"
                         // Recheck pending input without changing the last actual heartbeat start.
                         if (heartbeat) setHeartbeatRetryAt(System.currentTimeMillis() + PULSE_HEARTBEAT_RECHECK_MS)
-                        summary = context.getString(R.string.pulse_turn_skipped_pending)
+                        summary = context.getString(if (chat.value.getConversation(id)?.isAwaitingToolApproval == true)
+                            R.string.pulse_turn_skipped_approval else R.string.pulse_turn_skipped_pending)
                         recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), status, summary, "")
                     } else {
                         result.response.lastRequestUsage()?.let { usage ->
@@ -327,6 +337,12 @@ class PulseRuntime(
             recordActivity(kind, watcher?.id ?: task?.id.orEmpty(), status, "", "")
             throw cancelled
         } catch (error: Exception) {
+            if (error is PulseWebProviderBlockedException) {
+                status = "SKIPPED"
+                summary = context.getString(R.string.pulse_turn_skipped_web_provider)
+                deferWebProvider(settingsStore.settingsFlow.value.pulse, System.currentTimeMillis())
+                return false
+            }
             // A failed turn may have consumed sensing data before it could return its tool history.
             // Switches guard only failure details, never successful activity summaries.
             val config = settingsStore.settingsFlow.value.pulse
@@ -347,7 +363,11 @@ class PulseRuntime(
                     if (heartbeat) settingsStore.update { current -> current.copy(pulse = current.pulse.copy(
                         heartbeatLog = (listOf(HeartbeatLogEntry(finishedAt, status, summary.take(60))) + current.pulse.heartbeatLog).take(5),
                     )) }
-                    else if (task != null) updateTask(task.id) { latest -> latest.copy(
+                    else if (task != null && status != "SKIPPED") updateTask(task.id) { latest ->
+                        // A reschedule during execution owns its new timing and slot.
+                        if (latest.kind != task.kind || latest.dueAt != task.dueAt || latest.cron != task.cron || latest.nextAt != task.nextAt) latest.copy(
+                            lastRunAt = finishedAt, lastResult = if (status == "FAILED") "FAILED:$summary" else status)
+                        else latest.copy(
                         lastRunAt = finishedAt, lastResult = if (status == "FAILED") "FAILED:$summary" else status,
                         lastSlot = slot,
                         enabled = latest.enabled && latest.kind != PulseTaskKind.ONCE,
@@ -587,6 +607,12 @@ class PulseRuntime(
         }
         val now = System.currentTimeMillis()
         val interval = config.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
+        if (settingsStore.settingsFlow.value.pulseUsesWebProvider()) {
+            val next = webBlockedUntil.takeIf { it > now } ?: (now + interval)
+            PulseRuntimeStore.update(context) { it.copy(nextHeartbeatAt = next, runningSince = 0, runningLabel = "") }
+            PulseScheduler.schedule(context, next)
+            return
+        }
         val nextHeartbeat = if (config.enableHeartbeat) pulseNextHeartbeatAt(
             config.lastHeartbeatAt.takeIf { it > 0 } ?: (now - interval),
             interval,
@@ -616,7 +642,18 @@ class PulseRuntime(
         // the same already-due watcher/task again every second while generation is active.
         val target = pulseDispatchTarget(candidate, now, generationActive)
         if (target != Long.MAX_VALUE) PulseScheduler.schedule(context,
-            pulseNextActiveAt(target, config.activeHoursStart, config.activeHoursEnd))
+            pulseNextActiveAt(target, config))
+    }
+
+    private suspend fun deferWebProvider(config: PulseConfig, now: Long) {
+        if (now < webBlockedUntil) return
+        webBlockedUntil = now + config.heartbeatIntervalMinutes.coerceIn(1, 240) * 60_000L
+        check(storage.edit().putLong("web_blocked_until", webBlockedUntil).commit()) { "Cannot save provider deferral" }
+        val summary = context.getString(R.string.pulse_turn_skipped_web_provider)
+        recordActivity("heartbeat", "", "SKIPPED", summary, "")
+        if (config.enableHeartbeat) settingsStore.update { current -> current.copy(pulse = current.pulse.copy(
+            heartbeatLog = (listOf(HeartbeatLogEntry(now, "SKIPPED", summary)) + current.pulse.heartbeatLog).take(5))) }
+        PulseRuntimeStore.update(context) { it.copy(nextHeartbeatAt = webBlockedUntil, runningSince = 0, runningLabel = "") }
     }
 
     private suspend fun conversationBusy(id: Uuid): Boolean =

@@ -12,6 +12,31 @@ import org.junit.Test
 import kotlin.uuid.Uuid
 
 class PulseConfigTest {
+    @Test fun `minute fields migrate old hours without changing stored legacy values`() {
+        val old = JsonInstant.decodeFromString<PulseConfig>("""{"activeHoursStart":22,"activeHoursEnd":6}""")
+        assertEquals(22 * 60, old.effectiveStartMinute)
+        assertEquals(6 * 60, old.effectiveEndMinute)
+        val updated = old.copy(activeStartMinute = 8 * 60 + 30, activeEndMinute = 9 * 60 + 15)
+        val restored = JsonInstant.decodeFromString<PulseConfig>(JsonInstant.encodeToString(updated))
+        assertEquals(updated, restored)
+        assertEquals(22, restored.activeHoursStart)
+        assertEquals(510, restored.effectiveStartMinute)
+        assertEquals(555, restored.effectiveEndMinute)
+        for ((text, minute) in mapOf("8" to 480, "08:30" to 510, "830" to 510, "8:3" to 483, "2359" to 1439)) {
+            assertEquals(text, minute, parsePulseMinute(text))
+        }
+        listOf("", "24:00", "8:60", "8:", "1:2:3", "12345", "-1", "abc").forEach { assertNull(it, parsePulseMinute(it)) }
+    }
+
+    @Test fun `H10 disabling parent preserves stored rewrite preference`() {
+        assertTrue(PulseConfig().enableSelfPromptEdit)
+        assertFalse(PulseConfig().enableSelfPromptRewrite)
+        val config = PulseConfig(enableSelfPromptEdit = false, enableSelfPromptRewrite = true)
+        val normalized = Settings(pulse = config).normalized().pulse
+        assertFalse(normalized.enableSelfPromptEdit)
+        assertTrue(normalized.enableSelfPromptRewrite)
+        assertTrue(normalized.copy(enableSelfPromptEdit = true).enableSelfPromptRewrite)
+    }
     @Test fun `legacy preferences default to disabled background automation`() {
         val pulse = emptyPreferences().toSettings().pulse
         assertFalse(pulse.keepAliveEnabled)

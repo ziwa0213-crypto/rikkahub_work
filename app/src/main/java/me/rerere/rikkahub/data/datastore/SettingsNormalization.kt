@@ -110,6 +110,11 @@ internal fun Settings.withoutInvalidReferences(): Settings {
 // 把取值收回合法范围，比如删掉搜索服务后选中的下标可能越界
 private fun Settings.withValuesInRange(): Settings = copy(
     pulse = pulse.copy(
+        chatModelId = pulse.chatModelId?.takeIf { id ->
+            findModelById(id)?.isAllowedForPulse(providers) != false
+        },
+        activeStartMinute = if (pulse.activeStartMinute < 0) -1 else pulse.activeStartMinute.coerceIn(0, 1439),
+        activeEndMinute = if (pulse.activeEndMinute < 0) -1 else pulse.activeEndMinute.coerceIn(0, 1439),
         notificationRetentionHours = pulse.notificationRetentionHours.coerceIn(1, 72),
         notificationBufferLimit = pulse.notificationBufferLimit.coerceIn(20, 500),
         notificationWhitelist = pulse.notificationWhitelist.map(String::trim).filter(String::isNotEmpty).distinct(),
@@ -125,4 +130,8 @@ private fun Settings.withValuesInRange(): Settings = copy(
     browserVisitedHosts = browserVisitedHosts.mapNotNull(::normalizeBrowserVisitedHost).distinct().take(200),
     searchServiceSelected = searchServiceSelected.coerceIn(0, (searchServices.size - 1).coerceAtLeast(0)),
     defaultTTSPlaybackSpeed = defaultTTSPlaybackSpeed.coerceIn(0.5f, 2.0f),
+    autoCompressThreshold = autoCompressThreshold.coerceIn(AUTO_COMPRESS_THRESHOLD_RANGE),
 )
+
+/** 自动压缩触发比例的可选范围，设置页的滑块也用它 */
+val AUTO_COMPRESS_THRESHOLD_RANGE = 0.5f..0.95f
