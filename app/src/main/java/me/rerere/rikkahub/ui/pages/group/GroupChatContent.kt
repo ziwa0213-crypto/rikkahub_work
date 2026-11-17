@@ -45,7 +45,6 @@ import me.rerere.rikkahub.ui.pages.chat.rememberChatSelectionState
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.ai.ui.UIMessageAnnotation
-import me.rerere.rikkahub.data.model.compressionThreshold
 import me.rerere.rikkahub.ui.pages.group.LocalGroupChatContext
 import kotlin.math.roundToInt
 import me.rerere.rikkahub.ui.components.ui.ItemAction
@@ -73,8 +72,6 @@ fun GroupChatContent(
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
     val errors by vm.errors.collectAsStateWithLifecycle()
-    val compressionPromptId by vm.compressionPromptConversationId.collectAsStateWithLifecycle()
-    val contextUsage by vm.contextUsage.collectAsStateWithLifecycle()
     val compressedCount by vm.compressedMessageCount.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val resources = LocalResources.current
@@ -87,14 +84,6 @@ fun GroupChatContent(
             toaster.show(resources.getString(R.string.group_compress_done, it), type = ToastType.Success)
             vm.dismissCompressionDone()
         }
-    }
-    if (group != null && compressionPromptId == conversationId && conversationId != null && contextUsage != null && loadingJob == null) {
-        AlertDialog(onDismissRequest = vm::dismissCompressionPrompt,
-            title = { Text(stringResource(R.string.group_compress_prompt_title)) },
-            text = { Text(stringResource(R.string.group_compress_prompt_desc,
-                (contextUsage!!.ratio * 100).roundToInt(), (group.compressionThreshold() * 100).roundToInt())) },
-            confirmButton = { TextButton(onClick = { vm.handleAutoCompress() }) { Text(stringResource(R.string.group_compress_prompt_now)) } },
-            dismissButton = { TextButton(onClick = vm::dismissCompressionPrompt) { Text(stringResource(R.string.group_compress_prompt_later)) } })
     }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         GroupBackground(group, Modifier.fillMaxSize().hazeSource(hazeState))

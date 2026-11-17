@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.model.WorkspaceStorageMount
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.BackgroundShellManager
 import me.rerere.workspace.RootfsInstallProgress
@@ -288,6 +289,20 @@ class WorkspaceDetailVM(
         viewModelScope.launch {
             try {
                 repository.setShellCompatibilityMode(id, enabled)
+                val workspace = repository.getById(id)
+                _state.update { it.copy(workspace = workspace) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _settingsError.value = error.message.orEmpty()
+            }
+        }
+    }
+
+    fun setStorageMounts(mounts: List<WorkspaceStorageMount>) {
+        viewModelScope.launch {
+            try {
+                repository.setStorageMounts(id, mounts)
                 val workspace = repository.getById(id)
                 _state.update { it.copy(workspace = workspace) }
             } catch (error: CancellationException) {

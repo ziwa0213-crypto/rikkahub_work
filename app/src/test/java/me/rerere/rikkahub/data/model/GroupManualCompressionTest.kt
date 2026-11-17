@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import kotlin.uuid.Uuid
 
-class GroupCompressionTest {
+class GroupManualCompressionTest {
     @Test fun multipleCheckpointsUseOnlyTheLatestSummaryAndHistory() {
         val oldSummary = UIMessage.user("old summary".repeat(100)).copy(isContextCheckpoint = true)
         val oldReply = UIMessage.assistant("old reply").copy(usage = TokenUsage(promptTokens = 5000))
@@ -34,35 +34,6 @@ class GroupCompressionTest {
         assertEquals(0, emptyList<UIMessage>().estimateContextTokens())
         assertEquals(3, heuristicTokens("你好"))
         assertEquals(1, heuristicTokens("hi"))
-    }
-
-    @Test fun thresholdAndTwentyPercentHysteresisArePerConversation() {
-        val group = Group(compressKeepRecent = 0, compressByMessageCount = false)
-        val gate = GroupCompressionGate()
-        val id = Uuid.random()
-        assertFalse(gate.shouldPrompt(id, ContextUsage(69, 100), group, 10))
-        assertTrue(gate.shouldPrompt(id, ContextUsage(70, 100), group, 10))
-        gate.markPrompted(id, ContextUsage(70, 100), 10)
-        assertFalse(gate.shouldPrompt(id, ContextUsage(83, 100), group, 11))
-        assertTrue(gate.shouldPrompt(id, ContextUsage(84, 100), group, 12))
-        assertTrue(gate.shouldPrompt(Uuid.random(), ContextUsage(70, 100), group, 10))
-        assertFalse(gate.shouldPrompt(id, ContextUsage(1, 100), group, 10))
-        assertTrue(gate.shouldPrompt(id, ContextUsage(70, 100), group, 10))
-        assertFalse(gate.shouldPrompt(id, ContextUsage(90, 100), group.copy(enableAutoCompress = false), 10))
-    }
-
-    @Test fun countTriggerDoesNotRequireHighTokenRatioAndCannotCompressOnlyRecentHistory() {
-        val group = Group()
-        val gate = GroupCompressionGate()
-        val id = Uuid.random()
-        assertTrue(gate.shouldPrompt(id, ContextUsage(100, 128000), group, 40))
-        gate.markPrompted(id, ContextUsage(100, 128000), 40)
-        assertFalse(gate.shouldPrompt(id, ContextUsage(119, 128000), group, 41))
-        assertTrue(gate.shouldPrompt(id, ContextUsage(120, 128000), group, 42))
-        assertFalse(gate.shouldPrompt(id, ContextUsage(120000, 128000), group, 32))
-        assertEquals(0.7f, group.copy(compressThresholdRatio = Float.NaN).compressionThreshold())
-        assertEquals(0f, ContextUsage(1, 0).ratio)
-        assertEquals(1f, ContextUsage(200, 100).ratio)
     }
 
     @Test fun tieredSummaryKeepsOwnerDeputyAndHeadTailOfOtherMembers() {

@@ -20,9 +20,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Job
 import me.rerere.rikkahub.data.model.ContextUsage
-import me.rerere.rikkahub.data.model.contextUsage as calculateGroupContextUsage
+import me.rerere.rikkahub.data.model.estimateContextTokens
 import kotlinx.coroutines.flow.StateFlow
-import me.rerere.rikkahub.data.model.GroupCompressionGate
 import me.rerere.rikkahub.data.model.buildTieredCompressContent
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GROUP_COMPRESS_PROMPT
 import me.rerere.rikkahub.utils.applyPlaceholders
@@ -114,49 +113,23 @@ class GroupVM(
     private data class ContextState(val conversation: Conversation, val group: Group, val usage: ContextUsage)
     private val contextState: StateFlow<ContextState?> = combine(conversation, settings) { conversation, settings ->
         val group = conversation?.let { conv -> settings.groups.find { conv.id in it.conversationIds } }
-        if (conversation == null || group == null) null else ContextState(conversation, group, group.calculateGroupContextUsage(conversation.currentMessages))
+        if (conversation == null || group == null) null else {
+            val memberModelIds = group.members.filter { it.enabled }.mapNotNull { ref ->
+                settings.groupMembers.find { it.id == ref.memberId }?.chatModelId ?: settings.chatModelId
+            }.toSet()
+            val maxTokens = settings.providers.flatMap { it.models }
+                .filter { it.id in memberModelIds && it.contextLength > 0 }
+                .minOfOrNull { it.contextLength } ?: 128_000
+            ContextState(conversation, group, ContextUsage(conversation.currentMessages.estimateContextTokens(), maxTokens))
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val contextUsage: StateFlow<ContextUsage?> = contextState.map { it?.usage }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    private val compressionGate = GroupCompressionGate()
-    private val compressPrompt = MutableStateFlow<Uuid?>(null)
-    val compressionPromptConversationId = compressPrompt.asStateFlow()
     private val compressing = MutableStateFlow(false)
     val isCompressing = compressing.asStateFlow()
     private val compressionDone = MutableStateFlow<Int?>(null)
     val compressedMessageCount = compressionDone.asStateFlow()
 
-    init {
-        val checked = chatService.completedGroupRounds.value.toMutableMap()
-        viewModelScope.launch {
-            combine(contextState, conversationJob, chatService.completedGroupRounds) { state, job, rounds ->
-                Triple(state, job, rounds)
-            }.collect { (state, job, rounds) ->
-                if (state == null || job != null || compressing.value || state.group == null ||
-                    state.conversation.id != selectedConversationId.value ||
-                    state.conversation != chatService.getConversationFlow(state.conversation.id).value ||
-                    state.conversation.currentMessages.any { it.getTools().any { tool -> tool.isPending } }) return@collect
-                val id = state.conversation.id
-                val completed = rounds[id] ?: return@collect
-                if (completed == checked[id]) return@collect
-                checked[id] = completed
-                val count = state.conversation.currentMessages.limitContext(0).size
-                if (compressionGate.shouldPrompt(id, state.usage, state.group, count)) {
-                    compressionGate.markPrompted(id, state.usage, count)
-                    compressPrompt.value = id
-                }
-            }
-        }
-    }
-
-    fun dismissCompressionPrompt() { compressPrompt.value = null }
     fun dismissCompressionDone() { compressionDone.value = null }
-
-    fun handleAutoCompress(): Job {
-        val id = compressPrompt.value
-        compressPrompt.value = null
-        val group = settings.value.groups.find { id in it.conversationIds }
-        return handleCompressContext("", group?.compressTargetTokens ?: 2000, group?.compressKeepRecent ?: 32, id)
-    }
 
     fun handleCompressContext(additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int,
         conversationId: Uuid? = selectedConversationId.value): Job = viewModelScope.launch {
@@ -188,9 +161,7 @@ class GroupVM(
                     chatService.compressGroupConversation(id, additionalPrompt, targetTokens.coerceAtLeast(1),
                         keepRecentMessages.coerceAtLeast(0),
                         messageFormatter = { it.summaryAsTextWithSender(owner, maxLength = 4000) }, tieredBuilder = builder).getOrThrow()
-                    updateGroup(group.id) { it.copy(compressKeepRecent = keepRecentMessages.coerceAtLeast(0),
-                        compressTargetTokens = targetTokens.coerceAtLeast(1)) }
-                    compressionGate.reset(id)
+                    settingsStore.update { it.copy(lastCompressKeepRecentMessages = keepRecentMessages.coerceAtLeast(0)) }
                     compressionDone.value = (full.currentMessages.size - keepRecentMessages.coerceAtLeast(0)).coerceAtLeast(0)
                 } finally { compressing.value = false }
             }

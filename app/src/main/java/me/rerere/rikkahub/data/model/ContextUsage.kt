@@ -32,32 +32,6 @@ internal fun List<UIMessage>.estimateContextTokens(): Int {
         .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 }
 
-internal fun Group.contextUsage(messages: List<UIMessage>) = ContextUsage(
-    messages.estimateContextTokens(), compressContextLength.takeIf { it > 0 } ?: 128_000,
-)
-
-internal fun Group.compressionThreshold(): Float =
-    if (compressThresholdRatio.isFinite()) compressThresholdRatio.coerceIn(0.30f, 0.95f) else 0.7f
-
-internal class GroupCompressionGate {
-    private data class Prompted(val tokens: Int, val messages: Int)
-    private val lastPrompt = mutableMapOf<Uuid, Prompted>()
-    fun shouldPrompt(id: Uuid, usage: ContextUsage, group: Group, messageCount: Int): Boolean {
-        if (!group.enableAutoCompress || messageCount <= group.compressKeepRecent.coerceAtLeast(0)) return false
-        val byTokens = usage.ratio >= group.compressionThreshold()
-        val byCount = group.compressByMessageCount && messageCount >= group.compressMessageCount.coerceAtLeast(1)
-        if (!byTokens && !byCount) { lastPrompt.remove(id); return false }
-        val last = lastPrompt[id] ?: return true
-        // Textless histories still need a finite count-based cooldown.
-        return if (last.tokens > 0) usage.currentTokens >= ceil(last.tokens * 1.2).toInt()
-        else messageCount >= ceil(last.messages * 1.2).toInt()
-    }
-    fun markPrompted(id: Uuid, usage: ContextUsage, messageCount: Int) {
-        lastPrompt[id] = Prompted(usage.currentTokens, messageCount)
-    }
-    fun reset(id: Uuid) { lastPrompt.remove(id) }
-}
-
 internal data class TieredCompressContent(val primary: String, val others: String)
 
 private fun String.headAndTail(limit: Int): String = if (length <= limit) this else {

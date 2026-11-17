@@ -237,7 +237,7 @@ fun GroupConfigPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
                     }
                 }
                 item {
-                    GroupCompressionSettings(group, settings.groupCompressPrompt,
+                    GroupSummarySettings(group, settings.groupCompressPrompt,
                         onUpdate = { change -> vm.updateGroup(group.id, change) }, onUpdatePrompt = vm::updateGroupCompressPrompt)
                 }
                 item { Text(stringResource(R.string.group_member_count, group.members.size), Modifier.padding(horizontal = 16.dp),

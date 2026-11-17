@@ -134,8 +134,6 @@ internal fun FilesPicker(
     pulseMode: Boolean = false,
     onStartVoiceMode: (() -> Unit)? = null,
     groupContextUsage: ContextUsage? = null,
-    groupCompressThreshold: Float? = null,
-    onGroupCompressThresholdChange: ((Float) -> Unit)? = null,
     groupCompressTargetTokens: Int = 2000,
     groupCompressKeepRecent: Int = 32,
     chatCompressKeepRecent: Int = 32,
@@ -453,8 +451,6 @@ internal fun FilesPicker(
                 onCompressContext(prompt, keep)
             }
         },
-            autoCompressThreshold = if (groupMode) groupCompressThreshold else null,
-            onAutoCompressThresholdChange = if (groupMode) onGroupCompressThresholdChange else null,
             estimatedMaxTokens = if (groupMode) groupContextUsage?.maxTokens else null,
             initialTargetTokens = if (groupMode) groupCompressTargetTokens else 2000,
             initialKeepRecentMessages = if (groupMode) groupCompressKeepRecent else chatCompressKeepRecent,

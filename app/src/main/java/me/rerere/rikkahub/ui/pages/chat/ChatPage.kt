@@ -102,7 +102,6 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Group
-import me.rerere.rikkahub.data.model.compressionThreshold
 import me.rerere.rikkahub.data.model.enabledMembers
 import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.isPulseChat
@@ -651,7 +650,7 @@ private fun GroupChatFilesPickerSheet(
             chatModel = null,
             mcpManager = mcpManager,
             onCompressContext = { prompt, keep ->
-                groupVm.handleCompressContext(prompt, group.compressTargetTokens, keep)
+                groupVm.handleCompressContext(prompt, 2000, keep)
             },
             onGroupCompressContext = { prompt, target, keep ->
                 groupVm.handleCompressContext(prompt, target, keep)
@@ -672,12 +671,7 @@ private fun GroupChatFilesPickerSheet(
             onPickFile = attachmentPickerActions.onPickFile,
             onSketch = attachmentPickerActions.onSketch,
             groupContextUsage = contextUsage,
-            groupCompressThreshold = group.compressionThreshold(),
-            onGroupCompressThresholdChange = { threshold ->
-                groupVm.updateGroup(group.id) { it.copy(compressThresholdRatio = threshold) }
-            },
-            groupCompressTargetTokens = group.compressTargetTokens,
-            groupCompressKeepRecent = group.compressKeepRecent,
+            groupCompressKeepRecent = settings.lastCompressKeepRecentMessages,
             groupMode = true,
             groupWorkspaceId = group.workspaceId,
             onUpdateGroupWorkspace = { workspaceId ->

@@ -512,10 +512,7 @@ private fun MessagePartsBlock(
                                     role = role,
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = settings.displaySetting.bubbleOpacity),
                                     onClick = { onUserMessageClick?.invoke() },
-                                    // 用户气泡不占满整行，和助手的回复错开
-                                    modifier = Modifier
-                                        .padding(start = 24.dp)
-                                        .animateContentSize(),
+                                    modifier = Modifier.padding(start = 24.dp).animateContentSize(),
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
@@ -531,35 +528,43 @@ private fun MessagePartsBlock(
                                     }
                                 }
                             } else {
+                                val content = part.text.replaceRegexes(
+                                    assistant = assistant,
+                                    scope = AssistantAffectScope.ASSISTANT,
+                                    visual = true,
+                                )
                                 if (settings.displaySetting.showAssistantBubble || isGroupAssistant) {
-                                    Surface(
-                                        modifier = Modifier.animateContentSize(),
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
-                                    ) {
-                                        Column(modifier = Modifier.padding(8.dp)) {
-                                            if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
-                                            MarkdownBlock(
-                                                content = part.text.replaceRegexes(
-                                                    assistant = assistant,
-                                                    scope = AssistantAffectScope.ASSISTANT,
-                                                    visual = true,
-                                                ),
-                                                onClickCitation = handleClickCitation,
-                                            )
+                                    val splitByParagraph = settings.displaySetting.splitAssistantBubbleByParagraph
+                                    val paragraphs = remember(content, splitByParagraph) {
+                                        if (splitByParagraph) splitMarkdownParagraphs(content).ifEmpty { listOf(content) }
+                                        else listOf(content)
+                                    }
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        paragraphs.fastForEachIndexed { index, paragraph ->
+                                            key(index) {
+                                                Surface(
+                                                    modifier = Modifier.animateContentSize(),
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                                                ) {
+                                                    Column(modifier = Modifier.padding(8.dp)) {
+                                                        if (index == 0 && block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
+                                                        MarkdownBlock(
+                                                            content = paragraph,
+                                                            streaming = streamingText && index == paragraphs.lastIndex,
+                                                            onClickCitation = handleClickCitation,
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 } else {
                                     MarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.ASSISTANT,
-                                            visual = true,
-                                        ),
+                                        content = content,
                                         streaming = streamingText,
                                         onClickCitation = handleClickCitation,
-                                        modifier = Modifier
-                                            .animateContentSize()
+                                        modifier = Modifier.animateContentSize(),
                                     )
                                 }
                             }

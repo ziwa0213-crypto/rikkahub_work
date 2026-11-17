@@ -39,9 +39,11 @@ class GroupDispatchTest {
     @Test fun oldDataDefaultsAndNewFieldsRoundTrip() {
         val legacy = JsonInstant.decodeFromString<Group>("{}")
         assertFalse(legacy.enableDeputyDispatch)
-        assertTrue(legacy.enableAutoCompress)
-        assertEquals(0.7f, legacy.compressThresholdRatio)
-        assertEquals(40, legacy.compressMessageCount)
+        val oldCompression = JsonInstant.decodeFromString<Group>(
+            """{"name":"kept","enableAutoCompress":false,"compressThresholdRatio":0.5,"compressByMessageCount":true,"compressMessageCount":40,"compressKeepRecent":12,"compressTargetTokens":2000,"compressContextLength":32000}"""
+        )
+        assertEquals("kept", oldCompression.name)
+        assertTrue(oldCompression.enableTieredCompress)
         assertEquals(group, JsonInstant.decodeFromString<Group>(JsonInstant.encodeToString(group)))
         val current = settings.copy(groupCompressPrompt = "{primary} {others}")
         assertEquals(current.groupCompressPrompt, JsonInstant.decodeFromString<Settings>(JsonInstant.encodeToString(current)).groupCompressPrompt)
