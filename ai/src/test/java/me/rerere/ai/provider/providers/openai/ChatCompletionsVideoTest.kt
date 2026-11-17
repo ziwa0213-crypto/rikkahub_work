@@ -11,6 +11,8 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.VideoInputException
 import me.rerere.ai.provider.validateVideoInput
+import me.rerere.ai.provider.withoutVideoParts
+import me.rerere.ai.provider.VIDEO_OMITTED_PLACEHOLDER
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
@@ -106,6 +108,21 @@ class ChatCompletionsVideoTest {
     @Test fun ordinaryTextDoesNotRequireVideoCapability() {
         assertEquals("hello", request(listOf(UIMessage.user("hello")), Model())["messages"]!!.jsonArray.single()
             .jsonObject["content"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun compressionCopyOmitsVideoInActualSerializerEvenWhenVideoIsDisabled() {
+        val original = listOf(UIMessage(role = MessageRole.USER, parts = listOf(
+            UIMessagePart.Text("summarize"), UIMessagePart.Video(data),
+            UIMessagePart.Image("data:image/png;base64,AAAA"),
+        )))
+        val body = request(original.withoutVideoParts(), Model())
+        val serialized = body.toString()
+        assertFalse(serialized.contains("video_url"))
+        assertFalse(serialized.contains(data))
+        assertTrue(serialized.contains(VIDEO_OMITTED_PLACEHOLDER))
+        assertTrue(serialized.contains("image_url"))
+        assertTrue(original.single().parts[1] is UIMessagePart.Video)
+        assertEquals(data, (original.single().parts[1] as UIMessagePart.Video).url)
     }
 
     @Test fun oldModelDataAndExistingAbilityNamesRemainCompatible() {

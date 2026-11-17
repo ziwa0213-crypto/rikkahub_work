@@ -25,7 +25,16 @@ internal fun pulseWithinHours(now: Long, start: Int, end: Int, zone: ZoneId = Zo
 internal fun pulseWithinHours(now: Long, config: PulseConfig, zone: ZoneId = ZoneId.systemDefault()): Boolean =
     config.isInActiveHours(Instant.ofEpochMilli(now).atZone(zone).toLocalTime())
 
-internal fun isSilentPulse(text: String): Boolean = text.trim().equals("HEARTBEAT_OK", ignoreCase = true)
+private val SILENT_MARKERS = setOf(
+    "无", "無", "暂无", "沒有", "没有", "正常", "无异常", "一切正常", "没有异常", "无需关注", "沒有異常",
+    "nothing", "all good", "all clear", "no issues", "ok",
+)
+
+internal fun isSilentPulse(text: String): Boolean {
+    val normalized = text.trim().trimEnd('。', '.', '！', '!', '~', '～').trim()
+    if (normalized.equals("HEARTBEAT_OK", ignoreCase = true)) return true
+    return normalized.lowercase() in SILENT_MARKERS
+}
 
 internal fun isAwaitingPulseReply(messages: List<UIMessage>): Boolean =
     messages.lastOrNull { !it.isContextCheckpoint }?.role == MessageRole.USER

@@ -20,6 +20,7 @@ import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.validateVideoInput
+import me.rerere.ai.provider.withoutVideoParts
 import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
 import me.rerere.ai.ui.UIMessage
@@ -125,8 +126,8 @@ class ChatRequestFactory(
         val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
             else settings.findModelById(assistant.chatModelId ?: settings.chatModelId)
         val resolvedModel = model
-            ?: throw IllegalStateException("No chat model selected")
-        val provider = resolvedModel.findProvider(settings.providers) ?: error("Provider not found")
+            ?: throw IllegalStateException(context.getString(R.string.error_no_model_selected))
+        val provider = resolvedModel.findProvider(settings.providers) ?: error(context.getString(R.string.error_provider_not_found))
         DeepSeekWebGuard.refusal(provider,
             conversation.currentMessages.lastOrNull { it.role == MessageRole.USER }?.toText().orEmpty())?.let { throw it }
         return ChatTurnContext(
@@ -241,7 +242,7 @@ class ChatRequestFactory(
         messages: List<UIMessage>,
         compressPrompt: String,
     ): String {
-        val (requestMessages, params) = buildStep(turn, messages)
+        val (requestMessages, params) = buildStep(turn, messages.withoutVideoParts())
         // 压缩指令不经过输入转换器，模板转换器会把其中的花括号当成模板语法
         val result = withRetry(
             policy = turn.settings.retryPolicy(),
@@ -265,8 +266,8 @@ class ChatRequestFactory(
     /** Group compression retains its separately selected model and tiered prompt. */
     suspend fun generateGroupCompressionSummary(settings: Settings, conversationId: Uuid, prompt: String): String {
         val model = settings.findModelById(settings.compressModelId)
-            ?: settings.findModelById(settings.chatModelId) ?: error("No model available for compression")
-        val provider = model.findProvider(settings.providers) ?: error("Provider not found")
+            ?: settings.findModelById(settings.chatModelId) ?: error(context.getString(R.string.error_no_model_selected))
+        val provider = model.findProvider(settings.providers) ?: error(context.getString(R.string.error_provider_not_found))
         val result = providerManager.getProviderByType(provider).generateText(
             providerSetting = provider, messages = listOf(UIMessage.user(prompt)),
             params = backgroundTextGenerationParams(model, conversationId),

@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -116,6 +117,7 @@ fun ErrorCard(
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
     val checkFastModelSettings = stringResource(R.string.chat_page_check_fast_model_settings)
@@ -154,7 +156,7 @@ fun ErrorCard(
                     )
                 }
                 Text(
-                    text = error.error.message ?: "Unknown error",
+                    text = error.error.message ?: stringResource(R.string.error_unknown),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                     overflow = TextOverflow.Ellipsis,
@@ -190,7 +192,7 @@ fun ErrorCard(
                     scope.launch {
                         clipboard.setClipEntry(
                             ClipEntry(
-                                clipData = ClipData.newPlainText("Error", error.error.message ?: "Unknown error")
+                                clipData = ClipData.newPlainText("Error", error.error.message ?: context.getString(R.string.error_unknown))
                             )
                         )
                     }

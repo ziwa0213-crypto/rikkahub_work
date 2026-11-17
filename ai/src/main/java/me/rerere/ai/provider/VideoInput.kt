@@ -3,6 +3,18 @@ package me.rerere.ai.provider
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 
+const val VIDEO_OMITTED_PLACEHOLDER = "[Video omitted: this request does not include video content]"
+
+/** Only the request copy changes; stored messages and other attachment parts remain intact. */
+fun List<UIMessage>.withoutVideoParts(
+    placeholder: String = VIDEO_OMITTED_PLACEHOLDER,
+): List<UIMessage> = map { message ->
+    if (message.parts.none { it is UIMessagePart.Video }) message
+    else message.copy(parts = message.parts.map { part ->
+        if (part is UIMessagePart.Video) UIMessagePart.Text(placeholder) else part
+    })
+}
+
 /** No attachment URL, encoded content or provider credentials are included in these errors. */
 class VideoInputException(val reason: Reason) : IllegalArgumentException(
     when (reason) {

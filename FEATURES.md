@@ -1,5 +1,22 @@
 # RikkaHub 二次开发功能台账
 
+## [源码同步准备] 3.2.0-work.3 / 206（2026-11-17）
+
+- 维护者授权整理本地提交并自行推送。本批将静默心跳、压缩去视频、流式/非流式报错本地化及配套测试/版本/台账一起提交；父提交为work.2/205的11441abe5ad9261bb07d14ee60614e70a9af4967，完整上游3.2.0保留在祖先链中。
+- 本轮没有新增功能改动：与silent-video-errors-release-20261116已验证206交付相比，仅AGENTS、DELIVERY和本文件补记同步状态，其余1819项一致。原1746通过/1项既有PDF跳过及设备/真实模型待验结论保持，不重新编译或重复测试。
+- 新精简源码保留1822项、两个软链、权限及根DELIVERY，目录artifacts/3.2.0-work.3/source-push-preparation-20261117/；实际提交SHA、父提交与源码/提交树核验在SYNC-VERIFICATION.json，ZIP校验与清单同目录提供。旧三个APK与源码包保持不变。
+- 当前读取的远端master与work.3标签均为旧205提交11441abe；提供SSH普通master推送和限定该标签旧值的force-with-lease命令，不强推master、不改旧版本标签、不自动推送或发布。产品回滚与上游重套边界沿用下方增量章节。
+
+## [静默心跳 / 压缩去视频 / 报错本地化] 3.2.0-work.3 / 206（2026-11-16）
+
+- 基线11441abe5ad9261bb07d14ee60614e70a9af4967；当前为未提交增量，无新commit。版本文件app/build.gradle.kts递增为work.3/206，数据库33。
+- F015文件：service/pulse/PulseSchedule.kt与data/datastore/PulseConfig.kt；只改完整静默标记匹配及默认指令一句提醒，运行时、任务/监视器/短信、通知和保活沿用基线。修改前参考两仓固定版本，阅读范围见docs/f015-keepalive-reference-review.md。
+- 视频：ai/provider/VideoInput.kt新增纯扩展及占位常量；app/data/ai/ChatRequestFactory.kt仅压缩请求调用它，另四处模型/供应商错误用资源。原视频校验及正常聊天编码保留。
+- 错误：新增ai/provider/ProviderHttpException.kt与app/utils/ErrorText.kt；五个provider文件（OpenAI ChatCompletions/Responses、Claude、Google GenerateContent/Interactions）接结构化HTTP异常和流式失败转换；ChatService.addError接映射、ErrorCard两处未知错误用资源；values、values-zh、values-zh-rTW各加13key。
+- 测试：新增VideoInputTest、ProviderHttpExceptionTest、ProviderHttpFailuresTest、ErrorTextTest，扩展ChatCompletionsVideoTest与PulseScheduleTest；涵盖不可变请求副本、原始诊断、五种协议的实际流式/非流式入口离线HTTP夹具、三语资源及静默误判边界。ai/src/test/java/android/util/Log.java仅提供JVM日志适配，不进入APK、不默认放过其他Android API或修改生产日志。
+- 上游重套/回滚：以git diff 11441abe -- <上述功能与测试路径>查看本增量，逐块反向撤销或重套，不整文件覆盖已有fork改动、不回退版本或改数据库。必须保留DeepSeek推理、F009拒绝/审批、视频正常生成、压缩原流程及原21身份图标。
+- 新目录artifacts/3.2.0-work.3/silent-video-errors-release-20261116/，三个Release与含根DELIVERY的源码ZIP；未操作设备、真实账号或远端。2026-11-17完整test任务图与Release构建成功，去重1747项中1746通过、1项既有PDF跳过；最终调用复用已通过报告，相关六套件52项均通过。三个206 APK原签名/图标、ABI、三语、WASM及CRC核验通过，精简源码1822项；D/V/E设备与真实模型验收仍待维护者完成，下方旧批次状态仅作历史。
+
 ## [源码同步准备] 3.2.0-work.2 / 205（2026-11-13）
 
 - 维护者授权整理本地提交，远端由维护者手动推送。本批将既有心跳提示词读取工具、Policy只读例外、205版本及测试/文档一起提交；不修改产品或重新构建。

@@ -1,5 +1,8 @@
 package me.rerere.ai.provider.providers.openai
 
+import me.rerere.ai.provider.ProviderHttpException
+import me.rerere.ai.provider.providerStreamFailure
+
 import android.util.Log
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -145,7 +148,7 @@ class ResponseAPI(
         // await() waits for the response headers; reading the body can still block.
         client.newCall(request).await().use { response ->
             if (!response.isSuccessful) {
-                throw Exception("Failed to get response: ${response.code} ${response.body.string()}")
+                throw ProviderHttpException(response.code, response.body.string())
             }
 
             val bodyStr = response.body.string()
@@ -219,7 +222,7 @@ class ResponseAPI(
                     Log.w(TAG, "onFailure: failed to parse from $bodyRaw")
                     e.printStackTrace()
                 } finally {
-                    close(exception)
+                    close(providerStreamFailure(response?.code, bodyRaw, exception, response?.header("Content-Type")))
                 }
             }
 

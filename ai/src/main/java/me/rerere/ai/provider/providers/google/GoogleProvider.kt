@@ -1,5 +1,8 @@
 package me.rerere.ai.provider.providers.google
 
+import me.rerere.ai.provider.ProviderHttpException
+import me.rerere.ai.provider.providerStreamFailure
+
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -209,7 +212,7 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
 
         val response = client.newCall(request).await()
         if (!response.isSuccessful) {
-            throw Exception("Failed to get response: ${response.code} ${response.body?.string()}")
+            throw ProviderHttpException(response.code, response.body?.string().toString())
         }
 
         val bodyStr = response.body?.string() ?: ""
@@ -307,9 +310,9 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
                 t?.printStackTrace()
                 println("[onFailure] 发生错误: ${t?.message}")
 
+                val bodyStr = response?.takeIf { t == null || !it.isSuccessful }?.body?.stringSafe()
                 try {
                     if (t == null && response != null) {
-                        val bodyStr = response.body.stringSafe()
                         if (!bodyStr.isNullOrEmpty()) {
                             val bodyElement = json.parseToJsonElement(bodyStr)
                             println(bodyElement)
@@ -327,7 +330,7 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
                     e.printStackTrace()
                     exception = e
                 } finally {
-                    close(exception ?: Exception("Stream failed"))
+                    close(providerStreamFailure(response?.code, bodyStr, exception, response?.header("Content-Type")) ?: Exception("Stream failed"))
                 }
             }
 

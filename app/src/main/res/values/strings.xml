@@ -2557,4 +2557,17 @@
   <string name="pulse_active_time_format">Use HH:mm (for example 08:30); equal times mean all day.</string>
   <string name="pulse_start_hour">Start time</string>
   <string name="pulse_end_hour">End time</string>
+  <string name="error_http_401">API key is invalid or expired. Check the provider settings.</string>
+  <string name="error_http_403">Access denied (region, balance or permission).</string>
+  <string name="error_http_404">Endpoint or model not found. Check the URL and model ID.</string>
+  <string name="error_http_429">Too many requests. Please try again later.</string>
+  <string name="error_http_5xx">Server error (HTTP %1$d).</string>
+  <string name="error_http_other">Request failed (HTTP %1$d).</string>
+  <string name="error_network_interrupted">The connection was interrupted.</string>
+  <string name="error_network_ssl">Secure connection failed. Check the proxy certificate.</string>
+  <string name="error_resp_invalid_json">The server response could not be parsed.</string>
+  <string name="error_file_not_found">File not found or deleted.</string>
+  <string name="error_no_model_selected">No model selected. Pick one in settings.</string>
+  <string name="error_provider_not_found">The provider for this model was not found.</string>
+  <string name="error_unknown">Unknown error.</string>
 </resources>

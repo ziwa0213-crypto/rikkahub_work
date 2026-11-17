@@ -1,5 +1,23 @@
 # Repository Guidelines
 
+## 当前源码同步准备（2026-11-17，3.2.0-work.3 / 206）
+
+- 维护者要求“整理源码，给我命令，我来推送”，授权整理本地提交；覆盖下方构建阶段不commit的历史限制，远端推送、标签对齐和发布仍由维护者执行。
+- 版本3.2.0-work.3/206、DB33，静默心跳、压缩去视频和报错本地化源码与silent-video-errors-release-20261116已核验交付一致。本轮只在AGENTS/FEATURES/DELIVERY补记同步状态，其余1819项不变；不重新构建或重复运行未变的产品测试。
+- 已fetch及只读核对：origin/master与远端3.2.0-work.3标签均为11441abe5ad9261bb07d14ee60614e70a9af4967，实际仍为work.2/205。先普通推送新HEAD到master，再以该标签明确旧值的force-with-lease对齐work.3；不强推master、不改work.2或其他标签，不自动push/tag/发布。
+- 新源码和同步审计放artifacts/3.2.0-work.3/source-push-preparation-20261117/，1822项含根DELIVERY、两个软链及权限；排除APK、artifacts、缓存、本机配置、签名私钥和参考仓库。原三个Release及旧源码ZIP保留，原测试与设备/真实模型待验结论不变。
+
+## 当前增量：静默心跳、压缩去视频与聊天报错本地化（2026-11-16）
+
+- 基线11441abe（3.2.0-work.2/205）；按同一上游递增为3.2.0-work.3/206，DB33。本包04-AGENTS与改前根文件字节一致，保留既有规则并追加本节。
+- isSilentPulse仅扩展整条白名单，规范化两端空白及指定尾部标点；不得使用contains/startsWith。PulseRuntime的heartbeat、待审批与静默开关守卫、OK活动和通知路径不变；任务、监视器及短信轮不受静默影响。
+- 默认心跳指令只增加不得用中文词替代标记的提醒；不迁移用户已保存的自定义文本。实施前阅读固定Kai TaskScheduler/HeartbeatPromptBuilder和PalmClaw HeartbeatService，保留两仓；不移植子串匹配、历史截断或超时。
+- withoutVideoParts只在requestCompressionSummary调用前处理请求副本；保留原消息/其他附件、正常聊天视频校验与编码、群组纯文本压缩以及自动压缩入口。
+- ProviderHttpException/ProviderResponseException保留五处HTTP及message-is-null原诊断；可空body使用toString保留原null文本。ErrorText在addError一次映射并挂原cause，取消仍提前返回，未知类型原样透出；addGenerationError视频分支与持久错误卡片不动。仅新增13key×三语，不改工具输出、重试策略、ChatError结构或卡片布局。
+- 源码额外发现五个流式onFailure入口，非2xx也使用结构化状态码并保留原失败cause，防止默认流式聊天漏掉401本地化；2xx明确非SSE响应映射解析异常，无响应或正常SSE的网络异常保留原类型。详见DELIVERY中的任务书偏差及上游重套清单。
+- 交付三个原签名GitHub Release及含根DELIVERY的精简源码ZIP，独立目录artifacts/3.2.0-work.3/silent-video-errors-release-20261116/；不自动commit/tag/push/发布，不操作设备或真实账号。验收按D1–D7、V1–V11、E1–E10逐项区分离线证据与设备待验。
+- 2026-11-17核验：完整test任务图与assembleGithubRelease成功（12分40秒）；去重1747项中1746通过、1项既有PDF跳过，最终调用复用UP-TO-DATE报告，非全部重跑。三个206 APK的原签名/图标、ABI、三语、WASM及CRC通过；源码1822项含根DELIVERY，设备与真实模型仍待验。
+
 ## 当前源码同步准备（2026-11-13，3.2.0-work.2 / 205）
 
 - 维护者要求“整理源码，给我命令，我来推送”，授权将本批读取闭环及配套台账整理为本地提交，覆盖下方构建阶段“不commit”的历史限制；远端推送、标签对齐和Release操作由维护者执行。

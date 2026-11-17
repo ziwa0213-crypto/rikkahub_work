@@ -2558,4 +2558,17 @@
   <string name="pulse_active_time_format">請輸入 HH:mm（如 08:30）；起止相同表示全天。</string>
   <string name="pulse_start_hour">開始時間</string>
   <string name="pulse_end_hour">結束時間</string>
+  <string name="error_http_401">API 金鑰無效或已過期，請檢查供應商設定</string>
+  <string name="error_http_403">拒絕存取（地區限制／餘額不足／權限不足）</string>
+  <string name="error_http_404">介面或模型不存在，請檢查位址與模型 ID</string>
+  <string name="error_http_429">請求過於頻繁，請稍後重試</string>
+  <string name="error_http_5xx">伺服器錯誤（HTTP %1$d）</string>
+  <string name="error_http_other">請求失敗（HTTP %1$d）</string>
+  <string name="error_network_interrupted">連線被中斷（伺服器或代理關閉了連線）</string>
+  <string name="error_network_ssl">安全連線失敗，可能是代理憑證問題</string>
+  <string name="error_resp_invalid_json">伺服器回傳的內容無法解析，可能不是相容介面</string>
+  <string name="error_file_not_found">檔案不存在或已被刪除</string>
+  <string name="error_no_model_selected">尚未選擇模型，請在設定中選擇</string>
+  <string name="error_provider_not_found">找不到該模型所屬的供應商，請檢查供應商設定</string>
+  <string name="error_unknown">發生未知錯誤</string>
 </resources>

@@ -7,6 +7,7 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebCapabilityRefusalException
 import me.rerere.ai.provider.VideoInputException
+import me.rerere.rikkahub.utils.ErrorText
 import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebImageException
 import me.rerere.rikkahub.data.ai.DeepSeekWebOutputGuard
 import me.rerere.rikkahub.data.ai.DeepSeekWebPseudoToolException
@@ -285,10 +286,11 @@ class ChatService(
         autoDismiss: Boolean = true,
     ) {
         if (error is CancellationException) return
+        val shown = ErrorText.resolve(context, error)?.let { IllegalArgumentException(it, error) } ?: error
         _errors.update {
             it + ChatError(
                 title = title,
-                error = error,
+                error = shown,
                 conversationId = conversationId,
                 solution = solution,
                 autoDismiss = autoDismiss,

@@ -1,5 +1,17 @@
 # F015 包 0：后台保活参考复核
 
+## 2026-11-16：完整静默标记白名单（206）
+
+改动前直接阅读本机固定Kai ed6a3e0c48e10de9e2852e939fa4531975352bff的
+composeApp/src/commonMain/kotlin/com/inspiredandroid/kai/data/TaskScheduler.kt第115–285行
+（含runHeartbeat及保存/通知判断），与HeartbeatPromptBuilder.kt第1–100行；直接阅读固定PalmClaw
+75a42aeda0e580ebad0de4a38c00c94146148366的app/src/main/java/com/palmclaw/heartbeat/HeartbeatService.kt全文。
+
+采用Kai自检输出与保存/通知分离、PalmClaw调度与执行职责分离的边界。本项目保留自己的PulseRuntime，
+仅在已有纯isSilentPulse中扩展整条标记白名单，不采用Kai的HEARTBEAT_OK子串判断、按数量裁剪历史或参考时限。
+默认指令仅补一句标记提醒，不影响已序列化自定义文本。两份参考仓库继续保留，没有fetch、复制代码或打入源码ZIP。
+本次不改心跳间隔、开始时间落盘、claim、审批、任务、感知或通知实现；无设备/真实账号操作。
+
 ## 2026-11-13：心跳提示词读取闭环（205）
 
 本增量改动前直接阅读固定Kai `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的

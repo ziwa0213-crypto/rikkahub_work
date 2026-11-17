@@ -1,3 +1,119 @@
+# 源码同步准备 — 3.2.0-work.3 / 206
+
+日期：2026-11-17，Asia/Shanghai。维护者要求“整理源码，给我命令，我来推送”。
+本轮整理本地提交与精简源码ZIP，远端推送、标签对齐和GitHub发布由维护者执行。
+下面构建批次“不commit”等内容是历史记录，当前同步状态以本节及git log为准。
+
+- 源码范围：静默心跳整条匹配、压缩请求去视频、五协议流式/非流式报错本地化、206版本及配套测试和文档。保留此前完整上游3.2.0及fork功能，数据库33。
+- 本轮不改产品：与silent-video-errors-release-20261116的已核验1822项源码逐一比对，仅AGENTS/FEATURES/本文件补记同步状态，其余1819项保持；不重新构建APK或重复执行未变的产品测试。既有1747项中1746通过、1项PDF语料跳过及最终构建缓存复用的说明继续适用。
+- 本地分支merge/upstream-3.2.0，父提交为11441abe5ad9261bb07d14ee60614e70a9af4967（work.2/205）；实际新提交SHA记录于本批SYNC-VERIFICATION.json，避免提交内容自引用。提交包含本轮全部29个改动路径，不含APK、缓存或密钥。
+- 已fetch并只读核对远端：origin/master和3.2.0-work.3标签都仍为11441abe5ad9261bb07d14ee60614e70a9af4967，源码实际为work.2/205。先普通推送新HEAD到master，成功后使用限定该标签旧值的force-with-lease对齐work.3。master不强推，work.2及其他标签不改；旧值变化时租约检查应拒绝覆盖，需重新核对。
+- origin继续使用git@github.com:ziwa0213-crypto/rikkahub_work.git。提供的推送命令以&&串联，master推送失败即停止，不执行后面的标签对齐。
+- 新交付目录：artifacts/3.2.0-work.3/source-push-preparation-20261117/。源码ZIP根含DELIVERY，保留1822项、两个符号链接和Unix权限；排除.git、artifacts、APK、构建缓存、本机配置、签名私钥和两份参考仓库。文件集合、逐文件哈希、权限、UTF-8文件名、CRC及提交树一致性分别记录在SOURCE-MANIFEST.json、SOURCE-VERIFICATION.json和SYNC-VERIFICATION.json；最终ZIP哈希放包外SHA256SUMS。
+- 原三个206正式签名Release及旧源码ZIP均保持哈希不变，仍位于silent-video-errors-release-20261116目录。未运行设备、模拟器、ADB或真实模型；D/V/E交互验收仍待维护者完成。本轮没有push、移动本地/远端标签、创建或更新GitHub Release。
+
+# 静默心跳、压缩去视频与聊天报错本地化 — 3.2.0-work.3 / 206
+
+实施日期：2026-11-16；构建、核验与交付：2026-11-17，Asia/Shanghai。依据新任务包《静默视频与报错中文化》00–03实施；
+04-AGENTS与改前根AGENTS字节一致，未用附件覆盖项目记录。基线11441abe5ad9261bb07d14ee60614e70a9af4967，
+保留完整上游3.2.0合并，数据库33。本轮未另合并上游、自动提交、操作标签、推送或发布。
+交付目录：artifacts/3.2.0-work.3/silent-video-errors-release-20261116/。以下旧批次章节仅作历史。
+
+## 实施范围与任务书校准
+
+- 心跳：isSilentPulse整条白名单，先trim再剥指定尾部标点再trim；不会把“无异常，但…”或多行提醒当静默。
+  Runtime保持heartbeat、非待审批及静默开关守卫，静默活动仍OK；任务/监视器/短信均不进入此静默分支。
+  DEFAULT_HEARTBEAT_PROMPT只增加不得用中文词替代标记的一句；老用户已保存的自定义文本不迁移。
+- 视频：withoutVideoParts只用于requestCompressionSummary的buildStep输入，纯复制，原消息与其他附件不改。
+  群组压缩仍为纯文本；正常聊天的视频能力校验/编码、历史显示与自动压缩路由保持原样。
+- 错误：五处非流式HTTP及message-is-null改结构化类型，保持原message；ErrorText按类型选择资源，
+  HTTP原body仅在显示时trim并取400字符，原异常挂cause。未知类型原样透出，取消提前返回；
+  原addGenerationError视频分支、ChatError结构、卡片布局/链接与重试策略均不改。四处模型/供应商缺失与未知兜底本地化。
+- 任务书漏列五个流式onFailure，实际默认聊天经此路径：非2xx也转为结构化HTTP错误，原解析/网络失败挂cause；
+  没有HTTP响应或正常event-stream的网络失败保留原类型；2xx却明确声明HTML/JSON而非SSE的响应转为结构化解析异常，
+  保留原诊断及cause，覆盖E3默认流式路径。Google失败body只读取一次。增加五协议实际入口的离线拦截夹具。
+- 任务书示例称HEARTBEAT_OK为“四个字符”不准确，未照抄；也没有宣称中文标记会作为报告，因为新白名单正会静默它。
+  Video单V11“401旧文案保持不变”与同包错误本地化冲突，按后者验收：HTTP状态/原body保留，用户说明使用对应语言。
+  原nullable body插值为null时会显示字符串null；使用toString而非orEmpty保留该边界的原诊断。
+- 三语各新增13key；原身份图标、F003、F004、F007、F009、F012、F013与DB33保留。
+  Kai/PalmClaw阅读范围见参考台账。没有真实账号、设备、模拟器或ADB操作，以下设备项均待维护者验收。
+
+## D1–D7 心跳验收
+
+| 编号 | 离线证据范围 | 设备/真实模型结果 |
+| --- | --- | --- |
+| D1 | 无属于整条白名单；Runtime保留不落对话及OK活动分支 | **待实机**：心跳回无，不新增对话消息，活动OK |
+| D2 | 原HEARTBEAT_OK及大小写/空白/标点回归单测 | 待实机：原标记正常静默 |
+| D3 | 实际报告、带转折及多行文本均不静默；通知开关路径未改 | 待实机：报告保存及通知开关效果 |
+| D4 | heartbeatSilentWhenNoContent=false仍调用persistPulseTurn，静态复核 | 待实机：关闭静默后保存无 |
+| D5 | heartbeat守卫保持，任务轮不受白名单影响 | **待实机**：计划任务回无正常保存 |
+| D6 | PulseScheduleTest新增中英文/标点/误吞保护用例并保留原调度测试 | 19项单测通过；设备交互仍待验 |
+| D7 | Runtime记录静默OK活动路径保持 | **待实机**：连续三次不累积无，最近活动有三条OK |
+
+## V1–V11 视频压缩验收
+
+| 编号 | 离线证据范围 | 设备/真实模型结果 |
+| --- | --- | --- |
+| V1 | requestCompressionSummary唯一入口先剔视频再buildStep | **待实机**：原报422对话压缩成功 |
+| V2 | 实际ChatCompletions序列化夹具不含video_url/base64视频，仍保留图片 | **待实机**：原约16MB请求实际缩小；不将离线小夹具当16MB实测 |
+| V3 | 纯函数测试原消息/parts/视频URL未变，无数据库写入 | **待实机**：压缩后原视频仍可播放 |
+| V4 | 原正常聊天流式/非流式video_url序列化回归测试保留 | 待实机：正常发视频 |
+| V5 | 群组压缩仍仅用文本prompt，未加视频过滤 | 待实机：群组压缩 |
+| V6 | 手动、自动与中途压缩复用原generateCompressionSummary链路 | 待实机：自动触发压缩 |
+| V7 | 新VideoInputTest六项，不可变历史/仅视频/自定义占位/混合附件 | 6项单测及实际请求序列化回归通过；真实模型仍待验 |
+| V8 | 无视频消息保持同一实例 | 待实机：普通文本压缩 |
+| V9 | ErrorText复用视频三类文案；原生成专用错误卡片不动 | **待实机**：关闭视频能力后发视频显示中文 |
+| V10 | 真实请求序列化夹具使用无VIDEO能力模型，去视频后可构造请求 | 待实机：关闭视频能力后含视频历史仍可压缩 |
+| V11 | 状态和原body保留，401用户文案按本包第三单本地化；未知异常不泛化 | 待实机：其他错误按新本地化预期展示 |
+
+## E1–E10 报错本地化验收
+
+| 编号 | 离线证据范围 | 设备/真实模型结果 |
+| --- | --- | --- |
+| E1 | 401实际五协议流式/非流式离线入口及中文资源映射 | **待实机**：错误Key卡片，截图/实际完整文本尚无 |
+| E2 | UnknownHost/Connect/NoRoute等类型映射已有网络文案 | **待实机**：飞行模式错误卡片 |
+| E3 | SerializationException及ProviderResponseException映射，五协议实际流式入口200 HTML夹具 | 待实机：200格式不兼容端点 |
+| E4 | Factory无模型/供应商四处使用资源 | 待实机：新装未选模型 |
+| E5 | 压缩剔视频及通用视频错误映射已接入 | 待实机：关闭视频能力仍压缩成功；未知异常仍原样显示，不承诺任意错误都必为中文 |
+| E6 | 500/503/599参数化资源及503实际协议失败入口 | 待实机：服务端错误卡片 |
+| E7 | EOF/Socket/IOException含子类映射连接中断 | **待实机**：生成途中关闭代理 |
+| E8 | IllegalStateException/未知IllegalArgumentException保持null映射，不按字符串猜类型 | 待实机：原文保留 |
+| E9 | 测试直接读取三份真实XML，检查英/繁401及简中各类错误 | 待实机：英文/繁体界面卡片 |
+| E10 | ErrorTextTest九项及结构化异常/真实协议入口夹具 | 9项映射测试及五协议离线入口测试通过；设备卡片仍待验 |
+
+E1离线预期文本（不是设备截图）：API 密钥无效或已过期，请检查供应商设置，空行后原响应body，最长400字符。
+
+## 上游升级需重套
+
+1. ai/provider/VideoInput.kt：扩展及占位，保留原校验；app/data/ai/ChatRequestFactory.kt：仅压缩输入过滤及四处资源。
+2. ai/provider/ProviderHttpException.kt：结构化异常和流式HTTP转换；providers/openai/ChatCompletionsAPI.kt、ResponseAPI.kt、
+   providers/claude/ClaudeProvider.kt、providers/google/GoogleProvider.kt、InteractionsAPI.kt：五处HTTP、响应缺message和五个流式出口。
+3. app/utils/ErrorText.kt与service/ChatService.kt的addError映射；ui/components/ui/ErrorCard.kt两处未知兜底；三份strings各13key。
+4. service/pulse/PulseSchedule.kt整条白名单、data/datastore/PulseConfig.kt默认指令提醒，以及本批六份测试与参考台账。
+
+回滚以git diff 11441abe -- <对应路径>逐块反向撤销；不要整文件回退丢弃原DeepSeek推理、能力拒绝、压缩、视频或其他fork功能。
+版本递增单独评估；没有数据迁移。实际完整改动列表将在本目录SOURCE-AUDIT.json记录。
+
+## 本批构建、签名与归档
+
+源码范围审计已通过：相对205清单1815项，22项修改、1793项保持，新增7项（含仅用于JVM的Log适配）；无删除、无额外语言资源或索引/HEAD变化。
+三份语言文件各新增13key且原文案逐字保持；原视频校验/异常、生成视频卡片/能力拒绝分支、PulseRuntime与版本文件改动范围均已核对。
+
+- 成功命令：`./gradlew test :app:assembleGithubRelease --no-daemon --no-parallel --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8' --offline --console=plain`。2026-11-17完成，用时12分40秒，877项任务中59项执行、818项UP-TO-DATE；Release R8、资源优化、lintVital、签名与打包成功。成功证据为本目录build-combined.log，没有构建Debug APK。
+- 测试报告按任务图去重为258个套件、1747项：1746通过、0失败、0错误、1项既有PdfCorpusTest.extractCorpus缺语料跳过。AI的415项及App GitHub的943项已在本批此前调用执行通过；最终成功调用的测试任务均为UP-TO-DATE，其余未变模块也复用报告，不宣称1747项全部重新执行。Play重复报告不重复计数；本工程未注册Release变体单测，不能将Debug JVM单测称为Release设备测试。
+- 本批相关六套件共52项通过：VideoInputTest 6、ProviderHttpExceptionTest 5、ProviderHttpFailuresTest 2、ChatCompletionsVideoTest 11、PulseScheduleTest 19、ErrorTextTest 9。协议入口夹具逐项覆盖五种协议的401/503及流式200 HTML；并非真实联网或模型验证。
+- 三个APK均核验206/3.2.0-work.3、包名me.rerere.rikkahub.plus、应用名RikkaHub Work、非debuggable，沿用正式签名且v2校验通过；证书SHA256为671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b。各自ABI、仅三语、原21身份图标源文件及20张PNG像素、deepseek_sha3.wasm与ZIP CRC通过。
+- 精简源码保留1822项、2个符号链接、Unix权限及根DELIVERY；排除.git、APK、构建缓存、本机配置、签名私钥、artifacts和两份参考仓库。SOURCE-MANIFEST.json与SOURCE-VERIFICATION.json记录逐文件内容/哈希、文件集合、权限、UTF-8名称及CRC核验；最终ZIP哈希放包外SHA256SUMS，避免自引用。
+- 第一轮协议入口测试遇到Android Log未mock，新增ai/src/test/java/android/util/Log.java只适配JVM日志；第二轮修正夹具响应体为现有stringSafe支持的真实网络类型。生产日志、stringSafe、重试策略与断言未为此放宽。后续内存压力、旧进程锁与中断尝试均分别保留build-attempt1至6日志；它们不替代最终成功日志，也不作为整版通过证据。
+- 自动验证明细为本目录TEST-RESULTS.json、APK-VERIFICATION.json与SOURCE-AUDIT.json。未操作设备、模拟器、ADB、真实账号或远端；上述D/V/E实际交互与模型验收仍待维护者完成。旧批次记录如下，仅作历史。
+
+| 交付文件 | 字节数 | MiB |
+| --- | ---: | ---: |
+| RikkaHub.Work-3.2.0-work.3-arm64-v8a-release.apk | 16466553 | 15.70 |
+| RikkaHub.Work-3.2.0-work.3-x86_64-release.apk | 16565478 | 15.80 |
+| RikkaHub.Work-3.2.0-work.3-universal-release.apk | 19297657 | 18.40 |
+| RikkaHub.Work-3.2.0-work.3-source.zip | 见SOURCE-VERIFICATION.json | 见SOURCE-VERIFICATION.json |
+
 # 源码同步准备 — 3.2.0-work.2 / 205
 
 日期：2026-11-13。维护者要求“整理源码，给我命令，我来推送”。本轮准备本地提交与精简源码ZIP，

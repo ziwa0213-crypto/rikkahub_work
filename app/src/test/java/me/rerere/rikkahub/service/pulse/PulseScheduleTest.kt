@@ -46,6 +46,27 @@ class PulseScheduleTest {
         assertFalse(isSilentPulse("`HEARTBEAT_OK`"))
     }
 
+    @Test fun `Chinese silent markers match the whole normalized response`() {
+        listOf("无", "無", "暂无", "沒有", "没有", "正常", "无异常", "一切正常", "没有异常", "无需关注", "沒有異常")
+            .forEach { assertTrue(it, isSilentPulse(it)) }
+    }
+
+    @Test fun `English silent markers ignore case`() {
+        listOf("nothing", "ALL GOOD", "All Clear", "No Issues", "OK", "HEARTBEAT_OK")
+            .forEach { assertTrue(it, isSilentPulse(it)) }
+    }
+
+    @Test fun `trailing supported punctuation and surrounding whitespace are tolerated`() {
+        listOf(" 无。 ", "正常！", "一切正常~", "ok!", "HEARTBEAT_OK.", "all clear～", "\n无。！.!~～\t")
+            .forEach { assertTrue(it, isSilentPulse(it)) }
+    }
+
+    @Test fun `actual reports and multiline content are never silently swallowed`() {
+        listOf("无异常，但电池只剩 10%", "无\n\n顺带提醒：明天到期", "OK but a task failed",
+            "HEARTBEAT_OK\n有待办", "暂时没有需要关注的事项", "nothing to report", "无？", "！无", "", "...", "   ")
+            .forEach { assertFalse(it, isSilentPulse(it)) }
+    }
+
     @Test fun `unanswered user message blocks automatic heartbeat`() {
         assertTrue(isAwaitingPulseReply(listOf(UIMessage.user("pending"))))
         assertFalse(isAwaitingPulseReply(listOf(UIMessage.assistant("reply"))))

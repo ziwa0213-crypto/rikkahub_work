@@ -53,6 +53,9 @@ import me.rerere.ai.util.configureReferHeaders
 import me.rerere.ai.util.configureSessionHeaders
 import me.rerere.ai.util.encodeBase64
 import me.rerere.ai.provider.VideoInputException
+import me.rerere.ai.provider.ProviderHttpException
+import me.rerere.ai.provider.providerStreamFailure
+import me.rerere.ai.provider.ProviderResponseException
 import me.rerere.ai.provider.validateVideoInput
 import me.rerere.ai.util.json
 import me.rerere.ai.util.mergeCustomBody
@@ -119,7 +122,7 @@ class ChatCompletionsAPI(
 
         val response = client.newCall(request).await()
         if (!response.isSuccessful) {
-            throw Exception("Failed to get response: ${response.code} ${response.body?.string()}")
+            throw ProviderHttpException(response.code, response.body?.string().toString())
         }
 
         val bodyStr = response.body?.string() ?: ""
@@ -130,7 +133,7 @@ class ChatCompletionsAPI(
         val model = bodyJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
         val choice = bodyJson["choices"]?.jsonArray?.get(0)?.jsonObject ?: error("choices is null")
 
-        val message = choice["message"]?.jsonObject ?: throw Exception("message is null")
+        val message = choice["message"]?.jsonObject ?: throw ProviderResponseException("message is null")
         val finishReason = choice["finish_reason"]
             ?.jsonPrimitive
             ?.content
@@ -222,7 +225,7 @@ class ChatCompletionsAPI(
                     e.printStackTrace()
                     exception = e
                 } finally {
-                    close(exception)
+                    close(providerStreamFailure(response?.code, bodyRaw, exception, response?.header("Content-Type")))
                 }
             }
 

@@ -2559,4 +2559,17 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="pulse_active_time_format">请输入 HH:mm（如 08:30）；起止相同表示全天。</string>
   <string name="pulse_start_hour">开始时间</string>
   <string name="pulse_end_hour">结束时间</string>
+  <string name="error_http_401">API 密钥无效或已过期，请检查供应商设置</string>
+  <string name="error_http_403">拒绝访问（地区限制 / 余额不足 / 权限不足）</string>
+  <string name="error_http_404">接口或模型不存在，请检查地址与模型 ID</string>
+  <string name="error_http_429">请求过于频繁，请稍后重试</string>
+  <string name="error_http_5xx">服务端错误（HTTP %1$d）</string>
+  <string name="error_http_other">请求失败（HTTP %1$d）</string>
+  <string name="error_network_interrupted">连接被中断（服务器或代理关闭了连接）</string>
+  <string name="error_network_ssl">安全连接失败，可能是代理证书问题</string>
+  <string name="error_resp_invalid_json">服务器返回的内容无法解析，可能不是兼容接口</string>
+  <string name="error_file_not_found">文件不存在或已被删除</string>
+  <string name="error_no_model_selected">还没有选择模型，请在设置中选择</string>
+  <string name="error_provider_not_found">找不到该模型所属的供应商，请检查供应商设置</string>
+  <string name="error_unknown">出现未知错误</string>
 </resources>
