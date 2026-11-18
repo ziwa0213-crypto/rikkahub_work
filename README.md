@@ -7,8 +7,9 @@
 [English](README_EN.md) | 简体中文
 </div>
 
-> ✅ **当前发布：[`3.1.2-work.1`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)**（versionCode 202，2026-11-10）—— 已合并上游 3.1.2，**脉搏模式（第三个模式）完成**。
-> ⚠️ **升级前请先备份**：数据库为 33（32→33 起于上一版），升级后无法回退。详见下文「安装与升级」。
+> ✅ **当前发布：[`3.2.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)**（versionCode 206，2026-11-13）—— 静默心跳判定、压缩自动剔除视频、报错中文化。
+> 🔧 **开发中（尚未发布）：`3.3.0-work.1` / 207** —— 合并上游 3.3.0 + **本地模型（llama.cpp）**。进度与已知问题见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
+> ⚠️ **升级前请先备份**：当前数据库为 **33**；开发版会升到 **34**，且只升不降。详见下文「安装与升级」。
 
 <div align="center">
   <img src="docs/img/chat.png" alt="聊天界面" width="150" />
@@ -20,7 +21,7 @@
 RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 fork**，以自用为主，顺手分享。它跟随上游发版，并在此基础上追加了一批功能与修复。
 
 - **不是 RikkaHub 官方版本。** 本仓库的一切都建立在上游工作之上；本 fork 的问题请提到**本仓库**，与上游无关。
-- **版本号规则**：`{上游版本}-work.{n}`，例如 `3.1.2-work.1`。每次跟进新的上游版本时，`n` 归 1。
+- **版本号规则**：`{上游版本}-work.{n}`，例如 `3.2.0-work.3`。每次跟进新的上游版本时，`n` 归 1。
 - **语言**：仅保留 English、简体中文、繁體中文。
 - 构建产物通过本仓库的 GitHub Releases 分发。
 
@@ -34,7 +35,7 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 - 提供三种构建：`arm64-v8a`、`x86_64` 和 `universal`，多数手机选 `arm64-v8a`。安装包约 16 MB（`universal` 约 19 MB）。
 
 > [!WARNING]
-> **数据库只升不降。** 本版把数据库从 32 升到 33，装回任何旧版本都会因 Room 降级而无法启动，只能清数据重来。
+> **数据库只升不降。** 当前发布版数据库为 **33**；正在开发的 `3.3.0-work.1` 会升到 **34**。装回任何旧版本都会因 Room 降级而无法启动，只能清数据重来。
 > **升级前请先在「设置 → 备份」做一次完整备份（勾选包含数据库）**，并保留一份当前版本的 APK。设置、对话和 API Key 都在应用私有目录里，卸载即丢失。
 
 ## ✨ 本 fork 增加的功能
@@ -114,6 +115,18 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 - 生成超时和「因设备休眠中断」都有明确提示，先落错误卡片再取消任务。
 - **启动竞态修复** —— 修复「上次退出时是群组模式，重启却回到聊天模式」：设置与占位会话都是异步加载，旧代码在首帧就按默认值渲染并写回设置，把用户的真实选择覆盖掉了。
 
+## 🔧 开发中（尚未发布）
+
+以下内容在 `3.3.0-work.1` 分支上已完成，但**还没有发版**，装当前发布版本的用户看不到：
+
+- **本地模型（llama.cpp）** —— 在手机上直接跑 GGUF，不联网、不消耗 API 额度。内置 5 个模型（LFM3 1.7B / Phi-4 mini / Qwen3.5 4B / Gemma 4 E2B / Qwen3.5 9B，按体积升序），支持从文件导入、单独安装视觉编码器、图片 / 音频 / 视频输入；模型改为**显式加载**（聊天页输入框上方的胶囊，颜色跟随主题），应用退到后台 30 秒后提醒、由你决定是否卸载。
+- **本地模型的上下文压缩** —— 按窗口大小分档限制压缩请求的输入与摘要长度，避免「拿 150K 对话去压 4K 模型」。
+- **合并上游 3.3.0** —— DeepSeek 语音识别与合成、DeepSeek 聊天记录导入、助手气泡按段落拆分、工作区共享存储挂载、Vertex Interactions、安全模式清理超大设置、连接测试弹窗等。
+
+这一版的 APK 会从约 16 MB 增大到**约 21.7 MB**（多了本地推理库）。
+
+正在修的问题、以及为什么 LFM3 这类没有对话模板的模型会「加载成功但不出字」，都记在 [DEVELOPMENT.md](./DEVELOPMENT.md)。
+
 ## ⚠️ 已知限制
 
 | 项 | 说明 |
@@ -121,7 +134,7 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 | DeepSeek 网页版登录页可能白屏 | 应用内 WebView 打开登录页时可能空白（UA / 指纹层面，未定位）。界面会给出诊断提示，建议改用系统浏览器 / Via 登录后，用「粘贴 cURL」导入 |
 | 浏览器电脑模式只是显示伪装 | 同一内核渲染，`navigator.platform` 等仍可被探测；已经 302 跳到移动站的页面救不回来 |
 | 液态玻璃需要 Android 13 及以上 | 低版本自动用模糊玻璃，不报错，也不抬高安装门槛 |
-| 数据库只升不降 | 当前版本 33，装回旧版本读不了数据，只能清数据 |
+| 数据库只升不降 | 当前发布版 33，开发版 34；装回旧版本读不了数据，只能清数据 |
 
 ## 📦 上游继承的功能
 
@@ -155,8 +168,9 @@ RikkaHub Work 是 [RikkaHub](https://github.com/rikkahub/rikkahub) 的**个人 f
 | Release 包名 | `me.rerere.rikkahub.plus` |
 | Debug 包名 | `me.rerere.rikkahub.debug` |
 | 版本号 | `{上游版本}-work.{n}` |
-| 当前发布 | `3.1.2-work.1`（versionCode 202，2026-11-10） |
-| 数据库版本 | 33（只升不降） |
+| 当前发布 | `3.2.0-work.3`（versionCode 206，2026-11-13） |
+| 开发中 | `3.3.0-work.1`（versionCode 207，未发布） |
+| 数据库版本 | 33（开发版 34，只升不降） |
 | 许可证 | AGPL-3.0 |
 
 > 开发过程、各阶段进度与缺陷根因见 [DEVELOPMENT.md](./DEVELOPMENT.md)。

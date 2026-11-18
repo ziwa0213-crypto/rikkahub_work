@@ -7,8 +7,9 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 [简体中文](README.md) | English
 </div>
 
-> ✅ **Current release: [`3.1.1-work.1`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 200, 2026-10-31) — upstream 3.1.1 has been merged.
-> ⚠️ **Back up before upgrading.** The database goes from 32 to 33 in this build and cannot be rolled back. See "Install & Upgrade" below.
+> ✅ **Current release: [`3.2.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 206, 2026-11-13) — silent-heartbeat detection, video stripped from compression, localized error messages.
+> 🔧 **In development (not released): `3.3.0-work.1` / 207** — merges upstream 3.3.0 and adds **on-device models (llama.cpp)**. Progress and known issues: [DEVELOPMENT.md](./DEVELOPMENT.md).
+> ⚠️ **Back up before upgrading.** The database is **33** right now; the in-development build moves it to **34** and it cannot be rolled back. See "Install & Upgrade" below.
 
 <div align="center">
   <img src="docs/img/chat.png" alt="Chat Interface" width="150" />
@@ -20,7 +21,7 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 RikkaHub Work is a **personal fork** of [RikkaHub](https://github.com/rikkahub/rikkahub), kept mainly for my own use and shared as is. It follows upstream releases and adds a set of features and fixes on top of them.
 
 - **Not an official RikkaHub release.** Everything here is built on upstream work. Issues with this fork should be reported **in this repository**, not upstream.
-- **Versioning**: `{upstream version}-work.{n}`, e.g. `3.1.1-work.1`. `n` resets to `1` whenever a new upstream version is followed.
+- **Versioning**: `{upstream version}-work.{n}`, e.g. `3.2.0-work.3`. `n` resets to `1` whenever a new upstream version is followed.
 - **Languages**: English, 简体中文, 繁體中文 only.
 - Builds are distributed through this repository's GitHub Releases.
 
@@ -34,7 +35,7 @@ Download the APK from this repository's **Releases** page.
 - Three builds are attached: `arm64-v8a`, `x86_64`, and `universal`. Most phones want `arm64-v8a`. The APK is about 16 MB (`universal` about 19 MB).
 
 > [!WARNING]
-> **The database only goes up.** This build moves the database from 32 to 33; installing any older version afterwards fails on the Room downgrade and the only way out is clearing app data.
+> **The database only goes up.** The current release uses database **33**; the in-development `3.3.0-work.1` moves it to **34**. Installing any older version afterwards fails on the Room downgrade and the only way out is clearing app data.
 > **Make a full backup first (Settings → Backup, include the database)** and keep a copy of the APK you are running now. Settings, conversations and API keys live in the app's private storage and are gone if you uninstall.
 
 ## ✨ What This Fork Adds
@@ -72,6 +73,21 @@ Download the APK from this repository's **Releases** page.
 - **Group chat compression** — manual compression, layered summaries, editable prompts and an automatic reminder that only spends tokens after you confirm.
 - **Workspace ownership** — workspaces are filtered by Chat / Group / Unassigned and created under the current mode; the same filter applies when opening workspace management from the file picker or the extensions page.
 
+### 🫀 Pulse Mode (F015)
+
+The **third mode** at the top of the drawer. Unlike the other two, it does not wait for you to speak: it runs on a schedule and only reaches out when something needs attention.
+
+- **Heartbeat** — a self-check every fixed interval (30 minutes by default): memory, to-dos, watchers. If nothing changed it stays silent.
+- **Scheduled tasks** — one-off, recurring (five-field cron, e.g. `0 9 * * 1-5` for weekdays at 9), or every heartbeat. Tasks are created by the AI; you just say "remind me to hand in the assignment at 9 every morning".
+- **Watchers** — local polling (battery / URL / command) that only wakes the model **when something changed**, so it never repeats "all clear".
+- **Sensing** — optional notification and SMS reading. Existing items are skipped on first enable; message bodies are never sent back to the model, only counts and senders.
+- **Its own memory** — a separate `__pulse__` bucket, shared with no assistant and no group. The top bar opens a memory page with Memory / Dreaming tabs; dreaming consolidates scattered notes into a file, manually or on a schedule.
+- **Its own tools** — info (time / screen / clipboard / search), memory, calendar, **alarm**, file read/write, shell, SMS, each with a switch; dangerous ones are off by default.
+- **Its own workspace** — templates are laid down on first entry; a Linux environment can be installed to run scripts and return artifacts.
+- **Keep-alive** — persistent notification + exact alarms + WorkManager dual scheduling + battery/autostart guidance + self-healing when returning to the foreground.
+- **Visible cost** — the drawer shows today's tokens and estimated cost; the main screen keeps only that line.
+- Pulse memory is **read-only visible** to the other modes and vice versa; nobody writes into someone else's bucket.
+
 ### 🔌 Providers & Search
 
 - **DeepSeek Web (free)** — drives conversations from a browser login session instead of an API key. Ships with a read-only tool allowlist, a serial request gate and configurable throttling; file writes, shell, code execution, skills and MCP are cut off to reduce account risk.
@@ -98,6 +114,18 @@ Download the APK from this repository's **Releases** page.
 - Timeouts and "interrupted by device sleep" both surface a clear error card, which is recorded before the job is cancelled.
 - **Startup race fix** — fixes "I left the app in Group mode and it came back in Chat mode": settings and the placeholder conversation both load asynchronously, and the old code rendered from defaults on the first frame and wrote that back over your real choice.
 
+## 🔧 In Development
+
+Finished on the `3.3.0-work.1` branch but **not released yet** — users on the current release do not see these:
+
+- **On-device models (llama.cpp)** — run GGUF on the phone with no network and no API cost. Five built-in models (LFM3 1.7B / Phi-4 mini / Qwen3.5 4B / Gemma 4 E2B / Qwen3.5 9B, ordered by size), plus import from file and separately installed vision encoders; image / audio / video input. Models are **loaded explicitly** from a capsule above the input bar (color follows the theme); 30 seconds in the background triggers a silent reminder and *you* decide whether to unload.
+- **Compression for local models** — the compression request is bounded by the model window, so a 150K conversation is never handed to a 4K model.
+- **Upstream 3.3.0** — DeepSeek speech recognition and synthesis, DeepSeek history import, paragraph-split assistant bubbles, shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test dialog.
+
+The APK grows from about 16 MB to **about 21.7 MB** in this version (the on-device inference libraries).
+
+Why a model such as LFM3 "loads fine but produces nothing", and what is being fixed right now, are documented in [DEVELOPMENT.md](./DEVELOPMENT.md).
+
 ## ⚠️ Known Limitations
 
 | Item | Notes |
@@ -105,7 +133,7 @@ Download the APK from this repository's **Releases** page.
 | DeepSeek Web login page may be blank | Opening the login page in the in-app WebView can render blank (user-agent / fingerprint level, not diagnosed). A diagnostic hint is shown; sign in with a system browser or Via and import via "paste cURL" instead |
 | Browser desktop mode is display-only | Same engine, so `navigator.platform` and friends can still tell. A page that already redirected to its mobile site cannot be rescued |
 | Liquid glass needs Android 13+ | Older versions fall back to blurred glass; no error, and the install floor is unchanged |
-| Database only goes up | Currently 33; older builds cannot read the data, so clearing app data is the only way back |
+| Database only goes up | Current release 33, in-development build 34; older builds cannot read the data, so clearing app data is the only way back |
 
 ## 📦 Inherited from Upstream
 
@@ -139,8 +167,9 @@ Download the APK from this repository's **Releases** page.
 | Release package | `me.rerere.rikkahub.plus` |
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version format | `{upstream version}-work.{n}` |
-| Current release | `3.1.1-work.1` (versionCode 200, 2026-10-31) |
-| Database version | 33 (only goes up) |
+| Current release | `3.2.0-work.3` (versionCode 206, 2026-11-13) |
+| In development | `3.3.0-work.1` (versionCode 207, unreleased) |
+| Database version | 33 (34 in development; only goes up) |
 | License | AGPL-3.0 |
 
 > Development progress, stage breakdown and root causes are in [DEVELOPMENT.md](./DEVELOPMENT.md).

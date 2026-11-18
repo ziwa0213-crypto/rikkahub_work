@@ -1,150 +1,118 @@
 # 开发进度 / Development Status
 
-> 最后更新：**2026-11-10**
-> 本文件记录**正在开发中的工作**。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
+> 最后更新：**2026-11-18**
+> 本文件**只记录当前正在开发的版本**：`3.3.0-work.1`（尚未发布）。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
+> 上一版 `3.2.0-work.3` / 206 已发布，其内容见 Releases 页。
+
+---
+
+## 0. 一句话状态
+
+**上游 3.3.0 已合并完毕，本地模型（llama.cpp）已完成并出过包；现在在做第三批修复，修完才发版。**
+
+- 版本号：`3.3.0-work.1` / versionCode **207**（未发布前不升）
+- 数据库：**33 → 34**（装上之后不可回退，先备份）
+- 包名：`me.rerere.rikkahub.plus`
+
+---
+
+## 1. 这一版包含什么
+
+### 1.1 合并上游 3.3.0
+
+| 变化 | 说明 |
+|---|---|
+| DeepSeek 语音 | 语音识别与合成本地接入，可直接对话 |
+| DeepSeek 记录导入 | 可把 DeepSeek 的聊天记录导进来 |
+| 气泡分段 | 助手回复按段落拆分渲染 |
+| 工作区共享存储 | 外部存储挂载到工作区 |
+| Vertex Interactions | 新的 Google 接口形态 |
+| 安全模式 | 清理超大设置，避免设置撑爆 |
+| 连接测试弹窗 | 供应商连通性测试结果集中展示 |
+| Phone Use | 跟进上游：不再操作微信 |
+
+合并时保留本 fork 的全部既有能力（F004 审批、F007 reasoning 回传、F009 网页版边界、F012 群组、F013 浏览器、F015 脉搏、F017 工作区、F019 闹钟）。
+
+### 1.2 本地模型（llama.cpp）
+
+在手机上直接跑 GGUF，不联网、不消耗 API 额度。
+
+- **内置 5 个模型**（按体积升序）：LFM3 1.7B / Phi-4 mini / Qwen3.5 4B / Gemma 4 E2B / Qwen3.5 9B；也支持从文件导入。
+- **视觉编码器**单独下载，模型声明支持时可读图片 / 音频 / 视频（视频抽帧，最多 16 帧）。
+- **显式加载**：不再"选完就能用"，聊天页输入框上方有悬浮胶囊（颜色跟随主题），点一下加载，显示权重 / 上下文 / 视觉编码器三个阶段与秒数；失败可看详情并重试。
+- **后台提醒**：退到后台 30 秒后发一条静默通知，**只有你点「卸载」才卸**；正在生成时排队到本轮结束；回到前台自动撤销。
+- **短上下文压缩**：按窗口分档限制压缩请求的输入与摘要长度（4K→1.5K/300、8K→3K/500、16K→6K/800、更大→12K/1200），阈值 .65/.70/.75/.80。
+- **用量上报**：每个生成轮次回报真实输入/输出 token，供上下文显示与自动压缩使用（此前本地模型的自动压缩从不触发）。
+
+---
+
+## 2. 第三批：正在修的问题
+
+以下全部来自 2026-11-18 的实机测试，规范见 `任务书/F020 本地模型/补充三·回归修复与工作区上传.md`。
+
+| # | 问题 | 状态 |
+|---|---|---|
+| A | **加载胶囊盖在所有页面上** —— 用了 `Popup`（独立窗口），侧边抽屉的遮罩、进入统计页都盖不住它 | 待实施 |
+| B | **「你好」就报上下文过长** —— 输入预算只有 `contextSize − 2048`，4K 窗口下只剩 2048，系统提示 + 一个工具 schema 就吃满；且 `nCtx` 被按 `availMem` 压到 512 | 待实施 |
+| C | **LFM3 加载成功但不出字** —— 该 GGUF 里没有 `tokenizer.chat_template`，llama.cpp 回落内置 ChatML，模型不认，立刻 EOS | 待实施 |
+| D | **视频直传报 422** —— 非 Google 端点不接受 `video_url`（`unknown variant`） | 待实施 |
+| E | **视频 / zip 传不上** —— 只有"没封面的缩略图"；改为存进工作区，消息里放文件链接 | 待实施 |
+| F | **模型「视频」开关多余** —— 视频改走工作区后这个开关没有意义，删掉并把内置工具说明改回原文案 | 待实施 |
+| G | **长按本地模型直达表单多余** —— 本地供应商已有「配置 / 模型」两个页签，改回普通入口 | 待实施 |
+
+### 2.1 为什么 LFM3 不出字（已定性的根因）
+
+用 Range 读取 `LFM3-1.7B-Uncensored-AD-Q6_K.gguf` 的元数据：`general.architecture = lfm3`（架构是认的），但**没有 `tokenizer.chat_template`**。GGUF 的键按字典序排列，它若存在必然排在 `tokenizer.ggml.model` 之前——不在。源头 `LiquidAI/LFM3-1.7B-Base` 的 `tokenizer_config.json` 里 `chat_template` 也是 `null`。
+
+于是请求被按 ChatML 渲染，LFM3 看到的是不认识的格式，直接结束。修法是让本地模型支持**手动指定对话模板**（自动 / 内置预设 / 自定义 Jinja），并在"生成了零个字符"时明确报错，而不是静默空回复。
+
+### 2.2 为什么 16 GB 机只能开 512 上下文
+
+`ContextPlanner` 用 `availMem * 0.55 − fileBytes − 512 MB` 估算，而 `fileBytes` 是 **mmap** 的权重（`llama_jni.cpp` 明确 `LLAMA_LOAD_MODE_MMAP`），干净页可被内核回收，不该按常驻内存全额扣。2.85 GB 的 Phi-4 mini 一扣，"可用"直接归零，上下文落到地板 512——于是第一条消息就放不下。
+
+修法：`nCtx` 只由「模型训练上限 × 用户设置 × 16384」决定；`availMem` 只用来做提示；`outputBudget` 封顶到窗口的 1/4。
+
+---
+
+## 3. 验证状态
+
+| 项 | 状态 |
+|---|---|
+| 编译 / JVM 单测 | 通过（Codex 本机执行，含 llama-cpp 与 app 模块） |
+| APK 构建 | 通过，ARM64 签名 Release，约 21.7 MB |
+| 三语 key 一致性 | 通过（各 2,683 条） |
+| 真机 | **未系统性跑完**。已确认：加载/卸载可用、胶囊可点、门禁不再硬拒；未确认：通知动作、16 GB 下的真实表现、150K 对话压缩、用量日志 |
+
+> 本文件不把编译与 JVM 测试当成真机通过。
+
+---
+
+## 4. 下一步
+
+1. 实施第三批 A~G，出一版 Debug 自用包，先验 A / B / C 三项
+2. 本地模型**默认上下文降到 4096**（当前 16384，对 16 GB 机偏大）
+3. N1：KV 量化（q8_0）与内存预算模型
+4. 评估 Vulkan 后端（不用换模型文件，同一份 gguf；判定点见 `docs/40`）
+5. N22：LiteRT-LM 作为第二引擎（GPU delegate，模型是另一套 `.litertlm`）
 
 ---
 
 ## English Summary
 
-**`3.1.2-work.1` (versionCode 202, database 33) shipped on 10 November 2026**, merging upstream
-**3.1.2** and finishing **Pulse mode** — the third mode next to Chat and Groups.
+**`3.3.0-work.1` (versionCode 207) is in development; the previous `3.2.0-work.3` (206) is the current release.**
+Database moves from 33 to 34 and cannot be rolled back.
 
-**Pulse mode is done.** An assistant that runs on its own schedule: heartbeat self-checks,
-scheduled tasks (one-off, cron, or every heartbeat), change-only watchers, optional notification
-and SMS sensing, its own memory bucket with a "dreaming" consolidation step, its own workspace,
-and layered keep-alive so Android does not freeze it. It never messages you unless something
-actually needs your attention.
+This version merges **upstream 3.3.0** (DeepSeek speech, DeepSeek history import, paragraph-split bubbles,
+shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, connection-test
+dialog) and adds **on-device models** running on llama.cpp: five built-in GGUF models (1.7B–9B), file import,
+separate vision encoders, image/audio/video input, **explicit loading** behind a capsule above the input bar,
+a 30-second background reminder with a user-triggered unload, window-tiered compression budgets, and real token
+usage reporting.
 
-The upstream merge brought a new text-rendering library replacing the `highlight` module, a
-rewritten message inbox, a split chat list with swipe-to-preview, a floating top-bar capsule, and
-background workspace commands.
+**In progress:** a third batch fixing what testing turned up — the loading capsule floating above drawers and
+other pages, an input budget that made even "hi" overflow on a 4K window, LFM3 producing no output because its
+GGUF has no chat template (llama.cpp falls back to ChatML), `422 unknown variant video_url` from non-Google
+endpoints, and video/zip uploads that should go to the workspace instead of the chat bubble.
 
-**Next:** nothing scheduled. Optional items are listed in §6.
-
-## 1. 当前状态
-
-**已发布**：**`3.1.2-work.1`** / versionCode **202**（2026-11-10），数据库 **33**。
-上一版 `3.1.1-work.2`（201）于 2026-11-03 发布。
-
-阶段 0~4（合并 / 数据 / 功能回归 / 入口与群组 / 收尾）已全部完成，**脉搏模式（F015）已收尾**。
-
----
-
-## 2. 这一版做了什么
-
-### 2.1 合并上游 3.1.2
-
-| 变化 | 说明 |
-|---|---|
-| 文本渲染换库 | 上游删掉 `highlight` 模块，改用 `bettertext`；代码块高亮、表格、公式的入口都跟着变 |
-| 消息队列重写 | `MessageQueue` → `ConversationInbox`，新增 `UIMessagePart.Notice` 类型 |
-| 聊天列表拆分 | `ChatList.kt` 拆成 5 个文件，加入左滑概览 |
-| 顶栏浮动胶囊 | 顶栏按钮改成浮动胶囊，与输入框共用玻璃背景 |
-| 工作区后台命令 | 新增 `run_in_background` 与两个配套工具，长命令不再阻塞一轮 |
-
-冲突处理：22 个真冲突逐个手改；`generatePdf` 等被上游删掉的调用点同步清理；语言仍只保留三份。
-
-### 2.2 脉搏模式收尾（六批）
-
-| 批次 | 内容 |
-|---|---|
-| 感知层 | 阅读通知、短信（轮询、白名单号码、验证码先屏蔽再截断） |
-| 心跳 | 指令位置修正（从 system 中间挪到消息末尾）；只有本轮真的读过通知 / 短信时才把摘要脱敏 |
-| 抽屉 | 状态卡改成两行 + 待执行列表；通知白名单加全选 / 反选；主界面只保留用量一行 |
-| 工具 | 闹钟 `set_alarm`（只创建）；脉搏独立开关；禁止用 `sleep` 等将来的时间点 |
-| 记忆 | 顶栏记忆入口 + 记忆页（记忆 / 做梦两页签）+ 自动整理开关 |
-| 多模态 | 会话内工作区图片可解析；视频输入按模型能力开放 |
-
-### 2.3 其他修复
-
-- **顶栏液态玻璃概率性偏移** —— 原来在 applyChanges 阶段读 `getLocationInWindow()`，拿到的是上一帧的位置，与本帧的 bounds 跨帧比较。改成 `positionInRoot()` + 只扣宿主 padding，彻底不依赖窗口坐标。
-- **会话内图片不显示** —— `LocalWorkspaceId` 这个 CompositionLocal 全项目从没 provide 过，工作区路径永远解析不出来；`UIMessagePart.Image` 也没走解析。两处一起补。
-- **峰谷计价跨天算错** —— 抽屉的「今日」会把跨天的日志也算进去，改成只统计当天。
-
----
-
-## 3. 脉搏模式：能力与边界
-
-**它是什么**：第三个模式。不等你开口，按时间自己运转，有事才来找你。
-
-**三层机制**：
-
-- **心跳** —— 固定间隔（默认 30 分钟）自检。没有新情况就安静返回，不产生消息。
-- **计划任务** —— 到点执行。支持一次性、循环（五字段 cron）、随心跳三种；**任务由 AI 创建**，用户只说话。
-- **监视器** —— 本地定时轮询（电池 / 网址 / 命令），**本地 diff，没变化不叫模型**。
-
-**它有什么**：独立会话与记忆桶（`__pulse__`）、独立工作区（可装 Linux 跑脚本）、自己的工具开关、通知与短信感知、成本显示、保活四层。
-
-**边界**：不能写别人的记忆桶；群聊和聊天也写不了它的。豆包这类第三方网页通道不开放记忆写入（F009 的既有约束）。
-
----
-
-## 4. 缺陷与修复（值得记下来的）
-
-### 4.1 心跳提示词「不生效」
-
-现象：改了心跳提示词，脉搏仍然只做一半的事。
-
-原因：指令被拼进 system 的**第二段**，后面压着约 4000 字记忆。`deepseek-flash` 读到的是后半段，只执行了「任务 2」。
-
-修法：自动轮的指令**始终**作为合成用户消息放在 messages 末尾，`systemInstruction` 置空。
-
-### 4.2 感知摘要误判敏感
-
-现象：只要启用过通知 / 短信，所有轮次的报告都被当成敏感内容，固定写成一句话、不写报告文件。
-
-原因：判据是「开关开没开」，不是「本轮真读没读」。
-
-修法：看本轮是否出现 `read_notifications` / `read_sms` / `send_sms` 的工具调用，或者事件类型是 `sms`。
-
-### 4.3 模态模型用 `sleep` 等任务
-
-现象：16:58 建了 17:00 的任务，模型写 `sleep 150` 去等，整轮被占住，还会和那个任务本身撞车。
-
-原因：它没有「等待」这个原语，唯一能耗时的是 shell。
-
-修法：每轮在 system 里注入一条框架约束 —— 要稍后确认就再记一条任务，不要用 shell 等将来的时间点。
-
-### 4.4 顶栏玻璃概率性偏移（详见 §2.3）
-
-重启后恢复正常、不是每次都偏 —— 典型的跨帧读坐标。三条说明：尺寸一直是对的，所以不是布局问题；只在宿主发生位移的那一帧出错；错完没有重组来纠正，就一直错到页面重建。
-
----
-
-## 5. 已知限制（有意保留，不是缺陷）
-
-- **视频走内联 base64** —— 几 MB 的短视频没问题，十几 MB 大概率被服务端拒。这是协议限制，不是能绕的。
-- **脉搏不做历史截断** —— 用户明确要求保留完整历史，用来区分「新老主播」这类状态。心跳密集时单轮上下文会涨。
-- **厂商后台管理引导未做** —— 部分 ROM 需要用户自己去设置里开白名单，应用只给电池优化和自启动引导。
-- **邮件感知未做** —— 三个账号实测 44 天没成功过一次，暂时不做。
-- **记忆跨模式可读不可写** —— 有意为之，避免互相污染。
-
----
-
-## 6. 下一步
-
-暂无排期。可选方向：
-
-- 脉搏的上下文压缩（心跳密集场景）
-- 监视器的更多数据源
-- 群组模式的语音（目前明确关闭）
-
----
-
-## 7. 发布节奏
-
-- 版本号 `{上游版本}-work.{n}`，跟进新上游时 `n` 归 1。
-- 不跟进就不动版本号。
-- 每次发版 versionCode +1，**不复用**。
-- tag 与 versionName 逐字相同，**不带 `v`**；Release **绝不勾 Pre-release**（勾了应用内更新检查会 404 静默失效）。
-
----
-
-## 8. 历史里程碑
-
-| 版本 | versionCode | 内容 |
-|---|---|---|
-| `3.1.2-work.1` | 202 | 合并上游 3.1.2（bettertext / ConversationInbox / 聊天列表拆分 / 浮动胶囊 / 后台命令）；**脉搏模式完成**（心跳、计划任务、监视器、通知与短信感知、独立记忆与做梦、闹钟、保活）；顶栏玻璃坐标修正、会话内图片修复、视频输入 |
-| `3.1.1-work.2` | 201 | 工作区 Linux 环境改造：12 个发行版 × 3 档、SHA-256 校验、镜像回退、装失败恢复原环境 |
-| `3.1.1-work.1` | 200 | 合并上游 3.1.1（SSH 远程工作区、终端、双渠道构建、包体 47→16 MB）；阶段三收尾；DeepSeek 网页版粘贴登录；数据库 33 |
+**Next:** ship the fixes, lower the default local context to 4K, KV quantization, then evaluate a Vulkan backend
+(same GGUF files) and LiteRT-LM as a second engine.
