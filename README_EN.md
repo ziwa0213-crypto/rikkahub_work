@@ -8,7 +8,7 @@ A fork of RikkaHub — a native Android LLM chat client that supports switching 
 </div>
 
 > ✅ **Current release: [`3.2.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 206, 2026-11-13) — silent-heartbeat detection, video stripped from compression, localized error messages.
-> 🔧 **In development (not released): `3.3.0-work.1` / 207** — merges upstream 3.3.0 and adds **on-device models (llama.cpp)**. Progress and known issues: [DEVELOPMENT.md](./DEVELOPMENT.md).
+> 🔧 **In development (not released): `3.3.0-work.1` / 207** — merges upstream 3.3.0. Progress: [DEVELOPMENT.md](./DEVELOPMENT.md).
 > ⚠️ **Back up before upgrading.** The database is **33** right now; the in-development build moves it to **34** and it cannot be rolled back. See "Install & Upgrade" below.
 
 <div align="center">
@@ -116,15 +116,13 @@ The **third mode** at the top of the drawer. Unlike the other two, it does not w
 
 ## 🔧 In Development
 
-Finished on the `3.3.0-work.1` branch but **not released yet** — users on the current release do not see these:
+`3.3.0-work.1` is in development and not released yet. This version is planned to include:
 
-- **On-device models (llama.cpp)** — run GGUF on the phone with no network and no API cost. Five built-in models (LFM3 1.7B / Phi-4 mini / Qwen3.5 4B / Gemma 4 E2B / Qwen3.5 9B, ordered by size), plus import from file and separately installed vision encoders; image / audio / video input. Models are **loaded explicitly** from a capsule above the input bar (color follows the theme); 30 seconds in the background triggers a silent reminder and *you* decide whether to unload.
-- **Compression for local models** — the compression request is bounded by the model window, so a 150K conversation is never handed to a 4K model.
 - **Upstream 3.3.0** — DeepSeek speech recognition and synthesis, DeepSeek history import, paragraph-split assistant bubbles, shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test dialog.
+- **Workspace file preview** — Markdown is rendered instead of shown as plain text; HTML goes through a workspace interceptor with scripts disabled by default.
+- **DeepSeek server-side search** — declare web search and URL reading on the request and the API runs them, returning results and citations in the same turn, so no extra client-side tool round is needed.
 
-The APK grows from about 16 MB to **about 21.7 MB** in this version (the on-device inference libraries).
-
-Why a model such as LFM3 "loads fine but produces nothing", and what is being fixed right now, are documented in [DEVELOPMENT.md](./DEVELOPMENT.md).
+Progress and plans: [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## ⚠️ Known Limitations
 

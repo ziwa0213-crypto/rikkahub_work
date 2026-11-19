@@ -1,6 +1,6 @@
 # 开发进度 / Development Status
 
-> 最后更新：**2026-11-18**
+> 最后更新：**2026-11-20**
 > 本文件**只记录当前正在开发的版本**：`3.3.0-work.1`（尚未发布）。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
 > 上一版 `3.2.0-work.3` / 206 已发布，其内容见 Releases 页。
 
@@ -8,7 +8,7 @@
 
 ## 0. 一句话状态
 
-**上游 3.3.0 已合并完毕，本地模型（llama.cpp）已完成并出过包；现在在做第三批修复，修完才发版。**
+**上游 3.3.0 已合并完毕；这一版还要加两件东西——工作区文件预览、DeepSeek 服务端搜索——做完一起发版。**
 
 - 版本号：`3.3.0-work.1` / versionCode **207**（未发布前不升）
 - 数据库：**33 → 34**（装上之后不可回退，先备份）
@@ -18,7 +18,7 @@
 
 ## 1. 这一版包含什么
 
-### 1.1 合并上游 3.3.0
+### 1.1 合并上游 3.3.0 ｜ 已完成
 
 | 变化 | 说明 |
 |---|---|
@@ -33,44 +33,47 @@
 
 合并时保留本 fork 的全部既有能力（F004 审批、F007 reasoning 回传、F009 网页版边界、F012 群组、F013 浏览器、F015 脉搏、F017 工作区、F019 闹钟）。
 
-### 1.2 本地模型（llama.cpp）
+### 1.2 工作区文件预览 ｜ 未开始
 
-在手机上直接跑 GGUF，不联网、不消耗 API 额度。
+现在工作区里点开文件，Markdown 和 HTML 都按纯文本显示。这一版改成：
 
-- **内置 5 个模型**（按体积升序）：LFM3 1.7B / Phi-4 mini / Qwen3.5 4B / Gemma 4 E2B / Qwen3.5 9B；也支持从文件导入。
-- **视觉编码器**单独下载，模型声明支持时可读图片 / 音频 / 视频（视频抽帧，最多 16 帧）。
-- **显式加载**：不再"选完就能用"，聊天页输入框上方有悬浮胶囊（颜色跟随主题），点一下加载，显示权重 / 上下文 / 视觉编码器三个阶段与秒数；失败可看详情并重试。
-- **后台提醒**：退到后台 30 秒后发一条静默通知，**只有你点「卸载」才卸**；正在生成时排队到本轮结束；回到前台自动撤销。
-- **短上下文压缩**：按窗口分档限制压缩请求的输入与摘要长度（4K→1.5K/300、8K→3K/500、16K→6K/800、更大→12K/1200），阈值 .65/.70/.75/.80。
-- **用量上报**：每个生成轮次回报真实输入/输出 token，供上下文显示与自动压缩使用（此前本地模型的自动压缩从不触发）。
+- Markdown 走 BetterText 渲染，标题、列表、代码块、表格正常显示
+- HTML 走工作区文件拦截器，脚本默认关闭
+
+### 1.3 DeepSeek 服务端搜索 ｜ 未开始
+
+DeepSeek 官方在 Chat Completions 里提供服务器端执行的 `web_search` 与 `read_url`：请求里声明要用，服务端自己搜索、自己读页面，把结果和引用一起返回，客户端不需要多跑一轮工具。
+
+我们缺的只是「怎么发、怎么解析、下一轮怎么原样回传」——消息模型、引用卡片、Claude 通道的同类解析都已经有了。**不加新开关**，复用模型自带的「联网搜索」与「URL 上下文」。
+
+`safety_check`、`title`、TTS/ASR 不做；文件输入待定。
+
+### 1.4 本地模型 ｜ 已实现，本版不提供入口
+
+> 这一区块**无限期停滞**，具体大规模更新的时间待定。
+
+在手机上跑 GGUF（llama.cpp）这条路走过一遍：代码是完整的，CPU 路径也能正常出字。问题在 GPU——开启后部分机型在提交阶段就被驱动回收（`ErrorDeviceLost`），一个字都产不出来；而只用 CPU 的话速度只有个位数 token/s，离日常可用还差得远。
+
+所以这一版**不开放**：界面不提供任何入口，已绑定到本地模型的助手、群组成员、脉搏会回落到默认模型；已下载的模型文件保留，代码也留在仓库里，等将来再评估。
+
+为什么不删干净：本地模型在设置数据里是一个供应商类型，直接删掉会让老用户的设置文件解析失败，连带丢掉 API Key、对话和记忆。所以只在界面层面收起来，数据层保持原样。
 
 ---
 
-## 2. 第三批：正在修的问题
+## 2. 已排期：第四板块「角色」
 
-以下全部来自 2026-11-18 的实机测试，规范见 `任务书/F020 本地模型/补充三·回归修复与工作区上传.md`。
+现在应用里有三个板块：**工作**（原「聊天」）、**群组**、**脉搏**。计划新增第四个 **角色**，专门承载娱乐向的角色扮演。
 
-| # | 问题 | 状态 |
-|---|---|---|
-| A | **加载胶囊盖在所有页面上** —— 用了 `Popup`（独立窗口），侧边抽屉的遮罩、进入统计页都盖不住它 | 待实施 |
-| B | **「你好」就报上下文过长** —— 输入预算只有 `contextSize − 2048`，4K 窗口下只剩 2048，系统提示 + 一个工具 schema 就吃满；且 `nCtx` 被按 `availMem` 压到 512 | 待实施 |
-| C | **LFM3 加载成功但不出字** —— 该 GGUF 里没有 `tokenizer.chat_template`，llama.cpp 回落内置 ChatML，模型不认，立刻 EOS | 待实施 |
-| D | **视频直传报 422** —— 非 Google 端点不接受 `video_url`（`unknown variant`） | 待实施 |
-| E | **视频 / zip 传不上** —— 只有"没封面的缩略图"；改为存进工作区，消息里放文件链接 | 待实施 |
-| F | **模型「视频」开关多余** —— 视频改走工作区后这个开关没有意义，删掉并把内置工具说明改回原文案 | 待实施 |
-| G | **长按本地模型直达表单多余** —— 本地供应商已有「配置 / 模型」两个页签，改回普通入口 | 待实施 |
+顺序调整为：工作 → 角色 → 群组 → 脉搏。
 
-### 2.1 为什么 LFM3 不出字（已定性的根因）
+- **角色是独立实体**，不占用助手列表，也不复用助手的设置；助手列表里不会出现角色
+- 角色有自己的会话列表；已有助手的会话可以按用户勾选迁移过来，逐个选「复制」还是「移动」
+- **工作区从「归属一个模式」改成「勾选」**：同一个工作区可以同时被工作、角色、群组选中；脉搏的工作区固定，不参与
+- 角色**不保留按条记忆**，改用文件形式的记忆，另外可以只读引用工作侧的指定记忆
+- **兼容酒馆（SillyTavern）角色卡**：导入 PNG/JSON，字段映射、示例对话、世界书、正则、宏引擎
+- 针对角色扮演里常见的「AI 味」（例如「我接住了」「我得先明说」这种在演助理而不是在演角色），从提示词、示例对话、深度注入、正则清洗几层一起压
 
-用 Range 读取 `LFM3-1.7B-Uncensored-AD-Q6_K.gguf` 的元数据：`general.architecture = lfm3`（架构是认的），但**没有 `tokenizer.chat_template`**。GGUF 的键按字典序排列，它若存在必然排在 `tokenizer.ggml.model` 之前——不在。源头 `LiquidAI/LFM3-1.7B-Base` 的 `tokenizer_config.json` 里 `chat_template` 也是 `null`。
-
-于是请求被按 ChatML 渲染，LFM3 看到的是不认识的格式，直接结束。修法是让本地模型支持**手动指定对话模板**（自动 / 内置预设 / 自定义 Jinja），并在"生成了零个字符"时明确报错，而不是静默空回复。
-
-### 2.2 为什么 16 GB 机只能开 512 上下文
-
-`ContextPlanner` 用 `availMem * 0.55 − fileBytes − 512 MB` 估算，而 `fileBytes` 是 **mmap** 的权重（`llama_jni.cpp` 明确 `LLAMA_LOAD_MODE_MMAP`），干净页可被内核回收，不该按常驻内存全额扣。2.85 GB 的 Phi-4 mini 一扣，"可用"直接归零，上下文落到地板 512——于是第一条消息就放不下。
-
-修法：`nCtx` 只由「模型训练上限 × 用户设置 × 16384」决定；`availMem` 只用来做提示；`outputBudget` 封顶到窗口的 1/4。
+设计已闭合，代码一行没动。开工第一步是先出界面预览确认样子。
 
 ---
 
@@ -78,10 +81,10 @@
 
 | 项 | 状态 |
 |---|---|
-| 编译 / JVM 单测 | 通过（Codex 本机执行，含 llama-cpp 与 app 模块） |
-| APK 构建 | 通过，ARM64 签名 Release，约 21.7 MB |
-| 三语 key 一致性 | 通过（各 2,683 条） |
-| 真机 | **未系统性跑完**。已确认：加载/卸载可用、胶囊可点、门禁不再硬拒；未确认：通知动作、16 GB 下的真实表现、150K 对话压缩、用量日志 |
+| 编译 / JVM 单测 | 通过（Codex 本机执行） |
+| APK 构建 | 通过，ARM64 签名 Release |
+| 三语 key 一致性 | 通过 |
+| 真机 | 上游合并后的包尚未系统性跑真机；发版前需补一轮 |
 
 > 本文件不把编译与 JVM 测试当成真机通过。
 
@@ -89,11 +92,10 @@
 
 ## 4. 下一步
 
-1. 实施第三批 A~G，出一版 Debug 自用包，先验 A / B / C 三项
-2. 本地模型**默认上下文降到 4096**（当前 16384，对 16 GB 机偏大）
-3. N1：KV 量化（q8_0）与内存预算模型
-4. 评估 Vulkan 后端（不用换模型文件，同一份 gguf；判定点见 `docs/40`）
-5. N22：LiteRT-LM 作为第二引擎（GPU delegate，模型是另一套 `.litertlm`）
+1. 做工作区文件预览
+2. 做 DeepSeek 服务端搜索
+3. 发 `3.3.0-work.1`
+4. 开工角色板块（先出界面预览）
 
 ---
 
@@ -102,17 +104,26 @@
 **`3.3.0-work.1` (versionCode 207) is in development; the previous `3.2.0-work.3` (206) is the current release.**
 Database moves from 33 to 34 and cannot be rolled back.
 
-This version merges **upstream 3.3.0** (DeepSeek speech, DeepSeek history import, paragraph-split bubbles,
-shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, connection-test
-dialog) and adds **on-device models** running on llama.cpp: five built-in GGUF models (1.7B–9B), file import,
-separate vision encoders, image/audio/video input, **explicit loading** behind a capsule above the input bar,
-a 30-second background reminder with a user-triggered unload, window-tiered compression budgets, and real token
-usage reporting.
+**Upstream 3.3.0 is already merged** — DeepSeek speech, DeepSeek history import, paragraph-split bubbles,
+shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test
+dialog. Every existing fork feature is preserved.
 
-**In progress:** a third batch fixing what testing turned up — the loading capsule floating above drawers and
-other pages, an input budget that made even "hi" overflow on a 4K window, LFM3 producing no output because its
-GGUF has no chat template (llama.cpp falls back to ChatML), `422 unknown variant video_url` from non-Google
-endpoints, and video/zip uploads that should go to the workspace instead of the chat bubble.
+Two more pieces are planned for this version:
 
-**Next:** ship the fixes, lower the default local context to 4K, KV quantization, then evaluate a Vulkan backend
-(same GGUF files) and LiteRT-LM as a second engine.
+- **Workspace file preview** — Markdown rendered instead of plain text, and HTML served through a workspace
+  interceptor with scripts disabled by default.
+- **DeepSeek server-side search** — declare `web_search` / `read_url` on the request and the API runs them,
+  returning results and citations in the same turn. The message model, citation cards and the equivalent Claude
+  parsing already exist; only the request, parsing and replay paths are new. No new toggle: it reuses the
+  model's built-in "web search" and "URL context" switches.
+
+**Scheduled after that:** a fourth section, **Characters** — role-play as a first-class entity, separate from
+assistants, with its own conversations, SillyTavern card import, and a shared workspace selected by checkbox
+rather than owned by one mode.
+
+**A note on on-device models:** this area is **on indefinite hold**, with no timeline for larger updates.
+llama.cpp support was built and does work on CPU, but the GPU backend is not stable on phones
+(`ErrorDeviceLost` before the first token), and CPU-only speed is well short of usable. This version therefore
+ships **no entry point** for it; downloaded model files are kept and the code stays in the repository for a later
+attempt. It is hidden rather than deleted because it is a provider type in the settings data — removing the type
+would break deserialization for existing users and lose API keys, conversations and memories.
