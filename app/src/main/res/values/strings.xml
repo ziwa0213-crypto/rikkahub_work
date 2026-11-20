@@ -2717,7 +2717,6 @@
     <string name="pulse_tool_client_context">Current context</string>
     <string name="pulse_tool_client_context_desc">Tells the model the current date, weekday and language. Not a tool call.</string>
     <string name="workspace_preview_too_large">File is too large to preview. Showing source.</string>
-    <string name="workspace_preview_enable_scripts">Enable scripts</string>
     <string name="workspace_preview_source">Source</string>
     <string name="workspace_preview_preview">Preview</string>
 </resources>

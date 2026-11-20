@@ -1,5 +1,12 @@
 # RikkaHub 二次开发功能台账
 
+## [F021 HTML / SVG 预览回退] 2026-11-20
+
+- 基线 532dee9e，保持3.3.0-work.1/207、DB34。按新修正包恢复旧 HTML / SVG WebView 预览；移除新增拦截器、资源解析器、专用测试及脚本开关文案。不再映射同目录本地资源，不把网络加载限制移到其他入口。
+- WorkspaceFileEditorPage 的加载、切换和保存仅在 Markdown 时计算 1 MiB；原常量值移到本文件。Markdown 渲染器、图片路径/上下文、共用 rememberWorkspaceImageUrl、三个保留 key 均不改；FILES 可写、LINUX 只读和原读取保护不变。
+- ui WebView / MIME 工具和测试原样保留，可选 requestInterceptor 无实际调用方。F022、原应用图标、数据库和版本不改。三语只删一 key，各2720→2719，任务书各2717为计数笔误。
+- 更新映射、README 中英文、开发说明、CHANGES、AGENTS 与根 DELIVERY；不提交/推送，不自动构建 APK 或源码 ZIP。编译、定向回归和真机待验以本批 DELIVERY 为准；删除的三个文件可从 Git 基线恢复。
+
 ## [源码归档排除个人构建工具] 2026-11-20
 
 - 维护者授权本轮只生成源码 ZIP，保留 `3.3.0-work.1 / 207`；不生成 APK、不提交/推送。产品源码、Gradle 配置和 Git index 保持不变。

@@ -1,6 +1,6 @@
 # F022 / F021 文件映射与维护说明
 
-日期：2026-11-20。版本 `3.3.0-work.1 / 207`，DB34。基线为本批开始时的 F020 补充八及桌面构建工具工作区，不能把所有相对 HEAD 的修改都归为本批。尚无本批提交；未自动构建 APK 或源码 ZIP。验证和维护者待验详见根 `DELIVERY.md`。
+日期：2026-11-20。版本 `3.3.0-work.1 / 207`，DB34。原 F022 / F021 已纳入 `6f0d5e2a`；本次 HTML / SVG 预览回退以 `532dee9e` 为基线，未提交，不自动构建 APK 或源码 ZIP。下方 F021 记录更新后的状态，F022 保持原样；验证和维护者待验详见根 `DELIVERY.md`。
 
 下表路径相对仓库根；“修改”仅指本批在原工作区内容上叠加的部分。
 
@@ -26,29 +26,34 @@
 
 | 职责 | 新增 | 修改 |
 | --- | --- | --- |
-| 工作区渲染与资源边界 | `app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/workspace/{WorkspaceMarkdownPreview,WorkspacePreviewInterceptor,WorkspacePreviewResources}.kt` | 同目录 `WorkspaceFileEditorPage.kt` |
+| 工作区渲染 | `app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/workspace/WorkspaceMarkdownPreview.kt` | 同目录 `WorkspaceFileEditorPage.kt`；HTML / SVG 恢复原预览，1 MiB 限制仅作用于 Markdown |
 | Markdown 图片目录上下文 | `app/src/main/java/me/rerere/rikkahub/ui/components/richtext/WorkspaceImagePath.kt` | 同目录 `Markdown.kt`；`app/src/main/java/me/rerere/rikkahub/ui/context/LocalWorkspace.kt` |
 | WebView 与 MIME | `ui/src/main/java/me/rerere/ui/webview/MimeTypes.kt` | 同目录 `WebView.kt`、`WebViewLocalAssets.kt` |
-| 回归测试 | `app/src/test/java/me/rerere/rikkahub/ui/pages/extensions/workspace/WorkspacePreviewResourcesTest.kt`；`app/src/test/java/me/rerere/rikkahub/ui/components/richtext/WorkspaceImagePathTest.kt`；`ui/src/test/java/me/rerere/ui/webview/MimeTypesTest.kt` | 无 |
+| 回归测试 | `app/src/test/java/me/rerere/rikkahub/ui/components/richtext/WorkspaceImagePathTest.kt`；`ui/src/test/java/me/rerere/ui/webview/MimeTypesTest.kt` | 无 |
+
+### 2026-11-20 后修正：HTML / SVG 回退
+
+- HTML / SVG 预览回退到改动前的 `loadDataWithBaseURL` + 固定虚拟源，不做资源拦截；同目录 CSS / 图片等本地资源不再映射，脚本行为沿用原 WebView，没有“启用脚本”按钮。
+- 删除原拦截器、资源解析器及其专用测试，共三个文件；移除新增网络加载限制，不移到其他位置。Markdown 大小常量移至编辑页，值仍为 `1024L * 1024`。
+- `WebViewState.requestInterceptor` 作为可选扩展点保留，当前无调用方；`remember(state)`、更新 client、公共 MIME 工具与测试均不修改。
+- Markdown 渲染器、图片目录上下文、聊天绝对路径 / http(s) 图片分支及三个保留文案逐字节不变。
 
 ### 下次同步上游
 
-- FILES / LINUX 区域、文档父目录和虚拟源是一组上下文，避免本地资源重复拼接路径或切工作区后继续使用旧 client。`resolveFile` 只能解析现有文件：先在 IO 中解析当前文件，不能拿目录调用，也不能在主线程 `runBlocking`。
-- WebView 的可选拦截接口默认 null，保留其他使用方行为；非当前虚拟源、GET / HEAD 之外的方法、非法路径或不存在的资源必须返回 404 而非 null，避免交给默认网络加载。
-- canonical 边界、符号链接越界检查、禁 file/content 和外网、脚本默认关闭及开关重建须整体保留。单纯打开 JS 不能同时放开外部资源访问。
-- Markdown 复用原组件，保留聊天绝对工作区图片与外链图片；不要把 HTML 的离线限制误施到原 Markdown 行为。
-- 1 MiB 是预览渲染上限，不是文件写入上限。LINUX 原 512 KiB 读取保护保持；SSH 的本地关联资源未支持，不用 `resolveFile=null` 伪造本地路径。
+- Markdown 复用原组件，保留 `LocalWorkspaceBaseDir` / `LocalWorkspaceStorageArea` 与 `rememberWorkspaceImageUrl` 的接线、聊天绝对工作区图片及外链图片行为。
+- 1 MiB 只限制 Markdown 预览，不是文件写入上限；HTML / SVG 不检查该上限。LINUX 原 512 KiB 读取保护保持，FILES 仍可保存。
+- HTML / SVG 沿用旧预览；不要重新带入已撤销的资源映射、脚本按钮和网络加载限制。WebView 的可选扩展点及 MIME 工具保留即可。
 
 ## 公共文案、交付工具与台账
 
-- 三语：`app/src/main/res/{values,values-zh,values-zh-rTW}/strings.xml`。F022 新增 8 key，F021 新增 4 key，各语言共 12；不新增其他语言。
+- 三语：`app/src/main/res/{values,values-zh,values-zh-rTW}/strings.xml`。F022 新增 8 key，F021 保留 3 key，各语言共 11；各语言总计 2,719 key，集合一致，不新增其他语言。
 - F022 key：`setting_page_built_in_tools_read_url`、`setting_page_built_in_tools_read_url_desc`、`chat_server_tool_web_search`、`chat_server_tool_read_url`、`assistant_page_local_tools_client_context_title`、`assistant_page_local_tools_client_context_desc`、`pulse_tool_client_context`、`pulse_tool_client_context_desc`。
-- F021 key：`workspace_preview_too_large`、`workspace_preview_enable_scripts`、`workspace_preview_source`、`workspace_preview_preview`。
+- F021 key：`workspace_preview_too_large`、`workspace_preview_source`、`workspace_preview_preview`。只移除原脚本开关一项；任务书写各 2,717 是计数误差，实际各 2,720 减一为 2,719。
 - 修改 `AGENTS.md`、`CHANGES.md`、`FEATURES.md`、`DELIVERY.md`、`tools/BUILDING.md`；新增本文。本机仓库外 `/home/li/桌面/构建 RikkaHub Work.sh` 仅补默认工具链环境，保留调用者显式值。
 - `tools/package-delivery-source.mjs` 本批无需修改：已把根 DELIVERY 设为必需并核验实际归档内容。Release 和 Debug 共用该步骤。后续由维护者运行桌面 TUI，才会产生 APK 和源码 ZIP。
 
 ## 回滚边界
 
-当前 HEAD 不包含此前 F020 工作区改动，没有可单独 revert 的本批 commit。对照本表逐块撤销本批调用点、工具协议及新增 key，确认无引用后移除本批新增文件；不要整文件 restore、整树 reset、取消既有 `.gitmodules` / llama.cpp 暂存或删除历史产物。
+当前 HEAD 已包含此前 F020 / F021 / F022；本次 HTML 回退为未提交增量。对照本表逐块撤销相应调用点与新增 key，确认无引用后移除对应新增文件；不要整文件 restore、整树 reset、改动既有 `.gitmodules` / llama.cpp 指针或删除历史产物。此次删除的三个文件可从基线 `532dee9e` 恢复，恢复时必须同时处理调用点，不能影响 Markdown 或 F022。
 
 先处理 UI 与请求构造调用点，再撤销协议/配置声明，最后移除新文件和测试。保留旧配置可读能力；不要把撤销 ClientContext 变成删除或改名旧 localTools / Pulse 字段。原 F004/F007/F009、F020、原应用及关于页图标、数据库和模型权重均不在本批回滚范围内。

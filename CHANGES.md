@@ -3,6 +3,12 @@
 > 本文件记录本 fork 相对 [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub) 的改动。
 > **合规依据**：AGPL-3.0 §5a —— 修改版本应显著标注改动内容与日期。
 
+2026-11-20 F021 后修正：回退 HTML / SVG 预览（`3.3.0-work.1 / 207`，DB34 不变）：
+
+- 撤销导致工作区 HTML 预览报 `ERR_HTTP_RESPONSE_CODE_FAILURE` 的新增资源拦截及网络加载限制，恢复原 WebView 预览；移除“启用脚本”按钮与关联三语文案，同目录本地资源不再映射。
+- Markdown 渲染、相对图片、聊天图片路径及 1 MiB 限制保持；HTML / SVG 不再套用该大小限制，FILES 保存与 LINUX 只读沿用原行为。
+- 公共 MIME 工具、WebView 可选扩展接口与 F022 保持。APK / ZIP 继续由维护者自行构建，检查结果与设备待验见根 DELIVERY.md。
+
 2026-11-20 源码交付范围修正（`3.3.0-work.1 / 207`，应用行为不变）：
 
 - 源码 ZIP 默认不再包含维护者个人使用的桌面构建、APK 检查、测试汇总、源码归档脚本及其工具说明，相关文件继续留在本机。

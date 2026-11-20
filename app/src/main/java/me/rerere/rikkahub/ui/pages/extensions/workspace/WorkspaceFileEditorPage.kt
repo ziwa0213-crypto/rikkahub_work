@@ -9,7 +9,6 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -19,7 +18,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,8 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.rerere.ui.toast.ToastType
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
@@ -47,6 +43,8 @@ import me.rerere.ui.webview.WebView
 import me.rerere.ui.webview.rememberWebViewState
 import me.rerere.workspace.WorkspaceStorageArea
 import org.koin.compose.koinInject
+
+private const val MAX_WORKSPACE_PREVIEW_BYTES = 1024L * 1024
 
 /**
  * 工作区文本文件编辑/预览页.
@@ -67,11 +65,10 @@ fun WorkspaceFileEditorPage(
     val extension = fileName.substringAfterLast('.', "").lowercase()
     val isMarkdown = extension in setOf("md", "markdown")
     val isHtml = extension in setOf("html", "htm")
-    val supportsPreview = isMarkdown || isHtml || extension == "svg"
+    val supportSvg = extension == "svg"
+    val supportsPreview = isMarkdown || isHtml || supportSvg
     var showPreview by rememberSaveable(id, area, path) { mutableStateOf(supportsPreview) }
-    var scriptEnabled by rememberSaveable(id, area, path) { mutableStateOf(false) }
     var tooLarge by remember(id, area, path) { mutableStateOf(false) }
-    var previewInterceptor by remember(id, area, path) { mutableStateOf<WorkspacePreviewInterceptor?>(null) }
 
     // 不能用 rememberTextFieldState: 它会把全文存进 saved state Bundle, 大文件切后台时触发 TransactionTooLargeException (#1953).
     // 内容本就由下方 LaunchedEffect 从磁盘加载, 无需 saveable.
@@ -84,15 +81,11 @@ fun WorkspaceFileEditorPage(
         loading = true
         loadError = null
         runCatching {
-            tooLarge = repository.fileSize(id, area, path) > MAX_WORKSPACE_PREVIEW_BYTES
-            if (tooLarge) showPreview = false
-            val content = repository.readTextForPreview(id, area, path)
-            if (isHtml || extension == "svg") {
-                previewInterceptor = withContext(Dispatchers.IO) {
-                    WorkspacePreviewInterceptor(repository.resolveFile(id, area, path)?.parentFile)
-                }
+            if (isMarkdown) {
+                tooLarge = repository.fileSize(id, area, path) > MAX_WORKSPACE_PREVIEW_BYTES
+                if (tooLarge) showPreview = false
             }
-            content
+            repository.readTextForPreview(id, area, path)
         }.onSuccess { content ->
             textState.setTextAndPlaceCursorAtEnd(content)
             loading = false
@@ -117,14 +110,12 @@ fun WorkspaceFileEditorPage(
                 },
                 navigationIcon = { BackButton() },
                 actions = {
-                    if (isHtml && showPreview && !loading && loadError == null && !tooLarge) {
-                        FilterChip(selected = scriptEnabled, onClick = { scriptEnabled = !scriptEnabled },
-                            label = { Text(stringResource(R.string.workspace_preview_enable_scripts)) })
-                    }
-                    if (supportsPreview && !loading && loadError == null && !tooLarge) {
+                    if (supportsPreview && !loading && loadError == null && !(isMarkdown && tooLarge)) {
                         TextButton(onClick = {
-                            tooLarge = textState.text.toString().toByteArray(Charsets.UTF_8).size > MAX_WORKSPACE_PREVIEW_BYTES
-                            if (!tooLarge) showPreview = !showPreview
+                            if (isMarkdown) {
+                                tooLarge = textState.text.toString().toByteArray(Charsets.UTF_8).size > MAX_WORKSPACE_PREVIEW_BYTES
+                            }
+                            if (!(isMarkdown && tooLarge)) showPreview = !showPreview
                         }) {
                             Text(stringResource(if (showPreview) R.string.workspace_preview_source else R.string.workspace_preview_preview))
                         }
@@ -143,7 +134,9 @@ fun WorkspaceFileEditorPage(
                                             overwrite = true,
                                         )
                                     }.onSuccess {
-                                        tooLarge = textState.text.toString().toByteArray(Charsets.UTF_8).size > MAX_WORKSPACE_PREVIEW_BYTES
+                                        if (isMarkdown) {
+                                            tooLarge = textState.text.toString().toByteArray(Charsets.UTF_8).size > MAX_WORKSPACE_PREVIEW_BYTES
+                                        }
                                         toaster.show("已保存", type = ToastType.Success)
                                     }.onFailure {
                                         toaster.show(it.message ?: "保存失败", type = ToastType.Error)
@@ -163,7 +156,7 @@ fun WorkspaceFileEditorPage(
         containerColor = CustomColors.topBarColors.containerColor,
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            if (tooLarge && supportsPreview) Text(
+            if (isMarkdown && tooLarge) Text(
                 stringResource(R.string.workspace_preview_too_large),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,11 +189,9 @@ fun WorkspaceFileEditorPage(
                     modifier = Modifier.fillMaxSize().weight(1f),
                 )
 
-                showPreview && !tooLarge -> WorkspaceWebPreview(
+                showPreview -> WorkspaceWebPreview(
                     content = textState.text.toString(),
-                    isSvg = extension == "svg",
-                    scriptEnabled = scriptEnabled,
-                    interceptor = previewInterceptor,
+                    isSvg = supportSvg,
                     modifier = Modifier.fillMaxSize().weight(1f),
                 )
 
@@ -227,29 +218,20 @@ fun WorkspaceFileEditorPage(
 private fun WorkspaceWebPreview(
     content: String,
     isSvg: Boolean,
-    scriptEnabled: Boolean,
-    interceptor: WorkspacePreviewInterceptor?,
     modifier: Modifier = Modifier,
 ) {
-    // Recreate the native view when script permission changes; settings alone are factory-only.
-    key(scriptEnabled, interceptor) {
-        val state = rememberWebViewState(
-            data = content,
-            baseUrl = WORKSPACE_PREVIEW_BASE_URL,
-            mimeType = if (isSvg) "image/svg+xml" else "text/html",
-            settings = {
-                allowFileAccess = false
-                allowContentAccess = false
-                javaScriptEnabled = scriptEnabled && !isSvg
-                domStorageEnabled = scriptEnabled && !isSvg
-                blockNetworkLoads = true
-                builtInZoomControls = true
-                displayZoomControls = false
-                useWideViewPort = true
-                loadWithOverviewMode = true
-            },
-            requestInterceptor = { request -> (interceptor ?: WorkspacePreviewInterceptor(null)).intercept(request) },
-        ).also { it.javaScriptEnabled = scriptEnabled && !isSvg }
-        WebView(state = state, modifier = modifier)
-    }
+    val state = rememberWebViewState(
+        data = content,
+        baseUrl = "https://workspace-preview.invalid/",
+        mimeType = if (isSvg) "image/svg+xml" else "text/html",
+        settings = {
+            allowFileAccess = false
+            allowContentAccess = false
+            builtInZoomControls = true
+            displayZoomControls = false
+            useWideViewPort = true
+            loadWithOverviewMode = true
+        },
+    )
+    WebView(state = state, modifier = modifier)
 }

@@ -2719,7 +2719,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
     <string name="pulse_tool_client_context">当前上下文</string>
     <string name="pulse_tool_client_context_desc">告诉模型当前的日期、星期和语言。不占用工具调用。</string>
     <string name="workspace_preview_too_large">文件过大，仅显示源码。</string>
-    <string name="workspace_preview_enable_scripts">启用脚本</string>
     <string name="workspace_preview_source">源码</string>
     <string name="workspace_preview_preview">预览</string>
 </resources>

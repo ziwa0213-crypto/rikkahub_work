@@ -2718,7 +2718,6 @@
     <string name="pulse_tool_client_context">當前上下文</string>
     <string name="pulse_tool_client_context_desc">告訴模型當前的日期、星期和語言。不佔用工具呼叫。</string>
     <string name="workspace_preview_too_large">檔案過大，僅顯示原始碼。</string>
-    <string name="workspace_preview_enable_scripts">啟用腳本</string>
     <string name="workspace_preview_source">原始碼</string>
     <string name="workspace_preview_preview">預覽</string>
 </resources>
