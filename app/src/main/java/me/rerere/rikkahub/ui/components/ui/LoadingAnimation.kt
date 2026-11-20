@@ -60,6 +60,7 @@ fun resolveLoadingAnimation(provider: ProviderSetting?): ResolvedLoadingAnimatio
     }
 
     if (provider == null) return ResolvedLoadingAnimation.Material
+    if (provider is ProviderSetting.LlamaCppLocal) return ResolvedLoadingAnimation.Material
 
     val iconFile = computeAutoBrandIcon(provider)
     if (iconFile != null) return ResolvedLoadingAnimation.Brand(iconFile)
@@ -72,6 +73,7 @@ fun resolveLoadingAnimation(provider: ProviderSetting?): ResolvedLoadingAnimatio
             is ProviderSetting.DeepSeekWeb -> "deepseek-color.svg"
             is ProviderSetting.ChatGPT -> "openai.svg"
             is ProviderSetting.Grok -> "grok.svg"
+            is ProviderSetting.LlamaCppLocal -> error("Local provider uses Material animation")
         }
     )
 }
@@ -138,6 +140,7 @@ private fun PresetLoadingAnimation(
                     is ProviderSetting.DeepSeekWeb -> "deepseek-color.svg"
                     is ProviderSetting.ChatGPT -> "openai.svg"
                     is ProviderSetting.Grok -> "grok.svg"
+                    is ProviderSetting.LlamaCppLocal -> null
                     null -> null
                 }
             if (iconFile == null) {

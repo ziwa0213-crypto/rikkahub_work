@@ -12,6 +12,7 @@ import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.VideoInputException
 import me.rerere.ai.provider.validateVideoInput
 import me.rerere.ai.provider.withoutVideoParts
+import me.rerere.ai.provider.forProviderVideoInput
 import me.rerere.ai.provider.VIDEO_OMITTED_PLACEHOLDER
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
@@ -44,47 +45,48 @@ class ChatCompletionsVideoTest {
     private fun videoMessage(url: String = data, role: MessageRole = MessageRole.USER) =
         UIMessage(role = role, parts = listOf(UIMessagePart.Video(url)))
 
-    @Test fun userVideoIsSerializedInTheActualRequestForStreamingAndNonStreaming() {
+    @Test fun requestCopyDowngradesVideoForStreamingAndNonStreaming() {
         for (stream in listOf(false, true)) {
-            val body = request(listOf(UIMessage(role = MessageRole.USER, parts = listOf(
+            val original = listOf(UIMessage(role = MessageRole.USER, parts = listOf(
                 UIMessagePart.Text("Describe this video"), UIMessagePart.Video(data),
-            ))), stream = stream)
+            )))
+            val body = request(original.forProviderVideoInput(ProviderSetting.OpenAI()), stream = stream)
             val message = body["messages"]!!.jsonArray.single().jsonObject
             assertEquals("user", message["role"]!!.jsonPrimitive.content)
-            val parts = message["content"]!!.jsonArray
-            assertEquals("Describe this video", parts[0].jsonObject["text"]!!.jsonPrimitive.content)
-            assertEquals("video_url", parts[1].jsonObject["type"]!!.jsonPrimitive.content)
-            assertEquals(data, parts[1].jsonObject["video_url"]!!.jsonObject["url"]!!.jsonPrimitive.content)
+            assertTrue(body.toString().contains("[视频]"))
+            assertTrue(body.toString().contains("Describe this video"))
+            assertFalse(body.toString().contains("video_url"))
+            assertFalse(body.toString().contains(data))
+            assertEquals(data, (original.single().parts[1] as UIMessagePart.Video).url)
         }
-        // Constructed offline fixture through the real request serializer, never a network capture.
-        println("VIDEO_OFFLINE_FIXTURE " + request(listOf(videoMessage())))
     }
 
     @Test fun videoOnlyUserAndAssistantMessagesAreNotDropped() {
-        val body = request(listOf(videoMessage(), videoMessage(role = MessageRole.ASSISTANT)))
+        val body = request(listOf(videoMessage(), videoMessage(role = MessageRole.ASSISTANT))
+            .forProviderVideoInput(ProviderSetting.OpenAI()))
         val messages = body["messages"]!!.jsonArray
         assertEquals(2, messages.size)
         messages.forEach { message ->
-            assertEquals("video_url", message.jsonObject["content"]!!.jsonArray.single().jsonObject["type"]!!.jsonPrimitive.content)
+            assertEquals("[视频]", message.jsonObject["content"]!!.jsonPrimitive.content)
         }
     }
 
-    @Test fun disabledVideoFailsBeforeARequestCanBeSent() {
+    @Test fun bypassingFactoryCannotEnableOpenAiVideoWithAnOldAbilityFlag() {
         val error = assertThrows(VideoInputException::class.java) { request(listOf(videoMessage()), Model()) }
-        assertEquals(VideoInputException.Reason.DISABLED, error.reason)
+        assertEquals(VideoInputException.Reason.UNSUPPORTED_PROTOCOL, error.reason)
         assertFalse(error.message!!.contains(data))
     }
 
-    @Test fun unreadableVideoIsAnExplicitSanitizedErrorInsteadOfEmptyText() {
+    @Test fun unreadableVideoIsRejectedBeforeTryingToReadIt() {
         val privateUrl = "private-invalid-video-path"
         val error = assertThrows(VideoInputException::class.java) { request(listOf(videoMessage(privateUrl))) }
-        assertEquals(VideoInputException.Reason.ENCODING_FAILED, error.reason)
+        assertEquals(VideoInputException.Reason.UNSUPPORTED_PROTOCOL, error.reason)
         assertFalse(error.message!!.contains(privateUrl))
     }
 
-    @Test fun malformedDataVideoIsNotSilentlyEncoded() {
+    @Test fun malformedDataVideoIsRejectedBeforeTryingToEncodeIt() {
         val error = assertThrows(VideoInputException::class.java) { request(listOf(videoMessage("data:video/mp4;base64,"))) }
-        assertEquals(VideoInputException.Reason.ENCODING_FAILED, error.reason)
+        assertEquals(VideoInputException.Reason.UNSUPPORTED_PROTOCOL, error.reason)
     }
 
     @Test fun dataVideoEncodingRetainsOrRemovesItsPrefixAsRequested() {

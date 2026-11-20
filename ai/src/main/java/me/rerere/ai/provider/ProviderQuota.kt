@@ -68,4 +68,5 @@ val ProviderSetting.supportsQuota: Boolean
         is ProviderSetting.ApiKey -> quotaQuery.enabled
         is ProviderSetting.Account -> credential != null
         is ProviderSetting.DeepSeekWeb -> false
+        is ProviderSetting.LlamaCppLocal -> false
     }

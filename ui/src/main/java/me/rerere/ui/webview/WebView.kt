@@ -53,7 +53,8 @@ internal class MyWebViewClient(private val state: WebViewState) : WebViewClient(
         view: WebView,
         request: WebResourceRequest
     ): WebResourceResponse? {
-        return WebViewLocalAssets.intercept(view.context.applicationContext, request.url)
+        return state.requestInterceptor?.invoke(request)
+            ?: WebViewLocalAssets.intercept(view.context.applicationContext, request.url)
             ?: super.shouldInterceptRequest(view, request)
     }
 
@@ -104,8 +105,8 @@ fun WebView(
     onUpdated: (WebView) -> Unit = {},
 ) {
     // Remember the clients based on the state
-    val webChromeClient = remember { MyWebChromeClient(state) }
-    val webViewClient = remember { MyWebViewClient(state) }
+    val webChromeClient = remember(state) { MyWebChromeClient(state) }
+    val webViewClient = remember(state) { MyWebViewClient(state) }
 
     Box(
         modifier = modifier
@@ -154,9 +155,8 @@ fun WebView(
                     webView.addJavascriptInterface(obj, name)
                 }
                 Log.d(TAG, "AndroidView: Updating WebView")
-                // Ensure clients are updated if state changes (though unlikely here)
-                // webView.webChromeClient = webChromeClient
-                // webView.webViewClient = webViewClient
+                webView.webChromeClient = webChromeClient
+                webView.webViewClient = webViewClient
 
                 // Update settings that might change
                 webView.settings.javaScriptEnabled = state.javaScriptEnabled
@@ -228,7 +228,8 @@ sealed class WebContent {
 class WebViewState(
     initialContent: WebContent = WebContent.NavigatorOnly,
     val interfaces: Map<String, Any> = emptyMap(),
-    val settings: WebSettings.() -> Unit = {}
+    val settings: WebSettings.() -> Unit = {},
+    val requestInterceptor: ((WebResourceRequest) -> WebResourceResponse?)? = null,
 ) {
     // --- Content State ---
     var content: WebContent by mutableStateOf(initialContent)
@@ -350,10 +351,12 @@ fun rememberWebViewState(
     historyUrl: String? = null,
     interfaces: Map<String, Any> = emptyMap(),
     settings: WebSettings.() -> Unit = {},
+    requestInterceptor: ((WebResourceRequest) -> WebResourceResponse?)? = null,
 ) = remember(data, baseUrl, encoding, mimeType, historyUrl) { // Use keys
     WebViewState(
         initialContent = WebContent.Data(data, baseUrl, encoding, mimeType, historyUrl),
         interfaces = interfaces,
-        settings = settings
+        settings = settings,
+        requestInterceptor = requestInterceptor,
     )
 }

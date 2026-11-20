@@ -1,6 +1,9 @@
 package me.rerere.rikkahub.data.datastore
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.EncodeDefault
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.rikkahub.data.pulse.PulsePriceSegment
 import kotlin.uuid.Uuid
@@ -22,7 +25,9 @@ val DEFAULT_HEARTBEAT_PROMPT = """
 """.trimIndent()
 
 /** Persistent settings for the single, isolated Pulse assistant. */
-@Serializable
+@OptIn(ExperimentalSerializationApi::class)
+@KeepGeneratedSerializer
+@Serializable(with = PulseClientContextSerializer::class)
 data class PulseConfig(
     val chatModelId: Uuid? = null,
     val systemPrompt: String = "",
@@ -37,6 +42,8 @@ data class PulseConfig(
     val quickMessageIds: Set<Uuid> = emptySet(),
     val localTools: List<String> = emptyList(),
     val enableInformation: Boolean = true,
+    @EncodeDefault
+    val enableClientContext: Boolean = true,
     val enableNotificationReading: Boolean = false,
     val notificationWhitelist: List<String> = emptyList(),
     val notificationRetentionHours: Int = 6,

@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +48,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.ui.ToolApprovalState
+import me.rerere.ai.ui.ServerToolStatus
+import me.rerere.common.http.jsonArrayOrNull
+import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.BubbleChatQuestion
@@ -73,22 +77,27 @@ import kotlin.time.DurationUnit
 @Composable
 fun ChainOfThoughtScope.ChatMessageServerToolStep(tool: UIMessagePart.ServerTool) {
     val loading = !tool.isFinished
+    val failed = tool.status == ServerToolStatus.FAILED
     ChainOfThoughtStep(
         icon = {
             if (loading) {
                 DotLoading(size = 10.dp)
             } else {
                 Icon(
-                    imageVector = HugeIcons.Tools,
+                    imageVector = if (failed) HugeIcons.Cancel01 else HugeIcons.Tools,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = LocalContentColor.current.copy(alpha = 0.7f),
+                    tint = if (failed) MaterialTheme.colorScheme.error else LocalContentColor.current.copy(alpha = 0.7f),
                 )
             }
         },
         label = {
             Text(
-                text = stringResource(R.string.chat_message_tool_call_generic, tool.toolName),
+                text = when (tool.toolName) {
+                    "deepseek_web_search" -> stringResource(R.string.chat_server_tool_web_search)
+                    "deepseek_read_url" -> stringResource(R.string.chat_server_tool_read_url)
+                    else -> stringResource(R.string.chat_message_tool_call_generic, tool.toolName)
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.shimmer(isLoading = loading),
@@ -96,6 +105,24 @@ fun ChainOfThoughtScope.ChatMessageServerToolStep(tool: UIMessagePart.ServerTool
                 overflow = TextOverflow.Ellipsis,
             )
         },
+        content = if (tool.toolName in setOf("deepseek_web_search", "deepseek_read_url")) ({
+            val uriHandler = LocalUriHandler.current
+            val output = tool.output?.jsonObjectOrNull
+            val pages = output?.get("sources")?.jsonArrayOrNull.orEmpty().mapNotNull { it.jsonObjectOrNull } +
+                listOfNotNull(output?.get("page")?.jsonObjectOrNull)
+            Column {
+                pages.forEach { page ->
+                    val url = (page["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                    val title = (page["title"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank { url }
+                    if (url.startsWith("https://") || url.startsWith("http://")) {
+                        TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Text(title) }
+                    } else if (title.isNotBlank()) Text(title)
+                }
+                output?.get("error")?.let { error ->
+                    Text((error as? JsonPrimitive)?.contentOrNull ?: error.toString(), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }) else null,
     )
 }
 

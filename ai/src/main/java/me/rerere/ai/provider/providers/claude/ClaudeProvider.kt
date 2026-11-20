@@ -38,6 +38,8 @@ import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.core.merge
 import me.rerere.ai.core.sum
 import me.rerere.ai.provider.BuiltInTools
+import me.rerere.ai.provider.providers.isDeepSeekDialect
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import me.rerere.ai.provider.ClaudePromptCacheTtl
 import me.rerere.ai.provider.ImageGenerationParams
 import me.rerere.ai.provider.Model
@@ -520,9 +522,16 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                 params.model.tools.forEach { builtInTool ->
                     when (builtInTool) {
                         BuiltInTools.Search -> add(buildJsonObject {
-                            put("type", "web_search_20250305")
-                            put("name", "web_search")
+                            val deepSeek = isDeepSeekDialect(providerSetting.baseUrl.toHttpUrl().host, params.model.modelId)
+                            put("type", if (deepSeek) "deepseek_web_search" else "web_search_20250305")
+                            put("name", if (deepSeek) "deepseek_web_search" else "web_search")
                         })
+                        BuiltInTools.ReadUrl -> if (isDeepSeekDialect(providerSetting.baseUrl.toHttpUrl().host, params.model.modelId)) {
+                            add(buildJsonObject {
+                                put("type", "deepseek_read_url")
+                                put("name", "deepseek_read_url")
+                            })
+                        }
                         BuiltInTools.UrlContext,
                         BuiltInTools.ImageGeneration,
                         -> Unit

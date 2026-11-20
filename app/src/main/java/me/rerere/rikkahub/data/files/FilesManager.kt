@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import java.io.File
+import java.io.InputStream
+import kotlinx.coroutines.CancellationException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -102,18 +104,20 @@ class FilesManager(
     fun getFile(entity: ManagedFileEntity): File =
         File(context.filesDir, entity.relativePath)
 
-    fun createChatFilesByContents(uris: List<Uri>): List<Uri> {
+    fun createChatFilesByContents(uris: List<Uri>, guardInput: (InputStream) -> InputStream = { it }): List<Uri> {
         val newUris = mutableListOf<Uri>()
         val dir = context.filesDir.resolve(FileFolders.UPLOAD)
         if (!dir.exists()) {
             dir.mkdirs()
         }
         uris.forEach { uri ->
+            var incomplete: File? = null
             runCatching {
                 val sourceName = getFileNameFromUri(uri) ?: uri.lastPathSegment ?: "file"
                 val sourceMime = getFileMimeType(uri)
                 val fileName = buildUuidFileName(displayName = sourceName, mimeType = sourceMime)
                 val file = dir.resolve(fileName)
+                incomplete = file
                 if (!file.exists()) {
                     file.createNewFile()
                 }
@@ -121,7 +125,7 @@ class FilesManager(
                     ?: error("Failed to open input stream for $uri")
                 inputStream.use { input ->
                     file.outputStream().use { output ->
-                        input.copyTo(output)
+                        guardInput(input).copyTo(output)
                     }
                 }
                 val guessedMime = sourceMime ?: guessMimeType(file, sourceName)
@@ -132,7 +136,10 @@ class FilesManager(
                     mimeType = guessedMime
                 )
                 newUris.add(file.toUri())
+                incomplete = null
             }.onFailure {
+                incomplete?.delete()
+                if (it is CancellationException || it is AttachmentTooLarge) throw it
                 it.printStackTrace()
                 Log.e(TAG, "createChatFilesByContents: Failed to save file from $uri", it)
                 Logging.log(

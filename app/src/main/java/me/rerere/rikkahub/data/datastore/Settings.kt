@@ -39,6 +39,8 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
+    val enableMemoryFusion: Boolean = false,
+    val enableLocalGpu: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val networkSetting: NetworkSetting = NetworkSetting(),
     val favoriteModels: List<Uuid> = emptyList(),

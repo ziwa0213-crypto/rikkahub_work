@@ -60,6 +60,9 @@ enum class ServerToolProtocol {
 
     @SerialName("google_interactions")
     GOOGLE_INTERACTIONS,
+
+    @SerialName("deepseek_chat_completions")
+    DEEPSEEK_CHAT_COMPLETIONS,
 }
 
 /**

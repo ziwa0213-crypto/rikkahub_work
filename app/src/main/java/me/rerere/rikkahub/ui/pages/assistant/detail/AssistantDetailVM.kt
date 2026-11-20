@@ -19,6 +19,7 @@ import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
 import me.rerere.rikkahub.data.ai.MemoryConsolidationStatus
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.skills.SkillManager
@@ -235,7 +236,7 @@ class AssistantDetailVM(
     val providers = settingsStore
         .settingsFlow
         .map { settings ->
-            settings.providers
+            settings.uiProviders
         }.stateIn(
             scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
         )

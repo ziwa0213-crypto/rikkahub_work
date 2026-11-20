@@ -109,6 +109,8 @@ class SettingsStore internal constructor(
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val NETWORK_SETTING = stringPreferencesKey("network_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val ENABLE_MEMORY_FUSION = booleanPreferencesKey("enable_memory_fusion")
+        val ENABLE_LOCAL_GPU = booleanPreferencesKey("enable_local_gpu")
 
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")

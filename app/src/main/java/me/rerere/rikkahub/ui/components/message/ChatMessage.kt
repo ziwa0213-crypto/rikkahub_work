@@ -613,7 +613,8 @@ private fun MessagePartsBlock(
                     }
 
                     is UIMessagePart.Document -> {
-                        ChatMessageFileChip(
+                        if (part.url.startsWith("/")) WorkspaceDocumentChip(part)
+                        else ChatMessageFileChip(
                             text = part.fileName,
                             onClick = { context.openLocalFile(part.url) },
                             icon = {

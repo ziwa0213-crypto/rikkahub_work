@@ -198,6 +198,7 @@ fun Route.settingsRoutes(
 private fun parseBuiltInTool(tool: String): BuiltInTools {
     return when (tool.trim().lowercase(Locale.ROOT)) {
         "search" -> BuiltInTools.Search
+        "read_url", "read-url", "readurl" -> BuiltInTools.ReadUrl
         "url_context", "url-context", "urlcontext" -> BuiltInTools.UrlContext
         "image_generation", "image-generation", "imagegeneration" -> BuiltInTools.ImageGeneration
         else -> throw BadRequestException("Unsupported built-in tool")

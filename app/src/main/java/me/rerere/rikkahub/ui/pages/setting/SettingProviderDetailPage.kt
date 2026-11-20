@@ -59,6 +59,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -177,11 +178,12 @@ private enum class ModelFormTab(
 }
 
 @Composable
-fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
+fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel(), initialTab: String? = null, focusModelId: String? = null) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val provider = settings.providers.find { it.id == id } ?: return
-    val pager = rememberPagerState { ProviderDetailTab.entries.size }
+    val tabs = if (provider is ProviderSetting.LlamaCppLocal) listOf(ProviderDetailTab.CONFIG, ProviderDetailTab.MODELS) else ProviderDetailTab.entries
+    val pager = rememberPagerState(initialPage = if (initialTab == "models") 1 else 0) { tabs.size }
     val toaster = LocalToaster.current
     val context = LocalContext.current
 
@@ -190,7 +192,9 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
             latest.copy(
                 providers = latest.providers.map {
                     if (newProvider.id == it.id) {
-                        newProvider.preserveCredential(it)
+                        if (newProvider is ProviderSetting.LlamaCppLocal && it is ProviderSetting.LlamaCppLocal)
+                            newProvider.copy(models = it.models)
+                        else newProvider.preserveCredential(it)
                     } else {
                         it
                     }
@@ -224,7 +228,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
                 },
                 actions = {
                     // 账号型提供商离开账号就没法用，不提供分享
-                    if (provider !is ProviderSetting.Account) {
+                    if (provider !is ProviderSetting.Account && provider !is ProviderSetting.LlamaCppLocal) {
                         val shareSheetState = rememberShareSheetState()
                         ShareSheet(shareSheetState)
                         IconButton(
@@ -247,7 +251,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
         ) {
             PagerTabs(
                 pagerState = pager,
-                tabs = ProviderDetailTab.entries,
+                tabs = tabs,
                 modifier = Modifier.padding(vertical = 4.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp),
             )
@@ -258,7 +262,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
                     .fillMaxWidth()
                     .weight(1f),
             ) { page ->
-                when (ProviderDetailTab.entries[page]) {
+                when (tabs[page]) {
                     ProviderDetailTab.CONFIG -> {
                         SettingProviderConfigPage(
                             provider = provider,
@@ -278,7 +282,15 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
                     ProviderDetailTab.MODELS -> {
                         SettingProviderModelPage(
                             provider = provider,
-                            onEdit = onEdit
+                            onEdit = if (provider is ProviderSetting.LlamaCppLocal) { edited ->
+                                // Installer owns membership; editing only updates installed
+                                // entries against the latest settings, never a stale snapshot.
+                                vm.updateSettings { latest -> latest.copy(providers = latest.providers.map { current ->
+                                    if (current is ProviderSetting.LlamaCppLocal && current.id == provider.id)
+                                        current.copy(models = current.models.map { model -> edited.models.find { it.id == model.id } ?: model })
+                                    else current
+                                }) }
+                            } else onEdit,
                         )
                     }
 
@@ -365,8 +377,10 @@ private fun SettingProviderConfigPage(
                 expanded = expanded,
                 colors = CustomColors.floatingToolbarColors,
                 leadingContent = {
-                    IconButton(onClick = { showTestDialog = true }) {
-                        Icon(HugeIcons.Connect, null)
+                    if (provider !is ProviderSetting.LlamaCppLocal) {
+                        IconButton(onClick = { showTestDialog = true }) {
+                            Icon(HugeIcons.Connect, null)
+                        }
                     }
 
                     if (!internalProvider.builtIn) {
@@ -446,11 +460,11 @@ private fun SettingProviderConfigPage(
 @Composable
 private fun SettingProviderModelPage(
     provider: ProviderSetting,
-    onEdit: (ProviderSetting) -> Unit
+    onEdit: (ProviderSetting) -> Unit,
 ) {
     ModelList(
         providerSetting = provider,
-        onUpdateProvider = onEdit
+        onUpdateProvider = onEdit,
     )
 }
 
@@ -479,7 +493,7 @@ private fun SettingProviderAdvancedPage(
 @Composable
 private fun ModelList(
     providerSetting: ProviderSetting,
-    onUpdateProvider: (ProviderSetting) -> Unit
+    onUpdateProvider: (ProviderSetting) -> Unit,
 ) {
     val providerManager = koinInject<ProviderManager>()
     // 增删、排序已添加的模型不影响远端列表，去掉 models 再作为 key，避免每次编辑都重新请求
@@ -547,7 +561,7 @@ private fun ModelList(
                 }
             }
         }
-        HorizontalFloatingToolbar(
+        if (providerSetting !is ProviderSetting.LlamaCppLocal) HorizontalFloatingToolbar(
             expanded = expanded,
             colors = CustomColors.floatingToolbarColors,
             modifier = Modifier
@@ -676,10 +690,14 @@ private fun ModelSettingsForm(
 
                             ModelContextLengthSelector(
                                 contextLength = model.contextLength,
+                                isLocal = parentProvider is ProviderSetting.LlamaCppLocal,
                                 onUpdateContextLength = {
                                     onModelChange(model.copy(contextLength = it))
                                 }
                             )
+                            if (parentProvider is ProviderSetting.LlamaCppLocal) {
+                                me.rerere.rikkahub.ui.pages.setting.locallm.LocalChatTemplateEditor(model, onModelChange)
+                            }
                         }
                     }
                 }
@@ -726,11 +744,6 @@ private fun ModelSettingsForm(
                         tools = model.tools,
                         onUpdateTools = { tools ->
                             onModelChange(model.copy(tools = tools))
-                        },
-                        videoInput = ModelAbility.VIDEO in model.abilities,
-                        onUpdateVideoInput = { enabled ->
-                            onModelChange(model.copy(abilities = if (enabled) (model.abilities + ModelAbility.VIDEO).distinct()
-                                else model.abilities - ModelAbility.VIDEO))
                         },
                     )
                 }
@@ -1165,6 +1178,8 @@ private fun ModelModalitySelector(
                     when (modality) {
                         Modality.TEXT -> R.string.setting_provider_page_text
                         Modality.IMAGE -> R.string.setting_provider_page_image
+                        Modality.AUDIO -> R.string.audio
+                        Modality.VIDEO -> R.string.video
                     }
                 ),
                 selected = selected,
@@ -1188,6 +1203,8 @@ private fun ModelModalitySelector(
                     when (modality) {
                         Modality.TEXT -> R.string.setting_provider_page_text
                         Modality.IMAGE -> R.string.setting_provider_page_image
+                        Modality.AUDIO -> R.string.audio
+                        Modality.VIDEO -> R.string.video
                     }
                 ),
                 selected = selected,
@@ -1218,7 +1235,7 @@ fun ModalAbilitySelector(
                 when (ability) {
                     ModelAbility.TOOL -> R.string.setting_provider_page_tool
                     ModelAbility.REASONING -> R.string.setting_provider_page_reasoning
-                    ModelAbility.VIDEO -> R.string.setting_page_model_video_input
+                    ModelAbility.VIDEO -> R.string.video
                 }
             ),
             selected = selected,
@@ -1233,8 +1250,28 @@ private val ContextLengthPresets = listOf(128_000, 200_000, 1_000_000)
 @Composable
 private fun ModelContextLengthSelector(
     contextLength: Int,
-    onUpdateContextLength: (Int) -> Unit
+    onUpdateContextLength: (Int) -> Unit,
+    isLocal: Boolean = false,
 ) {
+    if (isLocal) {
+        var text by remember { mutableStateOf((contextLength / 1024).toString()) }
+        val k = text.toIntOrNull()
+        OutlinedTextField(value = text, onValueChange = { value ->
+            text = value.filter { it.isDigit() }
+            text.toIntOrNull()?.takeIf { it in 1..16 }?.let { onUpdateContextLength(it * 1024) }
+        }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text(stringResource(R.string.setting_provider_page_context_length)) },
+            suffix = { Text("K") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = k == null || k !in 1..16,
+            supportingText = {
+                Column {
+                    Text(if (k != null && k in 1..16) "= ${k * 1024} tokens"
+                        else stringResource(R.string.local_llm_context_range))
+                    Text(stringResource(R.string.local_llm_context_hint))
+                }
+            })
+        return
+    }
     var custom by remember { mutableStateOf(contextLength !in ContextLengthPresets) }
     // 输入过程中允许为空，只有合法的正整数才写回模型
     var customText by remember { mutableStateOf(contextLength.toString()) }
@@ -1282,7 +1319,7 @@ private fun ModelCard(
     modifier: Modifier = Modifier,
     onDelete: () -> Unit,
     onEdit: (Model) -> Unit,
-    parentProvider: ProviderSetting
+    parentProvider: ProviderSetting,
 ) {
     val dialogState = useEditState<Model> {
         onEdit(it.copy(displayName = it.displayName.trim()))
@@ -1422,7 +1459,7 @@ private fun ModelCard(
                 }
             }
 
-            ItemActionMenu(
+            if (parentProvider !is ProviderSetting.LlamaCppLocal) ItemActionMenu(
                 actions = listOf(
                     ItemAction(
                         text = stringResource(R.string.delete),
@@ -1454,8 +1491,6 @@ private fun ModelCard(
 private fun BuiltInToolsSettings(
     tools: Set<BuiltInTools>,
     onUpdateTools: (Set<BuiltInTools>) -> Unit,
-    videoInput: Boolean,
-    onUpdateVideoInput: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1479,6 +1514,10 @@ private fun BuiltInToolsSettings(
             BuiltInTools.Search to Pair(
                 stringResource(R.string.setting_page_built_in_tools_search),
                 stringResource(R.string.setting_page_built_in_tools_search_desc)
+            ),
+            BuiltInTools.ReadUrl to Pair(
+                stringResource(R.string.setting_page_built_in_tools_read_url),
+                stringResource(R.string.setting_page_built_in_tools_read_url_desc)
             ),
             BuiltInTools.UrlContext to Pair(
                 stringResource(R.string.setting_page_built_in_tools_url_context),
@@ -1507,19 +1546,6 @@ private fun BuiltInToolsSettings(
                     supportingContent = { Text(description) },
                 )
             }
-        }
-        Text(
-            text = stringResource(R.string.setting_page_model_input_capability),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        CardGroup {
-            switchItem(
-                checked = videoInput,
-                onCheckedChange = onUpdateVideoInput,
-                colors = itemColors,
-                headlineContent = { Text(stringResource(R.string.setting_page_model_video_input)) },
-                supportingContent = { Text(stringResource(R.string.setting_page_model_video_input_desc)) },
-            )
         }
     }
 }

@@ -48,6 +48,7 @@ fun PulseConfig.toAssistant(settings: Settings): Assistant = Assistant(
     enabledSkills = enabledSkills.toSet(),
     quickMessageIds = quickMessageIds,
     localTools = buildList {
+        if (enableClientContext) add(LocalToolOption.ClientContext)
         if (enableInformation) {
             add(LocalToolOption.TimeInfo)
             add(LocalToolOption.ScreenTime)

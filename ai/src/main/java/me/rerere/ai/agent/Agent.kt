@@ -32,7 +32,8 @@ interface AgentHooks {
      * 每次请求模型之前调用，返回这一步实际发出的消息和参数，系统提示词、上下文裁剪、输入转换都在这里做。
      *
      * [messages] 是历史加上本轮的助手消息；第一步还没有内容时不包含它。
-     * 返回的 [StepRequest.params] 里的 tools 会被换成 [AgentRequest.tools]，声明给模型的工具和能执行的工具始终是同一份。
+     * 返回的 [StepRequest.params] 里的 tools 会被换成 [AgentRequest.tools]。
+     * 本地模型明确因提示预算省略工具时保留空定义；执行工具仍沿用原审批与恢复路径。
      */
     suspend fun prepareStep(messages: List<UIMessage>): StepRequest
 

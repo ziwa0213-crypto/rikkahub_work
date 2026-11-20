@@ -34,6 +34,8 @@ internal class ChatCompletionsStreamDecoder : StreamChunkDecoder {
     private var responseModel: String? = null
     private var finishReason: String? = null
     private var finished = false
+    private var finalServerToolCalls: JsonArray? = null
+    private val startedServerToolIds = mutableSetOf<String>()
 
     override fun accept(event: SseEvent): DecodeResult {
         if (finished) return DecodeResult(completed = true)
@@ -49,7 +51,8 @@ internal class ChatCompletionsStreamDecoder : StreamChunkDecoder {
 
                 payload["choices"]?.jsonArrayOrNull?.firstOrNull()?.jsonObjectOrNull?.let { choice ->
                     (choice["delta"]?.jsonObjectOrNull ?: choice["message"]?.jsonObjectOrNull)?.let { message ->
-                        val messageWithoutTools = JsonObject(message.filterKeys { it != "tool_calls" })
+                        message["server_tool_calls"]?.jsonArrayOrNull?.let { finalServerToolCalls = it }
+                        val messageWithoutTools = JsonObject(message.filterKeys { it != "tool_calls" && it != "server_tool_calls" })
                         addAll(streamState.append(parseMessage(messageWithoutTools), responseId))
 
                         message["tool_calls"]?.jsonArrayOrNull?.forEachIndexed { fallbackIndex, element ->
@@ -75,6 +78,15 @@ internal class ChatCompletionsStreamDecoder : StreamChunkDecoder {
                             ))
                         }
                     }
+                    choice["server_tool_event"]?.jsonObjectOrNull?.let { serverEvent ->
+                        val type = serverEvent["type"]?.jsonPrimitive?.contentOrNull
+                        val call = serverEvent["call"]?.jsonObjectOrNull
+                        if (call != null && (type == "call_started" || type == "call_completed")) {
+                            val step = serverEvent["step"]?.jsonPrimitive?.intOrNull
+                            val tool = call.toDeepSeekServerTool(step)
+                            if (tool.toolCallId.isNotBlank()) addAll(serverToolChunks(tool, type == "call_completed"))
+                        }
+                    }
                     choice["finish_reason"]?.jsonPrimitive?.contentOrNull?.let { finishReason = it }
                 }
                 parseUsage(payload["usage"] as? JsonObject)?.let { add(StreamChunk.Usage(it)) }
@@ -88,7 +100,19 @@ internal class ChatCompletionsStreamDecoder : StreamChunkDecoder {
     private fun finish(): List<StreamChunk> {
         if (finished) return emptyList()
         finished = true
-        return streamState.finish(finishReason, responseId, responseModel)
+        val patched = finalServerToolCalls?.deepSeekServerTools()?.flatMap { serverToolChunks(it, complete = true) }.orEmpty()
+        finalServerToolCalls = null
+        return streamState.finish(finishReason, responseId, responseModel) + patched
+    }
+
+    private fun serverToolChunks(tool: UIMessagePart.ServerTool, complete: Boolean): List<StreamChunk> = buildList {
+        if (startedServerToolIds.add(tool.toolCallId)) {
+            add(StreamChunk.ServerToolStart(tool.toolCallId, tool.toolName, tool.input, tool.metadata))
+        }
+        if (complete) add(StreamChunk.ServerToolEnd(
+            id = tool.toolCallId, input = tool.input, output = tool.output,
+            status = tool.status, metadata = tool.metadata,
+        ))
     }
 
     private fun parseMessage(payload: JsonObject): UIMessage {

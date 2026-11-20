@@ -60,6 +60,8 @@ import me.rerere.hugeicons.stroke.Download04
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.context.LocalWorkspaceBaseDir
+import me.rerere.rikkahub.ui.context.LocalWorkspaceStorageArea
 import me.rerere.rikkahub.ui.context.LocalWorkspaceId
 import me.rerere.rikkahub.ui.modifier.onClick
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
@@ -224,11 +226,16 @@ fun MarkdownBlock(
 @Composable
 internal fun rememberWorkspaceImageUrl(url: String): String? {
     val workspaceId = LocalWorkspaceId.current
-    if (workspaceId == null || !url.startsWith("/") || url.startsWith("//")) return url
-    val path = remember(url) { url.toUri().path } ?: return url
+    if (workspaceId == null || url.startsWith("//")) return url
+    val relativePath = relativeWorkspaceImagePath(url, LocalWorkspaceBaseDir.current)
+    if (relativePath == null && !url.startsWith("/")) return url
+    val path = remember(url, relativePath) { (relativePath ?: url).toUri().path } ?: return url
+    val area = LocalWorkspaceStorageArea.current
     val workspaceRepository: WorkspaceRepository = koinInject()
-    val resolved by produceState<String?>(initialValue = null, workspaceId, path) {
-        value = workspaceRepository.resolveAbsoluteFile(workspaceId, path)?.absolutePath ?: url
+    val resolved by produceState<String?>(initialValue = null, workspaceId, path, area, relativePath) {
+        value = if (relativePath != null) {
+            workspaceRepository.resolveFile(workspaceId, area, path)?.absolutePath ?: url
+        } else workspaceRepository.resolveAbsoluteFile(workspaceId, path)?.absolutePath ?: url
     }
     return resolved
 }

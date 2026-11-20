@@ -632,11 +632,14 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.SettingProviderDetail> { key ->
                                 val id = Uuid.parse(key.providerId)
-                                SettingProviderDetailPage(id = id)
+                                SettingProviderDetailPage(id = id, initialTab = key.tab, focusModelId = key.focusModelId)
                             }
 
                             entry<Screen.SettingModels> {
                                 SettingModelPage()
+                            }
+                            entry<Screen.SettingLocalLlm> {
+                                me.rerere.rikkahub.ui.pages.setting.locallm.LocalModelList()
                             }
 
                             entry<Screen.SettingAbout> {
@@ -933,10 +936,13 @@ sealed interface Screen : NavKey {
     data object SettingProvider : Screen
 
     @Serializable
-    data class SettingProviderDetail(val providerId: String) : Screen
+    data class SettingProviderDetail(val providerId: String, val tab: String? = null, val focusModelId: String? = null) : Screen
 
     @Serializable
     data object SettingModels : Screen
+
+    @Serializable
+    data object SettingLocalLlm : Screen
 
     @Serializable
     data object SettingAbout : Screen

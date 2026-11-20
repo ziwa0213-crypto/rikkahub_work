@@ -1,6 +1,9 @@
 package me.rerere.rikkahub.data.model
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
@@ -25,7 +28,9 @@ enum class ToolApprovalMode {
     AllowAll,
 }
 
-@Serializable
+@OptIn(ExperimentalSerializationApi::class)
+@KeepGeneratedSerializer
+@Serializable(with = me.rerere.rikkahub.data.datastore.AssistantClientContextSerializer::class)
 data class Assistant(
     val id: Uuid = Uuid.random(),
     val chatModelId: Uuid? = null, // 如果为null, 使用全局默认模型
@@ -54,7 +59,8 @@ data class Assistant(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBodies: List<CustomBody> = emptyList(),
     val mcpServers: Set<Uuid> = emptySet(),
-    val localTools: List<LocalToolOption> = listOf(LocalToolOption.TimeInfo),
+    @EncodeDefault
+    val localTools: List<LocalToolOption> = listOf(LocalToolOption.TimeInfo, LocalToolOption.ClientContext),
     val enableWebSearch: Boolean = false, // 网络搜索开关(每个助手独立)
     val workspaceId: Uuid? = null,
     val background: String? = null, // 聊天页背景图地址(本地文件 URI 或网络 URL), 为 null 时无背景

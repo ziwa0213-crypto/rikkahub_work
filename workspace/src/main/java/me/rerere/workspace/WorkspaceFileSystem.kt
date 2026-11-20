@@ -57,7 +57,12 @@ class WorkspaceFileSystem(
         val file = resolvePath(root, path)
         file.parentFile?.mkdirs()
         val target = if (!file.exists()) file else resolveConflict(file)
-        inputStream.use { input -> target.outputStream().use { input.copyTo(it) } }
+        try {
+            inputStream.use { input -> target.outputStream().use { input.copyTo(it) } }
+        } catch (t: Throwable) {
+            target.delete() // Only the new conflict-resolved target; never the old file.
+            throw t
+        }
         return target.toEntry(root)
     }
 

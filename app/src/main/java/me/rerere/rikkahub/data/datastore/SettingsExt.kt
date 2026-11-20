@@ -7,6 +7,10 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.tts.provider.TTSProviderSetting
 import kotlin.uuid.Uuid
 
+/** UI-visible providers while the local llama.cpp entry is paused. */
+val Settings.uiProviders: List<ProviderSetting>
+    get() = providers.filterNot { it is ProviderSetting.LlamaCppLocal }
+
 /** 所有提供商都还没有添加模型，视为尚未完成配置。 */
 fun Settings.isNotConfigured() = providers.all { it.models.isEmpty() }
 

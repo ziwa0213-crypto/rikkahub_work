@@ -78,7 +78,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
-import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyInputMessage
@@ -204,28 +203,10 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val startVoiceMode = rememberVoiceModeStarter(vm, setting)
 
     val inputState = vm.inputState
+    var pendingFiles by remember(files) { mutableStateOf(files) }
 
     // 初始化输入状态（处理传入的 files 和 text 参数）
-    LaunchedEffect(files, text) {
-        if (files.isNotEmpty()) {
-            val localFiles = filesManager.createChatFilesByContents(files)
-            val contentTypes = files.mapNotNull { file ->
-                filesManager.getFileMimeType(file)
-            }
-            val parts = buildList {
-                localFiles.forEachIndexed { index, file ->
-                    val type = contentTypes.getOrNull(index)
-                    if (type?.startsWith("image/") == true) {
-                        add(UIMessagePart.Image(url = file.toString()))
-                    } else if (type?.startsWith("video/") == true) {
-                        add(UIMessagePart.Video(url = file.toString()))
-                    } else if (type?.startsWith("audio/") == true) {
-                        add(UIMessagePart.Audio(url = file.toString()))
-                    }
-                }
-            }
-            inputState.messageContent = parts
-        }
+    LaunchedEffect(text) {
         text?.base64Decode()?.let { decodedText ->
             if (decodedText.isNotEmpty()) {
                 inputState.setMessageText(decodedText)
@@ -271,6 +252,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
             drawerState = drawerState,
             bigScreen = isBigScreen,
             chatVm = vm,
+            initialFiles = if (conversationLoaded && !setting.init) pendingFiles else emptyList(),
+            onInitialFilesConsumed = { pendingFiles = emptyList() },
         )
         return
     }
@@ -289,6 +272,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
             ) {
                 ChatPageContent(
                     onStartVoiceMode = startVoiceMode,
+                    initialFiles = if (conversationLoaded && !setting.init) pendingFiles else emptyList(),
+                    onInitialFilesConsumed = { pendingFiles = emptyList() },
                     inputState = inputState,
                     loadingJob = loadingJob,
                     processingStatus = processingStatus,
@@ -322,6 +307,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
             ) {
                 ChatPageContent(
                     onStartVoiceMode = startVoiceMode,
+                    initialFiles = if (conversationLoaded && !setting.init) pendingFiles else emptyList(),
+                    onInitialFilesConsumed = { pendingFiles = emptyList() },
                     inputState = inputState,
                     loadingJob = loadingJob,
                     processingStatus = processingStatus,
@@ -353,6 +340,8 @@ private fun GroupChatHost(
     drawerState: DrawerState,
     bigScreen: Boolean,
     chatVm: ChatVM,
+    initialFiles: List<Uri>,
+    onInitialFilesConsumed: () -> Unit,
 ) {
     val groupVm: GroupVM = rememberGroupVM()
     val group = settings.groups.firstOrNull { conversation.id in it.conversationIds }
@@ -404,6 +393,10 @@ private fun GroupChatHost(
         inputState = groupVm.inputState,
         setting = settings,
         onAttachmentAdded = { showFilesSheet = false },
+        workspaceId = group?.workspaceId?.toString(),
+        provider = null, model = null,
+        onBindWorkspace = { group?.let { navController.navigate(Screen.GroupConfig(it.id.toString())) } },
+        initialUris = initialFiles, onInitialUrisConsumed = onInitialFilesConsumed,
     )
 
     val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
@@ -703,6 +696,8 @@ private fun GroupChatFilesPickerSheet(
 @Composable
 private fun ChatPageContent(
     onStartVoiceMode: () -> Unit,
+    initialFiles: List<Uri>,
+    onInitialFilesConsumed: () -> Unit,
     inputState: ChatInputState,
     loadingJob: Job?,
     processingStatus: String? = null,
@@ -734,10 +729,13 @@ private fun ChatPageContent(
         inputState = inputState,
         setting = setting,
         onAttachmentAdded = { showFilesSheet = false },
+        workspaceId = assistant.workspaceId?.toString(),
+        provider = currentChatModel?.findProvider(setting.providers), model = currentChatModel,
+        onBindWorkspace = {
+            navController.navigate(if (conversation.isPulseChat()) Screen.PulseSettings() else Screen.AssistantBasic(assistant.id.toString()))
+        },
+        initialUris = initialFiles, onInitialUrisConsumed = onInitialFilesConsumed,
     )
-    val allowAudioVideoAttachments =
-        currentChatModel?.findProvider(setting.providers) is ProviderSetting.Google
-
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
             listOf(
@@ -1031,7 +1029,9 @@ private fun ChatPageContent(
                     inputContent = {
                         Box(Modifier.fillMaxSize()) {
                             Column(Modifier.align(Alignment.TopCenter).onSizeChanged { topBarHeightPx = it.height }) { topBar() }
-                            Box(Modifier.align(Alignment.BottomCenter)) { inputContent(true) }
+                            Box(Modifier.align(Alignment.BottomCenter)) {
+                                inputContent(true)
+                            }
                         }
                     },
                     regions = regions,

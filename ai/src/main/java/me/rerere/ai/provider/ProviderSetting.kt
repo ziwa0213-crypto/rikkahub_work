@@ -4,7 +4,11 @@ import androidx.compose.runtime.Composable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import me.rerere.ai.provider.providers.isDeepSeekDialect
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import kotlin.uuid.Uuid
+
+val LLAMACPP_PROVIDER_ID: Uuid = Uuid.parse("00000000-0000-0000-0000-6c6c616d6163")
 
 /** 账号登录得到的 OAuth 凭据 */
 @Serializable
@@ -64,19 +68,52 @@ enum class ClaudePromptCacheTtl(val apiValue: String?) {
 /**
  * 是否支持模型内置联网搜索（[BuiltInTools.Search]）。
  *
- * OpenAI 兼容提供商只有 Responses API 有 `web_search` 工具，Chat Completions 没有。
+ * DeepSeek also exposes server search through Chat Completions.
  */
 val ProviderSetting.supportsBuiltInSearch: Boolean
     get() = when (this) {
-        is ProviderSetting.OpenAI -> useResponseApi
+        is ProviderSetting.OpenAI -> useResponseApi ||
+            isDeepSeekDialect(runCatching { baseUrl.toHttpUrl().host }.getOrDefault(""), "")
         is ProviderSetting.Google -> true
         is ProviderSetting.Claude -> true
         is ProviderSetting.Account -> true
         is ProviderSetting.DeepSeekWeb -> false
+        is ProviderSetting.LlamaCppLocal -> false
     }
+
+fun ProviderSetting.supportsBuiltInSearch(model: Model?): Boolean = supportsBuiltInSearch ||
+    (this is ProviderSetting.OpenAI && isDeepSeekDialect("", model?.modelId.orEmpty()))
 
 @Serializable
 sealed class ProviderSetting {
+    @Serializable
+    @SerialName("local_llamacpp")
+    data class LlamaCppLocal(
+        override val id: Uuid = LLAMACPP_PROVIDER_ID,
+        override val enabled: Boolean = true,
+        override val name: String = "Local · llama.cpp",
+        override val models: List<Model> = emptyList(),
+        override val balanceOption: BalanceOption = BalanceOption(),
+        override val loadingAnimation: LoadingAnimationConfig = LoadingAnimationConfig(),
+        override val customHeaders: List<CustomHeader> = emptyList(),
+        @Transient override val builtIn: Boolean = true,
+        @Transient override val description: @Composable (() -> Unit) = {},
+        @Transient override val shortDescription: @Composable (() -> Unit) = {},
+        val downloadBase: String = "https://huggingface.co",
+    ) : ProviderSetting() {
+        override fun copyProvider(
+            id: Uuid, enabled: Boolean, name: String, models: List<Model>,
+            balanceOption: BalanceOption, loadingAnimation: LoadingAnimationConfig,
+            customHeaders: List<CustomHeader>, builtIn: Boolean,
+            description: @Composable (() -> Unit), shortDescription: @Composable (() -> Unit),
+        ): ProviderSetting = copy(
+            id = id, enabled = enabled, name = name, models = models,
+            balanceOption = balanceOption, loadingAnimation = loadingAnimation,
+            customHeaders = customHeaders, builtIn = builtIn,
+            description = description, shortDescription = shortDescription,
+        )
+    }
+
     abstract val id: Uuid
     abstract val enabled: Boolean
     abstract val name: String

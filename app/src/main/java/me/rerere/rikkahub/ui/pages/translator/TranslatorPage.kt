@@ -79,6 +79,7 @@ import me.rerere.hugeicons.stroke.Stop
 import me.rerere.hugeicons.stroke.Translate
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.findModelById
+import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
 import me.rerere.rikkahub.ui.components.ai.TranslationLanguages
 import me.rerere.rikkahub.ui.components.ai.translationLanguageName
@@ -131,7 +132,7 @@ fun TranslatorPage(vm: TranslatorVM = koinViewModel()) {
                         onSelect = {
                             vm.updateSettings { latest -> latest.copy(translateModeId = it.id) }
                         },
-                        providers = settings.providers,
+                        providers = settings.uiProviders,
                         type = ModelType.CHAT,
                         onlyIcon = true,
                     )

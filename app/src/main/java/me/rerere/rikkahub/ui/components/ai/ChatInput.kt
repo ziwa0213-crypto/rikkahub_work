@@ -103,6 +103,7 @@ import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
@@ -176,7 +177,7 @@ fun ChatInput(
     )
     val modelListState = rememberModelListState(
         modelId = chatModel?.id,
-        providers = settings.providers,
+        providers = settings.uiProviders,
         type = ModelType.CHAT,
     )
 

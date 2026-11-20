@@ -19,6 +19,8 @@ data class Model(
     val providerOverwrite: ProviderSetting? = null,
     // 上下文窗口大小(token)
     val contextLength: Int = 1_000_000,
+    // Local inference only; null preserves the model's own template.
+    val chatTemplate: String? = null,
 )
 
 /**
@@ -47,6 +49,8 @@ enum class ModelType {
 enum class Modality {
     TEXT,
     IMAGE,
+    AUDIO,
+    VIDEO,
 }
 
 @Serializable
@@ -63,6 +67,10 @@ sealed class BuiltInTools {
     @Serializable
     @SerialName("search")
     data object Search : BuiltInTools()
+
+    @Serializable
+    @SerialName("read_url")
+    data object ReadUrl : BuiltInTools()
 
     // https://ai.google.dev/gemini-api/docs/url-context?hl=zh-cn
     @Serializable

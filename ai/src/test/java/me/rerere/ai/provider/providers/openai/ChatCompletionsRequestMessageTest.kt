@@ -51,6 +51,8 @@ class ChatCompletionsRequestMessageTest {
             ReasoningReplayFormat::class.java,
             List::class.java,
             Boolean::class.javaPrimitiveType,
+            me.rerere.ai.provider.ClientContext::class.java,
+            Boolean::class.javaPrimitiveType,
         )
         method.isAccessible = true
         return method.invoke(
@@ -59,6 +61,8 @@ class ChatCompletionsRequestMessageTest {
             includeHistoryReasoning,
             reasoningReplayFormat,
             listOf(Modality.TEXT, Modality.IMAGE),
+            false,
+            null,
             false,
         ) as JsonArray
     }

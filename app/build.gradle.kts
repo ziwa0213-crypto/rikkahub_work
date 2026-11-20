@@ -15,6 +15,12 @@ plugins {
     alias(libs.plugins.baselineprofile)
 }
 
+// A single-ABI delivery can be requested without changing the normal build matrix.
+val deliveryAbis = providers.gradleProperty("rikkahub.abi").orNull?.let { value ->
+    require(value in setOf("arm64-v8a", "x86_64")) { "Unsupported delivery ABI" }
+    listOf(value)
+} ?: listOf("arm64-v8a", "x86_64")
+
 android {
     namespace = "me.rerere.rikkahub"
     compileSdk {
@@ -35,7 +41,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += deliveryAbis
         }
     }
 
@@ -44,10 +50,10 @@ android {
             // AppBundle tasks usually contain "bundle" in their name
             //noinspection WrongGradleMethod
             val isBuildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
-            isEnable = !isBuildingBundle
+            isEnable = !isBuildingBundle && deliveryAbis.size > 1
             reset()
-            include("arm64-v8a", "x86_64")
-            isUniversalApk = true
+            include(*deliveryAbis.toTypedArray())
+            isUniversalApk = deliveryAbis.size > 1
         }
     }
 
@@ -161,7 +167,7 @@ androidComponents {
     }
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.outputs.forEach { output ->
-            output.enabled.set(output.filters.any {
+            output.enabled.set(output.filters.none { it.filterType == FilterConfiguration.FilterType.ABI } || output.filters.any {
                 it.filterType == FilterConfiguration.FilterType.ABI && it.identifier == "arm64-v8a"
             })
         }
@@ -350,6 +356,7 @@ dependencies {
 
     // modules
     implementation(project(":ai"))
+    implementation(project(":llama-cpp"))
     implementation(project(":web"))
     implementation(project(":document"))
     implementation(project(":search"))
@@ -369,6 +376,7 @@ dependencies {
 
     // tests
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303") // Real JSON for local prompt-budget JVM tests.
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(kotlin("reflect"))
     androidTestImplementation(libs.androidx.junit)

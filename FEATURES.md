@@ -1,5 +1,101 @@
 # RikkaHub 二次开发功能台账
 
+## [源码归档排除个人构建工具] 2026-11-20
+
+- 维护者授权本轮只生成源码 ZIP，保留 `3.3.0-work.1 / 207`；不生成 APK、不提交/推送。产品源码、Gradle 配置和 Git index 保持不变。
+- 本机 `tools/package-delivery-source.mjs` 明确排除桌面构建及配套报告/校验/归档工具、BUILDING.md 和两份历史本机工具，共八个路径；不依赖 Git 忽略状态，因此已经跟踪的个人工具也不会进入 ZIP。不整目录排除 tools，保留 wrapper、CI、翻译及其他验证工具。
+- 六个新增个人工具文件加入 `.git/info/exclude`，本机可继续运行；不删除历史已跟踪文件。同步 AGENTS / CHANGES / DELIVERY，个人 BUILDING.md 留在本机。
+- 扩展既有离线流程，在模拟工程中同时放入已跟踪与未跟踪的个人脚本，确认归档排除它们且保留 gradlew、DELIVERY、项目验证脚本和 CI。14 组检查及 Bash / Node 语法、git diff --check 通过，没有启动 Android 编译。
+- 回滚只反向撤销本轮显式排除列表、对应测试断言、本机忽略规则及本节台账，不整文件回退归档脚本或其他共享文件。没有本轮独立提交可 revert；上游同步后继续保留个人工具的本机边界。
+
+## [正式版 APK 打包堆内存修正] 2026-11-20
+
+- 实际失败日志 `artifacts/3.3.0-work.1/manual-release-20261120-170643-DoC4Ud/build.log`：`:app:packageGithubRelease` 经 `ApkFlinger` / `Compressor.deflate` 抛 `OutOfMemoryError: Java heap space`，非单测失败。脚本 `GRADLE_OPTIONS` 固定 2560m 覆盖了工程 `gradle.properties` 的8g。
+- 仅移除 `tools/build-delivery.sh` 的 `-Dorg.gradle.jvmargs` 覆盖；构建和后续Lint共用选项，均恢复沿用工程/用户配置。`tools/test-build-delivery.mjs` 增加实际命令参数断言，14组隔离流程通过。原串行、单worker、版本输入记忆、Release三包/Debug单ARM64、源码根DELIVERY保持。
+- 用临时 init 脚本运行 Gradle help 实测 `Runtime.maxMemory()=8589934592`（8 GiB），10秒成功；未执行assemble或生成交付归档，不宣称Release重建通过。实际工程版本仍3.3.0-work.1/207，未提交、推送或改产品代码。同步AGENTS/CHANGES/DELIVERY/BUILDING；旧失败目录保留。
+- 回滚仅逐块撤销本批单行选项改动及参数断言/文档，不整文件恢复构建脚本或撤销版本输入功能。下次重套上游时让脚本继续尊重工程内存配置，不把用于轻量Kotlin检查的2560m复制进三变体APK构建。
+
+## [构建版本名/内部版本号输入与记忆] 2026-11-20
+
+- 修改 `tools/build-delivery.sh`：模式选择后输入 `x.x.x-work.x/xxx`，whiptail 对话框或终端回落；版本名与内部版本号范围共同校验。首次取工程默认，后续取 `.gradle/delivery-last-version.txt` 的整对值；Release / Debug 共用，旧记录只有版本名时补工程当前内部版本号。取消不写工程、不调用 Gradle。
+- 确认后在构建锁内校验 versionName / versionCode 声明各唯一，一次原子更新两个字段并保存本机状态，保留其他文本与文件权限；没有另行自动递增。既有 APK 校验和源码打包验证所选版本，状态不入归档；正式三变体/Debug单ARM64及DELIVERY要求不变。
+- 扩展 `tools/test-build-delivery.mjs`，14 组隔离模拟流程通过，覆盖原构建矩阵与失败分支、完整版本格式和内部版本号范围、整对记忆/跨类型/旧记录、取消、坏状态回落、重复声明不部分更新，以及TTY预填/取消。模拟Gradle/SDK只验证工具，未编译实际Android工程。
+- 更新 AGENTS / CHANGES / DELIVERY / tools/BUILDING。仍是未提交工作区增量，无本批 commit；当前实际工程 `3.3.0-work.1 / 207` 未被测试改变，不构建真实APK或交付源码ZIP、不推送。
+- 回滚仅逐块反向撤销本批版本输入、记忆/版本更新与对应测试/文档，保留旧菜单、构建/检查/归档全流程；不整文件回退 build-delivery、app/build.gradle 或台账。上游重套需保留构建锁、版本同步与归档一致性，不能只改输出文件名。
+
+## [F022 DeepSeek 对话工具 / 客户端元信息、F021 工作区预览] 2026-11-20
+
+- 固定 `3.3.0-work.1 / 207`、DB34；当前为未提交工作区增量，没有本批 commit。按任务包先 F022 独立编译，再 F021 独立编译；维护者长期要求已改为自行构建 APK / ZIP，代理只完成实现、检查与根 DELIVERY。
+- AI 新增 `ClientContext.kt`、`DeepSeekDialect.kt`、`DeepSeekServerTools.kt`；修改 Model/Provider/ProviderSetting、三协议实现、ChatCompletionsStreamDecoder、MessageMetadata，支持独立 ReadUrl、DeepSeek 服务端工具签名与流式/历史回放。F007 hasTools/reasoning 守卫不变，非 DeepSeek 不带专用历史字段。
+- App 新增 `ClientContextFactory.kt`、`ClientContextCompatibility.kt`，在 ChatRequestFactory 注入请求上下文；Assistant / PulseConfig 配置及 PulseChat 映射、助手/脉搏/模型工具开关、SearchPicker、工具卡片和 Web SettingsRoutes 同步。ClientContext 不注册成 Tool；JSON 兼容器保证旧配置不静默开启，EncodeDefault 保证保存往返。
+- 工作区新增 WorkspaceMarkdownPreview / WorkspacePreviewInterceptor / WorkspacePreviewResources 与 WorkspaceImagePath，修改文件预览页、Markdown、LocalWorkspace；ui WebView 增加可选拦截器与 client 更新，公共 MIME 提取至 MimeTypes。FILES 可写、LINUX 只读及 512 KiB 原读取保护不变；HTML 资源只在文档目录内，外网/file/content 全拒，脚本默认关闭。
+- 三语新增 12 key × 3，总计各 2,720 key、集合一致且无重复；原 21 身份图标与固定基准一致。无新依赖或数据库变化，不动既有 F004/F009 工具审批或脉搏调度/超时。涉及脉搏日期上下文前已参考产品仓库外保留的 Kai HeartbeatPromptBuilder 与 PalmClaw ContextBuilder / HeartbeatService，不复制调度实现。
+- 本批 24 项新增回归覆盖服务端声明/签名/多步/跨供应商、旧 JSON 与新配置、预览路径边界/符号链接/MIME。F022 独立报告 1,442 通过/1 跳过，F021 1,012 通过/1 跳过；最终 `test :app:compileGithubReleaseKotlin` 成功，284 去重套件 1,908 项中 1,906 通过/2 缺语料跳过。报告含缓存复用，不能把三批数字相加或当作全量重跑；未跑全量 Lint、未装机或真实 API 验证。
+- 桌面 `.sh` 在缺显式值时补本机 JDK21/实际 NDK27/Vulkan 环境；tools/BUILDING 补长期流程。现有 `package-delivery-source.mjs` 已要求并逐文件校验根 DELIVERY；本批只核对，不执行 APK 或 ZIP 打包。
+- 完整文件映射、源码/任务示例差异、验证记录、维护者待验和重套点见 `docs/f021-f022-change-map.md` 与根 DELIVERY。回滚逐块撤销本批新增/调用点及三语 key，再移除无调用的新文件；不得用 `git restore` 整文件覆盖共享协议、设置、预览页或台账，避免丢失此前 F020。当前没有隔离的本批 commit，因而不提供会连带回退 F020 的 HEAD 回滚命令。
+
+## [本机构建菜单] 2026-11-20（3.3.0-work.1 / 207，不改应用行为）
+
+- 入口 `tools/build-delivery.sh`：Bash/whiptail 菜单，Release 三 APK、Debug 单 ARM64，两者均附源码 ZIP；桌面单入口调用。详细步骤和依赖见 `tools/BUILDING.md`。
+- `tools/collect-delivery-apks.mjs` 核对变体、版本、包名、签名、CRC/ABI；`tools/summarize-delivery-tests.mjs` 按本次任务汇总并快照 JUnit；`tools/package-delivery-source.mjs` 保留必要源码/权限/软链接并核验归档。旧的版本专用工具未改。
+- `tools/test-build-delivery.mjs` 的四种离线流程验证通过；另对已有 Debug APK 和源码归档做了工具核验。本批没有重新编译 APK，模拟流程不能冒充应用构建或真机验收。
+- 源码为未提交工作区增量，无新 commit；不提交/推送/发布、不改版本和产品代码。回退时仅移除上述五个新脚本、`tools/BUILDING.md` 与本批桌面入口，并逐块反向撤销本批台账；不得整树 reset 或清理历史产物。上游同步时保留 tools 和桌面绝对路径入口。
+
+## [F020 补充五/六：提示归属、内联思考与 Vulkan GPU] 3.3.0-work.1 / 207
+
+- 本地预算提示由 `ChatRequestFactory.prepareStep` 登记至进程级 `ChatService` 会话流，再由 ChatVM/ChatPage显示；无持久化结构或请求消息改变。关闭后用空集合保留同会话dismiss状态。
+- `llama-cpp/InlineThinking.kt` 仅处理缺少 `reasoning_content` 的字面 think 标签；保留 JSON 其他字段、原生 reasoning 及 Markdown 行内/围栏代码。流式累积解析支持不完整开闭标签。
+- 新增 `Settings.enableLocalGpu=false` 与 Preference键；JNI按显式GPU选择Vulkan device、99层，CPU明确空device/0层。Runtime串行回退一次并暴露 Ready.gpuFallback；日志记录后端、耗时、tok/s。
+- CMake 在固定 llama.cpp 版本启用 Vulkan，从构建目录生成 Android API 26 兼容的源文件并经运行时 dispatch 查询设备。JNI 在显式 GPU 加载时注册 Vulkan。主机着色器编译器及 SPIR-V/Vulkan 头由开发依赖提供。
+- ARM64 签名 Release 验证通过，APK 31,913,762 bytes，Vulkan 库在包内压缩为 10,221,450 bytes。真实模型推理和设备兼容性待验。
+- 回滚仅移除本批变更，并保留既有F020补充四数据预算；涉及文件及字段清单见 `docs/f020-supplement5-6-change-map.md`。不得整文件覆盖ChatService、ChatPage、Runtime或设置快照。
+
+## [F020 补充四：本地模型提示预算] 3.3.0-work.1 / 207（2026-11-18）
+
+- 基线为655f8517后的既有F020与补充三工作区增量，仍不自动commit/tag/push/发布。新导入模型默认8K，不迁移已保存contextLength；DB34、签名、原应用图标、三语保持。
+- LocalPromptBudget按输入55%/75%依次决定是否省略工具schema及所有工具systemPrompt、两类记忆；字符/3仅作丢层决策，不裁剪正文/历史或写入usage。API返回与旧组装逐字节相同的system及原工具列表。ChatToolFactory不改。
+- 因真实StepRequest在ai模块、AgentLoop原本重新注入工具，采用TextGenerationParams的@Transient localPromptDrops及仅LlamaCppLocal生效的AgentLoop守卫，不增加持久化字段；保留执行/审批续跑表。流式与非流式共用Provider notices，媒体提示与降级提示一次合并。
+- Provider预算优先用Ready实际nCtx；失败才调用LocalPromptDiagnostics计system/schema/history，ErrorText显示未知?且保留旧错误兜底。真实模板/媒体计数、整轮裁剪、压缩禁止静默裁历史及Usage保持。
+- Runtime使用2..6线程，日志含threads；现有context_hint更新共用，新加三个key而非重复四个。实际设备prefill/tok/s/内存与覆盖升级待验，不能用JVM证明出字速度。
+- 参考固定ExTV/rikkahub-agent a88f5854的分请求预算和系统计数职责；不移植其Q8、按内存缩窗或懒加载。固定llama.cpp/CPU/F16/native构建均不改。完整文件清单、偏差、验收及反向回滚边界见docs/f020-supplement4-change-map.md和根DELIVERY。
+- 独立交付目录artifacts/3.3.0-work.1/f020-supplement4-release-20261118；ARM64正式签名GitHub Release及根含DELIVERY的精简源码ZIP。旧交付保留，检查结果以本批日志和包外JSON为准。
+- 最终test/Release成功7分54秒，277套件1862项中1860通过、2缺语料跳过，包含定向成功和未变模块缓存报告。APK21,688,525 bytes，207/原正式签名/非debuggable/仅ARM64/21源码身份图标/2703三语key/21JNI与16KiB ELF均通过；5新增23修改无删除，设备和真实GGUF仍待验。
+
+## [F020 补充三：回归修复与工作区上传] 3.3.0-work.1 / 207（2026-11-18）
+
+- 本批规则优先于下方旧F020状态；A/B先完成独立编译及JVM，C单独完成JNI编译及JVM，最后D/E/F与G综合验证。按维护者最新要求交付ARM64 GitHub Release APK与精简源码ZIP，不自动提交、推送或发布，DB34不变。
+- 胶囊不使用Popup，只在ChatPage body中一处按实际输入高度定位；玻璃前景的底部对齐容器保留以免输入框跑到顶部。共享加载协调器、失败弹层和淡入淡出保留。
+- nCtx仅遵循训练/用户/16K上限，availMem只用于tight提示；mmap热页按fileBytes/4估算，输出封顶窗口1/4。GGUF元数据有界扫描补齐逐层KV数组，JNI模板覆盖及模板缺失探测新增一个出口。
+- Model仅新增chatTemplate=null；自动/三预设/自定义均由编辑草稿确认保存。EMPTY_OUTPUT只在正常终局无正文和有效工具调用时抛出，取消不误报，原无界流式和权威终局解析保留。
+- Google与本地视频抽帧保留；其他供应商在请求副本中降级历史Video。ModelAbility.VIDEO与UIMessagePart.Video不得删除，旧数据可读。
+- 工作区FILES上传不经过临时区，Document.url以/开头表示FILES路径；metadata保留大小与所属工作区，避免切换工作区后打开错文件。不读二进制全文、不纳入聊天附件备份、移除消息仅移除引用。
+- FilesManager及本地/SSH导入仅补异常清理，删除本次重名后新目标，不删除旧文件；本地和环回SSH测试与真实设备验收分开。cleanupTempDirs不动。无新依赖、无Room迁移，仅英/简中/繁中。
+- 上游重套、逐文件落点、任务书与现有接口差异及验收边界见docs/f020-supplement3-change-map.md、根DELIVERY当前章节；历史Release产物保留。
+- 最终全模块报告275套件1846项中1844通过、2项缺语料跳过，含未变报告复用；Release成功5分41秒。ARM64 APK 21,683,929 bytes，207/原正式证书/非debuggable/原21图标/三语2700key/21JNI出口及16KiB ELF核验通过；真实权重和手机待验。
+
+## [F020 后续：显式加载与短上下文压缩] 3.3.0-work.1 / 207（2026-11-18）
+
+- 承接655f8517上的F020工作区增量，按任务包先完成显式加载并通过Release Kotlin编译，再实施短上下文压缩。不自动commit/push/tag/发布；DB34、原应用图标、三语与既有能力边界保持。
+- Runtime四态与三加载阶段、同一推理锁、finally消费待卸载、前台取消；单聊/脉搏普通及玻璃输入区共用进程级加载协调器。后台30秒只提醒，通知权限关闭时静默，脉搏需要的模型保留。
+- 配置入口直达具体模型、1–16 K输入、模态许可不被自动探测覆盖；物理内存仅警告、下载空间预检、默认关闭的设备级enableMemoryFusion为唯一新增持久字段。CPU/F16 KV/默认16K和固定native接口保持。
+- 同一个insertCompressionCheckpoint按本地分预算：4K/8K/16K/更大窗口依次为1500/3000/6000/12000输入、300/500/800/1200输出及.65/.70/.75/.80阈值。真实模板计数复核完整窗口，禁止压缩请求静默裁历史，检查点插在实际窗口尾；一次只压一段。
+- 本地生成在释放applied之前计数并发Usage，正常Finish前完成；每token整段解析、最终权威解析、工具顺序和无界缓冲保留。字符估算仅是本地阈值兜底，API压缩仍全量/null/全局阈值/无裁剪。
+- 重套上游时须保留ChatPage两条input接线、Provider详情可选路由/本地参数分支、ChatRequestFactory本地压缩分支及ChatService窗口尾定位，不能整文件覆盖。完整逐文件清单、偏差、回滚与待验见docs/f020-followup-change-map.md和根DELIVERY当前章节；旧首批交付保留。
+- 完整test/Release成功17分16秒，273套件1828项中1826通过、2项缺语料跳过，未变报告有缓存复用。ARM64 APK 21,668,645 bytes、原签名/207/非debuggable/原图标/三语/WASM/CRC/native16KB与JNI核验通过；真实权重和手机仍待验。
+
+## [F020 本地模型] 3.3.0-work.1 / 207（2026-11-17）
+
+- 基线为已独立提交的3.3.0合并655f8517c596be797eb081e9d1556404e82c6923；本功能当前保留工作区增量，没有自动commit/tag/push/发布。版本207、DB34不再递增，合并阶段没有生成安装包。
+- 新增llama-cpp Android库及固定v1.0.0子模块b1b770d90d94cad9e9ea5b993bdbc383a522fb28，参考ExTV/rikkahub-agent的a88f5854。C++ JNI适配该版本的模板、PEG解析器、采样、mtmd与KV接口；仅CPU，16KB页，模型权重不进仓库/APK/备份。
+- 本地供应商使用固定UUID和local_llamacpp序列化类型，所有新增设置有默认值，不进入ProviderSetting.Types。不新增Model字段或数据库迁移；mmproj及安装路径使用独立DataStore。
+- 模板驱动请求/整段重解析、ChatDeltaTracker/ChannelWatermark、无界callbackFlow和取消共享锁覆盖普通聊天/群聊/脉搏。请求回放使用现有工具边界分组，保持工具调用与结果交替顺序；正文无空增量，结束仅正常路径发出，最终解析补齐未完成调用。
+- 安装器包含五模型目录、真实长度进度、2/4秒两次重试、本地导入及未知架构确认、同名后缀、成对原子索引、删除与启动修复；只清理自身私有模型目录的中断文件和未索引残留。删除和推理共用runtime锁，取消网络写入完成后才清理.part。
+- Android图片采样、单声道音频解码/重采样及1fps最多16帧视频通过原始像素/PCM跨JNI；编码器失败降级为文本并提示。媒体实际token参与预算，native另设上下文边界；不接GPU或ffmpeg。
+- 配置区、列表、可滚动详情和固定按钮区复用现有Compose/Koin/导航；能力标签换行。三语各新增57key，原2652key集合一致、21原应用身份图标匹配固定基准。新增单ABI构建属性rikkahub.abi，未指定时保留正常双架构/Universal配置。
+- 完整test成功：270套件1806项，1804通过、2项缺外部语料跳过；App962项、AI426项，llama-cpp20项。最终test调用复用未变模块报告，非全部重新执行；手机、真实权重与多模态效果未测试。
+- 交付目录artifacts/3.3.0-work.1/upstream-f020-release-20261117/，仅ARM64正式签名Release、精简源码及根DELIVERY。源码ZIP不含llama.cpp实际子模块内容，以.gitmodules、native/llama.cpp.commit及模块README记录精确恢复方式。
+- 实际文件、上游重套标记和任务书偏差见docs/f020-change-map.md与根DELIVERY。回滚以655f8517为界逐块反向撤销F020，不整树reset、不回退本轮3.3.0合并/DB34/图标与F007/F009；已保存local_llamacpp配置需保留反序列化兼容壳，不能直接删除类型。子模块删除须与引用/构建接线同批处理，权重数据不因源码回滚自动删除。
+
 ## [上游3.3.0合并] 3.3.0-work.1 / 207（2026-11-17）
 
 - 合并基线31f3e849，上游固定eb33917e483aae1427db9cb10232642a640d2986。此合并独立提交，后续F020单独实施；合并阶段不出包。

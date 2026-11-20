@@ -162,6 +162,22 @@ class SshWorkspaceBackendTest {
     private fun backend(config: SshConnectionConfig = trustedConfig(), pool: SshConnectionPool = this.pool) =
         SshWorkspaceBackend(pool, WORKSPACE_ID, config)
 
+    @Test fun failedUploadRemovesOnlyNewRemotePartialTarget() {
+        val backend = backend()
+        backend.writeText("uploads/demo.zip", "original", true)
+        val source = object : java.io.InputStream() {
+            var first = true
+            override fun read(): Int = throw java.io.IOException("source interrupted")
+            override fun read(bytes: ByteArray, off: Int, len: Int): Int {
+                if (!first) throw java.io.IOException("source interrupted")
+                first = false; bytes[off] = 42; return 1
+            }
+        }
+        assertThrows(Exception::class.java) { backend.importFile(WorkspaceStorageArea.FILES, "uploads", "demo.zip", source) }
+        assertEquals("original", backend.readText("uploads/demo.zip"))
+        assertEquals(listOf("demo.zip"), backend.listFiles(WorkspaceStorageArea.FILES, "uploads").map { it.name })
+    }
+
     @Test
     fun unknownHostKeyIsRejectedUntilTrusted() {
         val hostKey = assertThrows(SshUnknownHostKeyException::class.java) {

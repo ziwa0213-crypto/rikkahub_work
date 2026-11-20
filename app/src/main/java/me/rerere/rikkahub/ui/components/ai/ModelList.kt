@@ -72,6 +72,7 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.filterByKeywords
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Video01
+import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Brain02
@@ -880,6 +881,8 @@ fun ModelModalityTag(model: Model) {
                 imageVector = when (modality) {
                     Modality.TEXT -> HugeIcons.Text
                     Modality.IMAGE -> HugeIcons.Image03
+                    Modality.AUDIO -> HugeIcons.MusicNote03
+                    Modality.VIDEO -> HugeIcons.Video01
                 },
                 contentDescription = null,
                 modifier = Modifier
@@ -897,6 +900,8 @@ fun ModelModalityTag(model: Model) {
                 imageVector = when (modality) {
                     Modality.TEXT -> HugeIcons.Text
                     Modality.IMAGE -> HugeIcons.Image03
+                    Modality.AUDIO -> HugeIcons.MusicNote03
+                    Modality.VIDEO -> HugeIcons.Video01
                 },
                 contentDescription = null,
                 modifier = Modifier
@@ -934,15 +939,7 @@ fun ModelAbilityTag(model: Model) {
                     )
                 }
             }
-            ModelAbility.VIDEO -> {
-                Tag(type = TagType.INFO) {
-                    Icon(
-                        imageVector = HugeIcons.Video01,
-                        contentDescription = stringResource(R.string.setting_page_model_video_input),
-                        modifier = Modifier.size(LocalTextStyle.current.lineHeight.toDp()),
-                    )
-                }
-            }
+            else -> Unit // VIDEO remains serializable for old settings, without UI.
         }
     }
 }

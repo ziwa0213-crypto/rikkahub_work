@@ -26,12 +26,18 @@ class VideoInputException(val reason: Reason) : IllegalArgumentException(
     enum class Reason { DISABLED, UNSUPPORTED_PROTOCOL, ENCODING_FAILED }
 }
 
-/** Google retains its existing native video path; other protocols must opt in explicitly. */
+/** History is downgraded on the request copy; callers bypassing the factory must
+ * not serialize video into an incompatible endpoint either. */
+fun List<UIMessage>.withoutVideoPartsAsText(): List<UIMessage> = withoutVideoParts("[视频]")
+
+fun List<UIMessage>.forProviderVideoInput(setting: ProviderSetting): List<UIMessage> =
+    if (setting is ProviderSetting.Google || setting is ProviderSetting.LlamaCppLocal) this
+    else withoutVideoPartsAsText()
+
+/** Google and local frame decoding are the only direct-video paths. */
 fun validateVideoInput(setting: ProviderSetting, model: Model, messages: List<UIMessage>) {
     if (messages.none { message -> message.parts.any { it is UIMessagePart.Video } }) return
     if (setting is ProviderSetting.Google) return
-    if (ModelAbility.VIDEO !in model.abilities) throw VideoInputException(VideoInputException.Reason.DISABLED)
-    if (setting !is ProviderSetting.OpenAI || setting.useResponseApi) {
-        throw VideoInputException(VideoInputException.Reason.UNSUPPORTED_PROTOCOL)
-    }
+    if (setting is ProviderSetting.LlamaCppLocal) return
+    throw VideoInputException(VideoInputException.Reason.UNSUPPORTED_PROTOCOL)
 }

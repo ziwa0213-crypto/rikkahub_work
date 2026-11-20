@@ -46,6 +46,7 @@ val viewModelModule = module {
     }
     viewModelOf(::ChatDrawerVM)
     viewModelOf(::SettingVM)
+    single { me.rerere.rikkahub.ui.pages.setting.locallm.SettingLocalLlmViewModel(get(), get(), get()) }
     viewModelOf(::DebugVM)
     viewModelOf(::HistoryVM)
     viewModelOf(::AssistantVM)

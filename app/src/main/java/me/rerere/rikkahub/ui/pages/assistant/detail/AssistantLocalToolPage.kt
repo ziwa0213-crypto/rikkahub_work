@@ -234,6 +234,12 @@ internal fun AssistantLocalToolContent(
                 description = R.string.assistant_page_local_tools_time_info_desc,
             )
             toolItem(
+                option = LocalToolOption.ClientContext,
+                icon = HugeIcons.Calendar03,
+                title = R.string.assistant_page_local_tools_client_context_title,
+                description = R.string.assistant_page_local_tools_client_context_desc,
+            )
+            toolItem(
                 option = LocalToolOption.Clipboard,
                 icon = HugeIcons.ClipboardPaste,
                 title = R.string.assistant_page_local_tools_clipboard_title,

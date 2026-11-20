@@ -1,0 +1,3 @@
+-keep class me.rerere.llamacpp.LlamaCppJni { *; }
+-keep class me.rerere.llamacpp.LlamaCppJni$TokenSink { *; }
+-keepclassmembers class * implements me.rerere.llamacpp.LlamaCppJni$TokenSink { public boolean onToken(byte[]); }

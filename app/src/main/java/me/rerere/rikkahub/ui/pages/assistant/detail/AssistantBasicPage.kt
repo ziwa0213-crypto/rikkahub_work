@@ -186,7 +186,10 @@ internal fun AssistantBasicContent(
             }
             formItem(
                 headlineContent = { Text(stringResource(R.string.assistant_page_workspace)) },
-                supportingContent = { Text(stringResource(R.string.assistant_page_workspace_desc)) },
+                supportingContent = { Column {
+                    Text(stringResource(R.string.assistant_page_workspace_desc))
+                    Text(stringResource(R.string.workspace_upload_backup_notice))
+                } },
             ) {
                 val selectedWorkspace = workspaces.find { it.id == assistant.workspaceId?.toString() }
                 Select(

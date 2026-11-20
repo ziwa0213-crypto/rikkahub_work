@@ -82,6 +82,7 @@ class SettingsFieldsTest {
         assertEquals(null, settings.memoryModelId)
         assertEquals(true, settings.dynamicColor)
         assertEquals(8080, settings.webServerPort)
+        assertFalse(settings.enableLocalGpu)
     }
 
     @Test
@@ -139,6 +140,8 @@ private val SAMPLE = Settings(
     themeId = "custom",
     customThemes = listOf(CustomTheme(id = "theme", name = "Theme")),
     developerMode = true,
+    enableMemoryFusion = true,
+    enableLocalGpu = true,
     displaySetting = DisplaySetting(userNickname = "me"),
     networkSetting = NetworkSetting(userAgent = "agent"),
     favoriteModels = listOf(id(30)),
@@ -217,6 +220,8 @@ private val STORED_KEYS = setOf(
     "display_setting",
     "network_setting",
     "developer_mode",
+    "enable_memory_fusion",
+    "enable_local_gpu",
     "favorite_models",
     "chat_model",
     "fast_model",

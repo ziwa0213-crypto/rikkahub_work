@@ -1,12 +1,557 @@
-# 当前实施 — 3.3.0-work.1 / 207
+# 当前源码交付 — 排除个人构建工具（2026-11-20）
 
-2026-11-17：合并上游3.3.0后立即实施F020，最终统一交付ARM64 Release和精简源码；合并阶段不出包。以下为历史交付记录，最终F020验收完成后更新本节。
+- 维护者本次要求“打包源码，我推送”，并明确个人构建脚本不进入源码包。版本保持 **3.3.0-work.1 / 207**，DB34；本轮仅生成源码 ZIP，不重新构建 APK、不提交、不打标签、不推送。日常自行构建的长期约定不变。
+- 交付目录：`artifacts/3.3.0-work.1/source-for-github-20261120-c2N82u/`；文件名：`RikkaHub.Work-3.3.0-work.1-source.zip`。根含本文件，集合、逐文件 SHA-256、权限、软链、UTF-8 路径及 CRC 核验结果见包外 SOURCE-MANIFEST.json / SOURCE-VERIFICATION.json / SHA256SUMS，避免源码包自身哈希自引用。
+- 本机归档工具固定排除以下八个路径：`tools/build-delivery.sh`、`tools/collect-delivery-apks.mjs`、`tools/package-delivery-source.mjs`、`tools/summarize-delivery-tests.mjs`、`tools/test-build-delivery.mjs`、`tools/BUILDING.md`、`tools/package-local-release.mjs`、`tools/summarize-jvm-tests.mjs`。文件仍留在本机；桌面入口可继续使用。历史章节提及这些私人工具，不代表本源码包附带它们。
+- 六个新增个人工具文件已加入本机 `.git/info/exclude`，避免普通 git add 误收；两份已跟踪历史工具仅从 ZIP 排除，不改 index。Gradle wrapper、工程构建配置、CI、翻译和其他验证工具照常保留，没有整目录排除 tools。
+- 源码包含上游 3.3.0 合并及后续 F020 / F021 / F022 增量。本地 AI 模型按维护者决定无限期停滞，入口已隐藏；相关源码、配置兼容和 native 模块保留，不删除已有权重。ZIP 排除 GGUF、APK、缓存、凭据、实际 llama.cpp 子模块内容；保留固定指针、许可、恢复说明和原有必要 native 依赖。
+- 本次只修改个人归档规则、对应离线检查及交付台账，产品源码和版本未变。14 组离线流程通过，覆盖已跟踪与未跟踪个人脚本均不进包，以及项目 wrapper / CI / 验证工具保留；Bash / Node 语法与 git diff --check 通过。这些检查不是 Android 编译或真机验收。
+- 维护者上次自行构建目录为 `artifacts/3.3.0-work.1/manual-release-20261120-171724-35TsOr/`：三个 Release APK 及原源码 ZIP 已生成，日志总耗时37秒（含缓存复用）；APK签名/版本/ABI/CRC通过，JVM报告1906通过、2缺语料跳过。完整Lint未通过，真实接口与设备交互仍待验。旧源码 ZIP 包含个人构建工具，本次发布源码应选用本节的新包；旧产物保留不覆盖。
 
-- 合并基线31f3e849，上游eb33917e483aae1427db9cb10232642a640d2986。`./gradlew test --console=plain`已成功（1m50s），包含GitHub/Play调试变体单测编译及模块测试，不代表设备实测。
-- Room自动导出DB34：15表、14索引，工作区实际14列；任务书写13列是数量误差。与上游结构比较，仅增加fork的MemoryEntity和owner/shared_rootfs_from；33.json字节未变。
-- 三语言各2595个string key，25个上游新增key齐全（任务书写26个是计数误差）；历史fork key未丢、无重名。21个原身份图标资源与固定基准一致。
-- 群组只移除旧自动压缩，手动压缩、分层摘要和提示词编辑保留；旧JSON字段忽略兼容有测试。连接测试全面接入上游弹窗，移除合并后遗留的旧组件调用。
-- 尚未构建APK、操作设备/账号、推送、打tag或发布。
+---
+
+# 前次构建修复 — Release 打包堆内存（2026-11-20）
+
+- 依据维护者本次实际失败日志 `artifacts/3.3.0-work.1/manual-release-20261120-170643-DoC4Ud/build.log`，失败任务为 `:app:packageGithubRelease`：`ApkFlinger` 压缩时经 `Compressor.deflate` 抛 `OutOfMemoryError: Java heap space`，不是单元测试断言失败。该次 4分47秒失败，无完整交付；原失败目录保留。
+- 根因：`tools/build-delivery.sh` 用 `-Dorg.gradle.jvmargs=-Xmx2560m ...` 覆盖了工程 `gradle.properties` 已有的 `-Xmx8g`。本次移除这个脚本覆盖，构建和后续 Lint 均沿用工程/用户 Gradle 配置；单 worker、串行、三 Release / 单 ARM64 Debug、完整版本输入与记忆、源码含 DELIVERY 保持。
+- 验证：Bash / Node 语法及 `git diff --check` 通过；14 组离线脚本回归通过，另增加实际 Gradle 参数不得覆盖 `org.gradle.jvmargs` 的断言。使用临时 init 脚本运行 `gradlew help` 实测 `Runtime.maxMemory() = 8589934592`，即 **8 GiB**，10秒成功；配置检查日志在 `/tmp/rikkahub-heap-check-Xidlij/gradle-help.log`。该检查没有运行 APK 打包，不等于三包已构建成功。
+- 本批修改 `tools/build-delivery.sh`、`tools/test-build-delivery.mjs` 及 AGENTS / CHANGES / FEATURES / tools/BUILDING / 本文件。实际工程仍为 `3.3.0-work.1 / 207`，没有生成新交付 APK / ZIP，没有提交或推送。由维护者重新启动原桌面入口重试 Release；无需因本次失败删除源码或历史交付。
+
+---
+
+# 前次工具更新 — 构建版本名/内部版本号输入与记忆（2026-11-20）
+
+- 桌面入口保持 `/home/li/桌面/构建 RikkaHub Work.desktop`，仍调用仓库 `tools/build-delivery.sh`。选择 Release / Debug 后弹出版本输入框，填写 `x.x.x-work.x/xxx`，例如 `3.3.0-work.1/207`，斜杠前后分别是版本名与内部版本号；确认后才构建。没有 whiptail 时使用终端输入；格式或内部版本号范围（1~2100000000）不正确要求重填，Esc / 取消 / 输入结束则退出构建。
+- 首次预填工程现有两项版本；后续预填上次确认的整对值，Release / Debug 共用 `.gradle/delivery-last-version.txt`，状态不进入源码 ZIP。旧记录只含版本名时自动补工程当前内部版本号。确认后即保存，即使后续构建失败也可在下次沿用；取消不覆盖原状态。
+- 确认后在构建锁内检查 `versionName` / `versionCode` 声明各唯一，一次原子更新两个字段，保留其他内容与权限；不额外自动递增。APK 内两项版本及 ZIP 内工程版本一致，产物路径使用所选版本名。末尾摘要同时列出实际版本与记忆文件路径。
+- Release 固定三个 GitHub APK，Debug 仅 ARM64；两种都生成根含本文件的源码 ZIP。原测试/检查、日志、计时及归档校验保留。详细操作见 `tools/BUILDING.md`。
+- 修改文件：`tools/build-delivery.sh`、`tools/test-build-delivery.mjs`、`tools/BUILDING.md`、`AGENTS.md`、`CHANGES.md`、`FEATURES.md`、本文件。没有修改实际工程当前版本，仍为 `3.3.0-work.1 / 207`；没有自动构建应用 APK 或交付源码 ZIP，没有 commit / push / 发布。
+- 验证：Bash / Node 语法、`git diff --check` 通过；`node tools/test-build-delivery.mjs` 的 **14 组离线流程**通过，覆盖原构建矩阵、Lint/构建失败、完整版本输入/整数范围、整对预填与跨类型记忆、旧记录兼容、取消、坏状态回落、重复声明不部分更新、APK/源码版本一致性及 TTY 输入框分支。模拟包只在临时测试工程中产生，不代表 Android 编译或可安装 APK；TTY 分支采用系统伪终端及模拟 whiptail 验证调用/预填/取消，不冒充用户屏幕实测。
+- 回滚仅逐块撤销本次输入、记忆和版本更新及对应测试/文档；保留原打包流程与此前 F020/F021/F022 工作区内容。无独立提交可 revert，不整文件恢复共享脚本或 app/build.gradle.kts。
+
+---
+
+# 前一批代码交付 — F022 DeepSeek 对话工具、客户端元信息与 F021 工作区预览
+
+日期：2026-11-20，Asia/Shanghai。版本保持 **3.3.0-work.1 / 207**，数据库保持 **34**。依据本批任务包先完成 F022 并单独编译，再完成 F021 并单独编译，最后执行全模块 JVM 测试和 Release Kotlin 编译。代码仍为未提交的工作区增量；没有本批 commit、tag、推送或发布。
+
+**长期交付方式已改为维护者自行构建 APK 与源码 ZIP。** 代理完成代码、检查和根 `DELIVERY.md`；本轮未执行 APK 打包、未生成源码 ZIP。下方历史章节的 APK/ZIP 交付描述仅代表各历史批次，不代表本轮已出包。
+
+## 本批完成
+
+### F022：DeepSeek 对话工具与客户端元信息
+
+- 新增独立的内置“读取网页”开关。DeepSeek 方言的 Chat Completions 请求支持服务端 `web_search` / `read_url` 声明、流式状态与结束结果展示；来源和网页地址可展开查看，失败状态显示错误。工具声明与本地 function 工具合并，不在本机伪执行服务端工具。
+- 完整保存服务端工具调用及签名，后续轮次逐步回传；仅含服务端工具的 assistant 消息也保留。缺少开始事件时补齐卡片标题所需的开始状态；最终快照补齐签名，重复结束事件不重复创建卡片。跨到非 DeepSeek 协议时不回传该专用数据。
+- Responses / Claude 的工具声明按各自协议处理；其他供应商保留原内置搜索行为，不被增加 DeepSeek 的 `read_url` 声明。F007 原有 `hasTools` 与 `reasoning_content` 回传守卫保持。
+- 新增“客户端元信息”本地选项，但不注册成可执行 Tool。DeepSeek Chat Completions 为各 user 消息按自身时间生成 `latest_reminder`；其他协议通过 system 注入语言、日期等元信息。助手、群组的既有本地工具配置入口和脉搏独立开关接入共用请求构造。
+- 新建助手、脉搏配置默认开启元信息；旧配置缺少新增字段或原 `localTools` 字段时按旧行为读取，不被静默开启。已有工具列表原样保留；保存时显式编码相关字段，保证再次读取不改变选择。新群组的原空工具列表保持。
+
+### F021：工作区文件预览
+
+- `.md` / `.markdown` 默认使用现有 Markdown 组件渲染，并可切回源码。HTML、SVG 保留预览与源码切换；HTML 新增默认关闭的“启用脚本”开关。
+- Markdown 相对图片按当前文档目录及实际 FILES / LINUX 区域解析；聊天中的绝对工作区图片、HTTP(S)、data 和协议相对外链图片保留原行为。
+- HTML / SVG 使用固定虚拟 HTTPS 源；图片、CSS、JS 只映射到当前文档目录以内的本地文件。校验方法、scheme、host、port、解码后的路径及 canonical 边界，拒绝目录遍历和符号链接越界；无法识别的资源返回真实 404，不转交默认网络加载。
+- WebView 禁止 file/content 访问与外网加载，默认禁脚本；切换脚本选项时重建预览实例。WebView 资源拦截接口为可选参数，默认不影响其他使用方；状态变化时更新对应 client，避免沿用旧工作区拦截器。
+- 超过 1 MiB 的文件禁用渲染，提示查看源码；编辑后切换预览及保存时重新检查 UTF-8 大小。FILES 仍可编辑保存，LINUX 仍只读。
+
+## 自动验证与证据
+
+| 阶段 | 命令（省略共用环境及 Gradle 参数） | 结果 |
+| --- | --- | --- |
+| F022 独立检查 | `:app:compileGithubDebugKotlin :ai:testDebugUnitTest :app:testGithubDebugUnitTest` | 成功，约 18 秒；203 套件 / 1,443 项，1,442 通过、1 跳过。AI 测试在本批此前调用真实执行通过，最终调用复用报告。 |
+| F021 独立检查 | `:app:compileGithubDebugKotlin :app:testGithubDebugUnitTest :ui:testDebugUnitTest` | 成功，约 41 秒；150 套件 / 1,013 项，1,012 通过、1 跳过。App / UI 测试本次执行。 |
+| 最终整体验证 | `test :app:compileGithubReleaseKotlin` | 成功，2 分 25 秒；284 个去重套件 / 1,908 项，**1,906 通过、2 跳过、0 失败/错误**。503 个任务：42 执行、461 up-to-date。 |
+
+总数按 GitHub App 和其他模块报告汇总，排除重复 Play App 报告；不将三批有重叠的测试数字相加。最终 App GitHub / Play、llama-cpp、search 测试执行，其余包含 Gradle 缓存复用，不声称 1,908 项全部重新执行。
+
+- 本批新增 24 项：`DeepSeekConversationToolsTest` 12 项、`ClientContextTest` 4 项、`WorkspacePreviewResourcesTest` 5 项、`WorkspaceImagePathTest` 2 项、`MimeTypesTest` 1 项。既有 F007 `ChatCompletionsDeepSeekReasoningTest` 8 项通过。
+- 两项跳过分别为 `DeepSeekImporterTest` 的真实归档用例、`PdfCorpusTest` 的本地语料用例，均因既有测试语料缺失；不算通过。
+- 三批原始日志：`/tmp/rikkahub-f022-check-20261120.log`、`/tmp/rikkahub-f021-check-20261120.log`、`/tmp/rikkahub-f021-f022-final-check-20261120.log`。JUnit XML 快照和汇总在仓库 `.gradle/f021-f022-checks-20261120/{f022,f021,final}/`，最终汇总为 `final/TEST-RESULTS.json`。这些本机检查证据不进入源码包；`/tmp` 与 `.gradle` 可能被后续清理。
+- 仅 English / 简中 / 繁中三语；本批新增 12 个 key × 3，三份现有 key 集合均为 2,720 条，无重复。原 21 个应用身份图标与固定基准 `643191229dcbeb4972e3772986818605633ace92` 一致；版本、DB34、依赖和 llama.cpp pin 未改。
+- `git diff --check`、桌面入口 Bash 语法、构建工具 Node 语法检查通过。本轮未运行全量 Lint，不宣称 Lint 通过；Release Kotlin 编译成功不等于本轮已完成 R8、签名或 APK 校验。
+
+## 与任务示例的差异及现有边界
+
+- `WorkspaceRepository.resolveFile()` 实际仅返回文件，不能照抄任务示例把目录传进去。因此在 IO 协程中解析当前文件并取父目录，虚拟源固定为 `https://workspace-preview.invalid/preview/`，资源路径只拼接一次；没有在主线程使用 `runBlocking`。
+- 保留 LINUX 区原有 512 KiB 文本读取保护。因此大于该限制的 LINUX 文件仍可能显示原读取错误；FILES 文件超过 1 MiB 时才适用“可看源码、禁渲染”。本批不扩大 rootfs 读取权限。
+- SSH 工作区没有本地 `resolveFile`，HTML 本地关联资源暂不预览；正文仍可按既有入口读取，不把远程路径当本地文件。
+- HTML / SVG 预览完全离线；Markdown 外链图片按任务要求保持原 Coil 行为，可能联网，两者不可混为同一隔离范围。
+- 服务端工具调用按协议保存签名，但不存储 step 级思考文本；相关回传 `reasoning_content` 采用空字符串，不伪造未提供的思考内容。真实 DeepSeek 多步搜索/抓取及签名验收仍需账号验证。
+- 为同时满足“新配置默认开、旧配置保持原选择”，增加配置 JSON 兼容转换器；没有改变旧工具序列化名、数据库或工具权限。客户端元信息仅在请求构造期注入，不增加审批对象或更改心跳调度/超时。
+
+## 维护者构建与待验
+
+桌面入口：`/home/li/桌面/构建 RikkaHub Work.desktop`；也可运行：
+
+```bash
+bash '/home/li/桌面/构建 RikkaHub Work.sh'
+```
+
+菜单 Release 固定生成 ARM64 / x86_64 / Universal 三个 GitHub APK；Debug 仅 ARM64，两者均生成源码 ZIP。两条路径共用 `tools/package-delivery-source.mjs`：**根 `DELIVERY.md` 为必需文件，归档后逐文件校验内容、权限、软链与 CRC**。缺少该文件时停止，不会交付一个不含说明的源码包。版本由工程读取；完整用法见 `tools/BUILDING.md`。
+
+桌面包装器在调用者未显式设置时补齐本机 JDK21、实际 NDK27 和 Vulkan 工具路径。直接调用仓库脚本或重跑上述检查时，本机对应环境为：
+
+```bash
+export LLAMA_NDK_PATH=/opt/android-sdk/ndk/27.2.12479018
+export LLAMA_GLSLC=/home/li/.local/share/rikkahub-toolchain/vulkan-20261118/glslc
+export LLAMA_VULKAN_INCLUDE_DIR=/home/li/.local/share/rikkahub-toolchain/vulkan-20261118/root/usr/include
+export LLAMA_SPIRV_HEADERS_DIR=/home/li/.local/share/rikkahub-toolchain/vulkan-20261118/root/usr/share/cmake/SPIRV-Headers
+```
+
+本轮检查另使用 `-Prikkahub.abi=arm64-v8a --no-daemon --no-parallel --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8' --console=plain`。**Release 菜单构建三包时不要附加单 ABI 限制**；该菜单沿用工程双架构及 Universal 设置。
+
+| 待真机/真实服务项目 | 验证重点 |
+| --- | --- |
+| DeepSeek 服务端工具 | 单搜索、单抓取、组合多步、普通 function 混用、连续追问签名回传、失败及来源卡片、切换非 DeepSeek 模型。离线夹具不证明真实接口可用。 |
+| 元信息与旧数据覆盖安装 | 新助手/脉搏默认开启；旧配置不自动开启；开关保存重启；普通、群组、手动/自动脉搏请求中的语言与逐消息日期。 |
+| Markdown / HTML / SVG | 实际屏幕渲染、源码往返、FILES 保存、LINUX 只读及大小边界；同目录相对图片/CSS/JS、路径越界/符号链接拒绝。 |
+| WebView 隔离与开关 | 真机观察外网/file/content 请求被阻止；脚本默认关及开关重建；切工作区/文件后不读取旧目录。Markdown 外链图片仍可能联网。 |
+| 自行构建后的安装包 | R8、正式签名、三 Release ABI / 单 ARM64 Debug、安装/升级、图标与 UI 交互由实际构建和维护者设备验收；本轮没有 APK 可供核验。 |
+
+## 文件映射、上游重套与回滚
+
+本批全部新增/修改文件按职责列在 `docs/f021-f022-change-map.md`。与已有 F020 修改重叠的 `ChatRequestFactory`、`Assistant`、`PulseConfig`、Markdown、供应商协议与三语文件只增加本批内容。**不得按当前 HEAD 整文件回退**，HEAD 尚未包含既有 F020 工作区增量。
+
+重套上游时需一起保留：服务端工具协议枚举/签名存储/请求回放/流式终局、请求期元信息及旧 JSON 兼容器、工作区 Markdown 目录上下文、HTML 虚拟源拦截与 WebView client 更新。回滚仅逐块反向撤销这些本批改动，保留已有 F004/F007/F009、F020、原图标及其他工作区能力；具体边界见映射文档。Kai / PalmClaw 参考仓库仍在产品仓库外，本批仅参考日期/请求上下文组织，不移植其调度或超时。
+
+---
+
+# 上次工具交付 — 桌面构建 TUI（2026-11-20）
+
+- 桌面入口：`/home/li/桌面/构建 RikkaHub Work.desktop`，调用同目录 `.sh`，再调用仓库 `tools/build-delivery.sh`。启动器格式、可执行权限及桌面信任属性已核对；终端中可看到 Release / Debug 菜单，Esc 能正常退出。
+- Release 生成 ARM64 / x86_64 / Universal 三个正式签名 GitHub APK；Debug 只生成 ARM64 GitHub APK；两者均生成根含本文件的精简源码 ZIP。版本自动读取工程，仍为 `3.3.0-work.1 / 207`。
+- 实时输出日志；末尾列出 APK/源码完整路径、测试统计/跳过说明、JUnit XML 快照、核验报告、Lint 结果和各阶段耗时，另存 `BUILD-SUMMARY.txt`。每次用独立 artifacts 目录，不覆盖旧交付。编译/测试/归档失败停止；完整 Lint 未通过时明确标注并保留已生成 APK，不宣称所有检查通过。
+- 工具检查：Bash/Node 语法、桌面启动器格式通过；`node tools/test-build-delivery.mjs` 的 Release 三包、Debug 单包、Lint 失败、构建失败四种隔离模拟流程全部通过。已用现有 ARM64 Debug 包验证包名/版本/ABI/签名校验器，并用临时源码归档验证 CRC、逐文件内容、权限与软链。
+- 测试汇总演练读取上一批真实 Gradle 日志和既有报告，正确统计 279 套件 / 1884 项（1882 通过、2 跳过）；这是报告工具验证，不是本轮重新执行这些用例。本轮未重新编译 Android 应用、未生成用于安装的新 APK，未操作设备或推送源码。完整用法见 `tools/BUILDING.md`。
+
+---
+
+# 上次应用交付 — F020补充八：隐藏本地模型入口
+
+日期：2026-11-20，Asia/Shanghai。版本保持 **3.3.0-work.1 / 207**，DB34。本批依据《补充八·隐藏本地模型入口》。按维护者后续要求，交付 **ARM64 正式签名 Release APK + 精简源码 ZIP（根含本文件）**；不生成 Debug，不提交、不打 tag、不推送或发布。交付目录：`artifacts/3.3.0-work.1/f020-supplement8-release-20261120/`。历史交付均保留。
+
+## 本批完成
+
+- 新增 `Settings.uiProviders` 作为 UI 唯一可见供应商列表，过滤 `ProviderSetting.LlamaCppLocal`。设置页供应商列表、拖拽排序、聊天/助手/翻译/设置模型/群组/脉搏/图像生成模型选择器均改用该视图；隐藏供应商后的拖拽按 provider id 映射回完整列表，避免索引错位。
+- Web UI 的 SSE 设置快照同样过滤本地模型，避免网页端继续展示或选择 `LlamaCppLocal`。
+- 复核设置页不存在“实验性功能”组或本地模型入口；聊天页不再引用本地模型加载胶囊、提示预算条、内存确认弹框或发送拦截。相关本地模型实现文件仍保留，未删除运行时、Koin 注册、数据字段或 native 模块。
+- 启动时等待真实设置加载完成，调用 `migrateAwayFromLocalModels()`：七个全局模型槽位指向第一个可用云端模型；助手、群组成员和脉搏中的本地模型引用清空；没有可回退云端模型时保持原设置；迁移不修改 provider、模型列表或已下载 GGUF 文件，并且幂等。
+- 保留 `ProviderSetting.LlamaCppLocal`、`llama-cpp`、`LlamaCppInstall.repair()`、本地模型索引与已有本地模型 UI 文件，便于后续恢复；不清理 `.gguf` 文件，不新增恢复开关，不新增语言资源。原应用图标和版本号保持不变。
+
+## 验证
+
+- 补充八定向命令成功：
+  `:llama-cpp:testDebugUnitTest :app:testGithubDebugUnitTest`，266 个任务成功，耗时约 2 分 23 秒；覆盖补充八新增的引用迁移测试以及已有 F020/F009 回归测试。
+- 迁移测试覆盖：七个全局槽位、助手/群组成员/脉搏引用清空、provider 与模型保留、连续执行幂等、无本地模型返回同一对象、无云端回退模型保持同一对象。
+- 最终轻量编译成功：`:app:compileGithubDebugKotlin :app:compileGithubDebugUnitTestKotlin`，230 个任务成功，耗时约 2 分 6 秒。构建过程中 Web UI 资源重新生成成功；仅有既有 deprecated/opt-in 警告，无编译错误。
+- 本次完整 `test :app:assembleGithubRelease -Prikkahub.abi=arm64-v8a` 成功，耗时 5 分 40 秒；Gradle 报告共 279 个去重测试套件、1,884 项，1,882 通过、2 项因缺本地语料跳过、0 失败。GitHub/Play 重复 App 测试按套件去重；部分未变模块使用 Gradle `UP-TO-DATE` 报告。
+- Release APK 为 **31,911,382 bytes**；包名 `me.rerere.rikkahub.plus`、版本 `3.3.0-work.1 / 207`、原正式证书 SHA-256 `671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b`、非 debuggable、仅 `arm64-v8a`；APK ZIP CRC 通过、未包含 GGUF 权重。应用图标核验沿用原始 20 个 PNG 像素及自适应图层对照。
+- 源码 ZIP 排除 APK、构建缓存、本机配置与签名凭据；保留 `.gitmodules` 和固定 llama.cpp 子模块恢复说明/commit 文件、必要预编译依赖、权限与软链，归档根含 `DELIVERY.md`。归档清单、CRC、源码内容 SHA-256 与 APK 校验值记录在交付目录的审计 JSON / `SHA256SUMS`。
+
+### 补充八静态验收实际数字
+
+| 项目 | 实际结果 |
+| --- | --- |
+| H1 | UI 中有 **19 处** `settings.providers` 命中（跨 14 个文件）；**0 处**作为模型选择器参数。剩余用于按 ID 查找/解析或展示模型与供应商信息，以及供应商排序/推荐 ID 的完整数据写回。 |
+| H2 | `SettingsExt.kt` 中 `uiProviders` 定义计数为 **1**。 |
+| H3 | `SettingPage.kt` 中 `local_llm` 命中 **0**。 |
+| H4 | `SettingPage.kt` 中 `experimentalSettings` 命中 **0**。 |
+| H5 | 聊天页目录中 `LocalModelCapsule` / `LocalMemoryConfirmation` / `LocalPromptNoticeBar` 命中 **0**。 |
+| H6 | `EventsRoutes.kt` 中 `uiProviders` 命中 **2 行**：1 行 import、1 行快照过滤使用；实际过滤点为 1 处。 |
+| H7 | `values`、`values-zh`、`values-zh-rTW` 各 **2708** 个 `<string>`；补充八未新增文案；没有 `values-ar`。 |
+| H8 | Kotlin 编译与定向 JVM 测试通过；本批不生成 APK，因此不宣称 H9-H16 的真机验收。 |
+
+## 尚待维护者实测
+
+H9-H16（设置页实际隐藏、供应商拖拽、各模型选择器、覆盖安装迁移、网页端列表、GGUF 文件保留和前后台稳定性）仍需维护者安装本次 APK 后在设备上验证。构建与 JVM 测试不能替代真机 UI、网页端和文件系统验收。
+
+## 本批边界
+
+- 不改版本：仍为 `3.3.0-work.1 / 207`。
+- 不删除本地模型代码、Koin 注册、provider 配置、模型文件或 `.gguf`；不改 `llama-cpp/build.gradle.kts`、native CMake 和三语言资源集合。
+- 本批只生成一个 ARM64 Release APK 和一个源码 ZIP；不生成 Debug，不提交、打 tag、推送或发布。当前源码工作树保留此前 F020 与上游合并改动。
+
+# 历史交付 — F020补充五/六：提示进UI与Vulkan GPU
+
+日期：2026-11-18，Asia/Shanghai。保持 **3.3.0-work.1 / 207**，DB34。依据补充五与补充六；补充六独立覆盖补充四中“本轮不做GPU”的范围。
+交付仍按维护者最新要求：**ARM64正式签名GitHub Release APK + 精简源码ZIP（根含本文件）**，不生成Debug。独立目录 `artifacts/3.3.0-work.1/f020-supplement5-6-release-20261118/`；旧批次保留，不commit/tag/push/发布，不操作手机、真实账号或下载权重。
+
+## 本批完成
+
+- 本地提示预算省略工具/记忆时，ChatService按会话提供进程内状态，ChatPage在输入区上方显示同一条可关闭提示；双提示用“·”连接。关闭后本进程同会话不再显示，切换会话仍保留，重启自然清除。提示不进入StreamChunk、消息、数据库或后续请求。媒体降级正文行为不变。
+- llama.cpp模板未切出思考标记时，Kotlin对累积解析结果补识别`<think>`/`<thinking>`；保留其余JSON字段，避开原生reasoning和Markdown行内/围栏代码，未闭合标签可随流式输入增量处理。
+- 新增持久设置 `enableLocalGpu=false`。设置→实验性功能可显式启用Vulkan。CPU请求明确`n_gpu_layers=0`并不选GPU；启用时只选择Vulkan GPU/iGPU设备并请求99层。模型权重或上下文分配失败时释放GPU状态并回退CPU一次，失败/取消均不改设置。模型详情显示回退说明。
+- Android 构建通过 Vulkan 实例函数表调用原先直连的 3 处设备特性查询。需要的查询入口缺失时，后端无法注册，随后由现有加载流程回退 CPU。JNI 只在显式 GPU 加载时注册后端。APK 保持 minSdk 26，llama.cpp 固定提交和子模块工作区完整保留。
+- 增加Vulkan设备信息及generation结束耗时、token/s诊断。具体GPU后端/性能由Android设备日志证明，编译通过不代表GPU推理已在设备验证。
+
+## 工具链与本机配置
+
+- 固定`llama.cpp` `b1b770d90d94cad9e9ea5b993bdbc383a522fb28` (`v1.0.0`)核实有`GGML_VULKAN`、Vulkan CMake `glslc` component及`SPIRV-Headers::SPIRV-Headers`目标；未修改子模块。
+- 主机依赖：`glslc`、Vulkan开发头及`spirv-headers`（Ubuntu可安装`glslc glslang-tools libvulkan-dev spirv-headers`）。NDK提供Android Vulkan loader和平台头，但不包含Vulkan-Hpp。shader在主机构建时编译；依赖不捆进源码ZIP。
+- 实际构建使用 JDK 21、NDK 27.2.12479018、CMake 3.22.1、Vulkan headers 1.4.341 和 `glslc`/shaderc `2026.1-1`。本地额外解包的 `glslang-tools` 为 `16.2.0-2`，shader 生成器实际调用的是 `glslc`。ARM64 的 CMake 使用主机编译器和 Ninja 生成着色器。本机路径见下方构建命令。
+
+## 验证与限制
+
+- 定向`:llama-cpp:testDebugUnitTest :app:testGithubDebugUnitTest`通过（约3分26秒），覆盖回退状态机、提示dismiss隔离、think标签/原生reasoning/代码示例/逐字符流式。结果见`targeted-tests.log`。
+- `test :app:assembleGithubRelease` 成功，耗时 9 分 20 秒，见 `release-build-vulkan-dispatch.log`。JVM 报告去重后共 279 套件、1,872 项，1,870 通过，DeepSeek 导入和 PDF 各 1 项缺本地语料跳过。最终调用复用了最新测试报告。
+- **G1 通过。** 签名 ARM64 Release APK 为 **31,913,762 bytes（30.44 MiB）**，比补充四增加 **10,225,237 bytes（9.75 MiB）**。其中 `libggml-vulkan.so` 在 APK 中压缩后为 **10,221,450 bytes**，解压后为 **33,271,000 bytes**。
+- APK 核验确认包名 `me.rerere.rikkahub.plus`、原正式签名、207、非 debuggable、仅 `arm64-v8a`。ZIP CRC、对齐、8 个推理库的 16 KiB ELF 对齐及 21 个 JNI 出口均通过。Vulkan 库的直接 Vulkan 导入均存在于 API 26 NDK stub 中。桌面和关于页共用的原图标通过资源、像素和自适应图层检查。英、简中、繁中三份文案各 2,706 个字符串，DB34。
+- 源码 ZIP 根目录含 `DELIVERY.md`，保留原权限、软链和 6 个原有预编译依赖。相对补充四源码清单，8 新增、27 修改、0 删除。包外 `SOURCE-VERIFICATION.json`、`SUPPLEMENT5-6-DELTA.json` 和 `SHA256SUMS` 记录归档核验、增量与校验值。
+- **真机待验。** A1–A6 的输入区提示、B1–B5 的思考区显示，以及 G2–G8 的 CPU/GPU 加载、回退和内存表现，均由维护者安装此 APK 验证。G3 LFM3、G4 Qwen3.5 4B、G5 Qwen3.5 9B 的 tok/s 待实测。
+
+## 回滚边界
+
+只撤销本批新增/修改的变更块及三语言GPU文案、`enableLocalGpu`字段/key；保留F020既有本地模型、提示预算、媒体、工作区及压缩代码。禁止整文件覆盖`ChatService`、`ChatPage`、`Settings`、Runtime、JNI或CMake。逐文件影响见`docs/f020-supplement5-6-change-map.md`。
+
+## 补充五/六构建命令
+
+```bash
+f020_vk=/home/li/.local/share/rikkahub-toolchain/vulkan-20261118
+LLAMA_NDK_PATH=/opt/android-sdk/ndk/27.2.12479018 \
+LLAMA_GLSLC="$f020_vk/glslc" \
+LLAMA_VULKAN_INCLUDE_DIR="$f020_vk/root/usr/include" \
+LLAMA_SPIRV_HEADERS_DIR="$f020_vk/root/usr/share/cmake/SPIRV-Headers" \
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+./gradlew test :app:assembleGithubRelease -Prikkahub.abi=arm64-v8a \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8' --console=plain
+```
+
+其他机器先按 `llama-cpp/README.md` 恢复固定子模块，再用本机工具链路径或 CMake 自动发现的依赖构建。
+
+# 历史交付 — F020补充四：本地模型提示预算
+
+日期：2026-11-18，Asia/Shanghai。保持 **3.3.0-work.1 / 207**，DB34。
+已阅读补充四00/01，随包02-AGENTS与改前本地一致；本批优先于下方补充三默认16K口径。
+按维护者最新明确要求，交 **ARM64正式签名GitHub Release APK + 精简源码ZIP**，覆盖附件Debug示例；不生成Debug安装包。
+独立目录：`artifacts/3.3.0-work.1/f020-supplement4-release-20261118/`。旧交付保留，没有commit/tag/push/发布或设备操作。
+
+## 本批完成
+
+- 新导入本地模型默认8192，已有4K/16K等上下文和UUID保持；不改既有Settings/Model/Assistant字段，无Room迁移。
+- 请求组装增加本地提示预算阶梯：字符/3估算完整system和工具schema，超过输入55%先省略工具定义和所有工具systemPrompt（含技能列表）；剩余仍超过75%再省略两段记忆。必需人格、原历史及持久设置不被裁剪。
+- 使用同名Ready模型真实窗口；API分支不估算schema，保留原system字节和工具/记忆。原Provider按完整用户轮裁历史、压缩完整输入、模板真实计数及Usage保持。
+- 省略决定以TextGenerationParams的瞬态metadata传递，AgentLoop仅本地TOOLS省略时不重新注入定义；原执行工具/审批恢复表保留。Provider把两条省略说明与媒体notice合并为一个前缀，非流式也可见。
+- TOO_LONG失败才计原始system/schema/history，带nCtx/input与三个大致分解；未知为?，取消继续传播。分解不是模板精确总数，不写入usage。
+- CPU线程改为核心数限制在2..6，日志有threads；batch/ubatch512、CPU/F16及固定native源码不变。上下文输入框追加建议，模型详情复用更新后的context_hint。
+
+本批是“让它能说话”的可用性修补，不是已验证的性能优化。真实tok/s、首token时间、KV内存压力与UI需维护者实测；很长的必需提示词或用户输入仍可能明确报放不下。
+
+## 任务书的必要适配
+
+- 真实StepRequest在ai/agent而非ChatRequestFactory文件；Provider不接收StepRequest，而且AgentLoop会覆盖params.tools。故只新增默认空的@Transient localPromptDrops，不新增持久化字段或跨模块反向依赖，补本地专用守卫。API路径保留原工具注入。
+- 估算包括同一Mapper生成的工具schema，并优先读取Ready实际窗口，避免训练上限低于已保存窗口时误估。不加载/重载模型。
+- 已有local_llm_context_hint，更新并共用；三语实际新增3key、更新1key，而非验收F1所写新增4key。首次检查发现重复定义后已修正，保留失败日志，不把它当成功证据。
+- 错误分解占位符用字符串以支持?，已兼容旧的仅nCtx或无detail错误。组件为原始文本/JSON token估算，不能相加当模板或媒体真实输入计数。
+- 参考项目外rikkahub-agent固定a88f5854的分请求预算和系统计数职责；不照搬其Q8/内存缩窗/懒加载。本批无脉搏调度改动，Kai/PalmClaw保留。
+
+## 验证与验收
+
+- 最终定向JVM成功1分5秒，覆盖AI/llama-cpp/App。之前资源重复、JVM的org.json实现缺失和≈字段解析问题均已修正，失败日志保留；App只增加与llama模块相同版本的测试依赖，不加入生产APK。
+- 完整test及ARM64 Release一次调用成功 **7分54秒**，941任务中86执行、855 UP-TO-DATE；含R8、资源压缩、lintVital和正式签名，不生成Debug安装包。
+- 去重 **277套件 / 1862项：1860通过、0失败、0错误、2项既有缺语料跳过**。GitHub/Play重复只计一次；定向成功报告和未变模块有UP-TO-DATE复用，不宣称全部重新执行，证据见TEST-RESULTS.json与release-build.log。
+- 最终APK **21,688,525 bytes（21.69 MB / 20.68 MiB）**；包名me.rerere.rikkahub.plus，3.3.0-work.1/207，非debuggable，只有arm64-v8a。原正式证书SHA256为671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b。
+- APK SHA256：`71d614e586480b362558fb39033b665d960044e2eab830bda2d0a521a6897023`。21源码身份图标及APK20PNG逐像素、adaptive三层引用、三语2703key、固定子模块/DB34、WASM/浏览器资产、CRC、七个推理so的16KiB ELF和21个JNI出口核验通过。
+- 源码相对补充三 **5新增 / 23修改 / 0删除**，逐文件映射见docs/f020-supplement4-change-map.md；其余API供应商、工具工厂、持久字段、脉搏调度及native实现保持。归档CRC、逐文件哈希、权限/软链和SHA256记包外JSON及SHA256SUMS。
+
+所有JVM用例、编译、APK内容检查均不等于真实GGUF或手机验收。
+
+| 验收 | 本批离线验证范围 | 维护者仍需实测 |
+| --- | --- | --- |
+| A1/A2 | 新模型8K、已有16K/4K对象与UUID不变 | 覆盖安装和设置页实际显示 |
+| B1/B2 | 4K小system保工具，长system/schema省略工具与技能prompt且不裁人格 | 真实4K“你好”出字、提示展示与工具调用 |
+| B3/B4 | 巨大记忆按顺序省略两段，8K正常保留；无工具不误报省略工具 | 真实8K与记忆/工具交互 |
+| B5 | API原system字节与工具列表、无schema估算；AgentLoop仍原注入 | 真实API回归，未操作账号 |
+| C1 | 失败分解、未知?、旧错误兜底、取消不吞；正常无附加诊断计数 | 真实模型过长输入的卡片 |
+| D1 | 8核心→6线程规则及日志接线，native批次不变 | 设备日志与前后prefill/tok/s对比 |
+| E1/F1 | 建议文案接线、三语3增1改、占位符一致 | 手机布局换行与可读性 |
+
+未用ADB、模拟器、真实账号或GGUF，未下载模型权重，未生成验收截图。
+
+## 源码与复现
+
+- 根含本DELIVERY、AGENTS/CHANGES/FEATURES及docs/f020-supplement4-change-map.md。完整逐文件变化相对补充三SOURCE-MANIFEST核对，无整文件回退此前工作。
+- 固定llama.cpp为b1b770d90d94cad9e9ea5b993bdbc383a522fb28；源码包保.gitmodules、native/llama.cpp.commit、README恢复方式及原六个Git跟踪jniLibs依赖，保留软链与权限。
+- 排除APK/artifacts/构建缓存/本机配置/签名私钥/权重/参考仓库与实际llama.cpp checkout；解压后先补齐固定子模块和本机工具链，正式签名由维护者本地配置提供。
+- ZIP自身大小/哈希记包外SOURCE-VERIFICATION.json及SHA256SUMS，避免自引用。回滚按本批相对文件映射逐块反向撤销，不reset、不改原index、不覆盖前批F020与上游合并。
+
+---
+
+# 历史交付 — F020补充三：回归修复与工作区上传
+
+日期：2026-11-18，Asia/Shanghai。版本保持 **3.3.0-work.1 / 207**，数据库仍为34。
+依据维护者本轮附件 `RikkaHub Work-F020补充三-回归修复与工作区上传-20261118.zip`，已完整阅读00/01及随包AGENTS；随包AGENTS与改前根文件字节一致，保留历史并追加当前规则。
+维护者最新明确改为 **ARM64 GitHub Release APK + 精简源码ZIP**，覆盖附件R14/§10的Debug交付口径；版本不变。
+独立目录：`artifacts/3.3.0-work.1/f020-supplement3-release-20261118/`。旧APK及源码包保留，不自动commit/tag/push/发布。
+
+## 本批完成内容
+
+- A：加载胶囊去掉Popup，在ChatPage body中只放一处，按inputHeightPx加8dp定位；普通和液态玻璃宿主沿用同一个协调器。保留失败弹层、动画及输入框底部对齐。
+- B：当前可用内存不再夹制nCtx，遵循训练/用户/16K上限及既有512地板。热页按权重1/4估算，KV支持逐层数组；输出封顶窗口1/4。分配失败报MEMORY，TOO_LONG带真实nCtx/input并本地化显示窗口值。
+- B配套修正文案：内存融合只参与余量估算，不会自动扩大上下文；三语说明与当前实现一致，融合字段及默认值不改。
+- C：Model新增chatTemplate=null；JNI支持UTF8模板覆盖和模板存在探测。配置有自动、ChatML/Llama3/Gemma预设、自定义；无内置模板时提示。正常终局无正文和有效工具调用显式EMPTY_OUTPUT，取消不误报；无界流式、逐token重解析、Usage和工具序列保留。未内置LFM模板。
+- D：仅Google与本地模型保留直接视频历史；本地新上传还要求VIDEO输入模态。其余供应商在请求副本中转[视频]，保留其他part及消息元数据，不修改原消息、不自动重发。video_url拒绝响应使用三语提示。
+- E：普通聊天、脉搏、群组及外部分享入口接入路由；图片/音频/可解析文档仍为聊天附件，其他文件存绑定工作区FILES/uploads/日期。2GiB实际读取上限、重名保旧、超过200MiB进度可取消；无工作区先提示绑定，不落临时目录，保留文字草稿。
+- E：Document.url以/开头表示FILES相对路径，metadata保存大小与所属工作区。chip显示文件名/大小并支持打开、复制路径，缺文件显示错误态；模型仅收到路径元数据，不读二进制全文。不改聊天备份边界，删除消息引用不删除工作区文件。
+- F/G：去旧VIDEO能力开关与tag但保留枚举/视频消息兼容；内置工具说明恢复Gemini官方API口径。长按本地模型返回供应商默认配置，不自动弹表单，手动模型编辑与旧导航字段保留。
+
+## 验证与证据
+
+- A/B独立检查成功（1分5秒）；C的JNI Debug库、llama-cpp JVM及App Kotlin检查成功（2分11秒），尚不等于加载真实模型成功。
+- 四模块定向回归成功（2分13秒）：AI、llama-cpp、workspace及App；本地与本机环回SSH失败上传测试确认只删除新残片、同名旧文件保留。先前旧OpenAI视频用例按本次直传规则修订，未改变Google编码器。
+- 切换交付前全模块test及内部Debug构建成功（4分22秒，449任务、47执行、402 UP-TO-DATE）；Debug不作为本轮交付。最终Release和产物核验结果在下方追加，机器可读证据置于同一交付目录。测试存在UP-TO-DATE复用，GitHub/Play相同App用例去重，不宣称每个变体均重新执行。
+- 最终全模块报告去重为275套件1846项，1844通过、0失败、0错误、2项既有缺语料跳过；详见TEST-RESULTS.json。当前四模块定向用例先执行通过，完整test复用这些报告，另执行Play及搜索用例；该数量不是设备测试数。
+- 测试覆盖：低availMem仍保持用户窗口、混合层KV GGUF夹具及截断安全、输出预算、context=0、模板默认/UTF8透传、工具only/空输出/取消、请求视频降级、类型路由及providerOverwrite、虚拟2GiB读取边界、取消检查、路径元数据与聊天备份排除、三语报错。
+- 构建环境为JDK21、NDK27.2.12479018、CMake3.22.1，CPU推理与F16保持；只指定arm64-v8a。固定llama.cpp为b1b770d90d94cad9e9ea5b993bdbc383a522fb28，未改子模块源码；参考rikkahub-agent为a88f5854b4d2e2706ea2ae8304a7d66a3f9f2bbc。
+- 最终Release构建成功（5分41秒；842任务中68执行、774 UP-TO-DATE），包含App JVM资源回归、R8、lintVital、资源压缩及正式签名。此前因修正文案主动终止的构建保留为release-before-copy-fix.log，不作为成功证据；成功日志为release-build.log。
+- 最终APK为 **21,683,929 bytes（21.68 MB / 20.68 MiB）**，包名me.rerere.rikkahub.plus、版本3.3.0-work.1/207、非debuggable、仅arm64-v8a。原正式证书SHA256为671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b。
+- APK SHA256为 `1df3ddf9f2b65a3210348616929b94d6b39b95b862b5c4fa30cf62a1e1acbd23`。七个推理so的16KiB ELF对齐、21个JNI出口、20张PNG逐像素及adaptive图标引用、WASM/浏览器资源、三语2700key和CRC核验通过。R8保留LlamaCppJni原类名，未把JVM假接口当成native实测。
+- 源码相对上一批增加8项、修改46项，无删除；逐文件映射与其余文件保持情况见docs/f020-supplement3-change-map.md及包外SUPPLEMENT3-DELTA.json。最终源码包大小与SHA256仅写包外，根DELIVERY已纳入压缩包。
+
+## 逐项验收边界
+
+| 验收项 | 已有源码/离线证据 | 未执行的设备验收 |
+| --- | --- | --- |
+| A1–A5 | 页面内唯一胶囊、动态高度及原点击modifier，普通/玻璃分支编译 | 抽屉遮罩、导航、IME多行、可见位置与点击命中、玻璃层级 |
+| B1–B5 | 16K/4K计划、低内存不夹窗、4K输出1024、实际nCtx错误与逐层KV数组测试 | 手机“你好+工具”真实回复、内存挤压、native实际分配与LFM3 KV日志 |
+| C1–C5 | null兼容/自定义模板透传、无模板状态、正常空/有效工具/取消测试；JNI构建 | 真实GGUF模板渲染、LFM3详情警告和实际输出、设备停止生成 |
+| D1–D4 | OpenAI实际序列化无video_url、源消息不变、Google/Local不降级 | 真实Google请求、旧会话继续聊及本地视频抽帧 |
+| E1–E3 | FILES/日期路由、同名后缀、旧文件保留，本机本地/SSH导入用例 | SAF选真实mp4/zip后chip与编辑器导航、实际工作区shell |
+| E4–E5 | 无工作区在读流前拒绝；已知大小及实际读取均有2GiB限制 | 设备未绑定提示与草稿、2.1GiB真实源文件 |
+| E6–E7 | 只注入路径/大小、metadata固定归属；缺文件错误态与取消不吞 | 模型根据路径回答、删除工作区后点旧消息 |
+| E8–E9 | IO流、200MiB进度阈值、取消清残片、保原图/音频/解析器分支 | 大文件进度/取消、SSH真实断网残片清理及手机图片/音频/pdf回归 |
+| F1–F4 | 去开关/标签、旧VIDEO仍可反序列化、三语key集合一致 | 正式版带旧数据覆盖升级与旧配置实际显示 |
+| G1–G4 | 长按默认供应商路由、手动模型卡打开及tab兼容保留 | 手机长按本地/API、页签切换与手动编辑 |
+
+未使用ADB、模拟器、真实账号或模型权重，未下载权重，未生成验收截图。
+最终Release沿用正式包名 `me.rerere.rikkahub.plus` 及原签名；实际覆盖安装和旧数据验收仍待维护者在设备上执行。
+
+## 任务书与现有接口差异
+
+- 任务书所述withoutVideoParts实际已有占位文本，本轮保留原压缩语义，另加[视频]请求扩展。Google/Local编码不改，未删除旧VIDEO枚举或Video消息。
+- GGUF数组无法从只报告第0层的public模型信息接口取得；增加有界metadata扫描，不读tensor。模板预设来自固定llama.cpp的MIT源码，机制先行，没有猜测LFM专用模板。
+- 额外共享改动仅限FilesManager与本地/SSH导入的失败收尾，避免取消留下残片；cleanupTempDirs未改。SSH已断线时远端删除只能尽力，不宣称故障网络已验证。
+- 工作区存在检查使用同时支持SSH的fileSize；导航采用现有AssistantBasic/GroupConfig/PulseSettings。视频/zip按要求进入既有文本编辑器，不能保证能播放或解压，大文件可能提示无法预览；可复制路径交给工作区工具处理。
+- 保存workspace_id/size使用Document既有metadata，无Room迁移。为无MIME的外部file URI补文件名类型推断；切换所属工作区取消旧上传，避免结果进入错误草稿。
+
+## 源码与复现
+
+- 精简源码根含本DELIVERY、AGENTS、CHANGES、FEATURES、docs/f020-supplement3-change-map.md及构建脚本；保留软链、权限、UTF8文件名，以及源码原有六个Git跟踪的libsimple/proot依赖。
+- 排除APK/artifacts/构建缓存/本机配置/签名私钥/真实权重/参考仓库/实际llama.cpp目录；含.gitmodules、固定commit及llama-cpp/README恢复步骤，复现前需补齐子模块与本机工具链。
+- 文件集合、CRC、逐文件哈希、权限、原21图标、三语、DB与native出口等记录在包外JSON；最终ZIP自身大小/哈希只写包外SOURCE-VERIFICATION.json和SHA256SUMS，避免自引用。
+- 不重置或清理用户工作区、不修改既有index。只可按本补充的相对清单反向回滚，不能覆盖整个文件丢掉前批F020与上游合并。
+
+---
+
+# 历史交付 — F020显式加载与短上下文压缩，3.3.0-work.1 / 207
+
+日期：2026-11-18，Asia/Shanghai。按维护者要求保持同版本207，仍为DB34。
+本批以`RikkaHub Work-F020后续-显式加载与短上下文压缩-20261117.zip`为准，
+顺序为01显式加载先完成并通过Release Kotlin编译，再实施02短上下文压缩，最后统一构建。
+交付目录：`artifacts/3.3.0-work.1/f020-followup-release-20261118/`。
+一个ARM64签名GitHub Release APK及精简源码ZIP，源码根含本文件。下方11月17日首批与更早交付均为历史。
+未自动提交、推送、创建标签或发布；旧APK/源码ZIP保留。
+
+## 本批已实现
+
+- 明确Idle/Loading/Ready/Failed及三加载阶段；普通/液态玻璃输入区的单聊、脉搏共用加载胶囊，带秒数、失败详情、重试和Ready淡出。API/群组不显示本地胶囊。
+- 模型详情共用加载/卸载状态；生成路径只withReady，不懒加载/自动重载。未加载发送不清草稿，不显示误导性的网络错误。群组须先从模型详情手动加载。
+- 后台30秒仅静默通知，点击才卸载；生成中请求延后，异常/取消也在finally消费；返回前台撤销待卸载。脉搏任务会用当前本地模型时建议保留，无卸载按钮。
+- 长按本地模型直达模型配置表单，只展开一次；API长按保持原行为。1–16 K输入，非法值不写回。用户模态许可不再被冷启动/生成覆盖，实际解码取配置与引擎交集。
+- 设备总内存不足只警告可继续；availMem只用于上下文规划、地板512。下载检查模型+投影器及256MiB余量，实际Content-Length在.part创建前再检验。
+- 唯一新增持久字段enableMemoryFusion=false，设备级；系统swap存在时可选增加min(SwapTotal/8,1GiB)的上下文余量。门禁不包含swap；默认上下文16384和F16 KV不改。Fusion/每轮nCtx/VmSwap诊断接入。
+- 复用原insertCompressionCheckpoint。本地按4K/8K/16K/更大分输入1500/3000/6000/12000、输出300/500/800/1200和阈值.65/.70/.75/.80。按完整用户轮选前缀，旧checkpoint计入，被替代历史不重复计入；一次只压一段。
+- 本地工具长输出仅裁请求副本；压缩模板后复核真实token（含系统、工具定义与摘要指令），可继续收窄至上一完整轮。压缩适配器禁止正常聊天的自动裁剪，放不下一轮就明确TOO_LONG、不写检查点；所有未处理历史保持。检查点在实际windowEnd-1之后。
+- 每正常生成轮在release(applied)前计native输入/原始完整输出，Finish前发Usage。非流式返回同一usage；保持工具轮各自计量及原merge/sum。仅本地缺usage时字符估算用于自动触发，不写入精确用量或UI。
+
+## 构建、测试与包外证据
+
+- 01的App Release Kotlin编译及llama-cpp JVM通过后才改02。首次App JVM资源阶段发现单ABI输出被过滤为空的“No non-density apk found”，已修复输出过滤条件；不是模型运行失败。
+- 两批针对性`:app:compileGithubReleaseKotlin :llama-cpp:testDebugUnitTest :app:testGithubDebugUnitTest`成功，3分32秒。最终完整test及Release结果见本节后续核验与同目录`release-build.log`、`TEST-RESULTS.json`。
+- 完整test报告去重273套件1828项，1826通过、0失败、0错误、2项缺外部语料跳过；GitHub/Play重复用例只计一次，未变模块存在UP-TO-DATE复用，不宣称全部重新执行。跳过为既有DeepSeek导出附件与PDF语料用例。
+- Runtime的8项fake-native测试涵盖三阶段/幂等、未加载、失败释放、projector文本降级、异常/取消待卸载、前台撤销及缺文件；物理内存/融合/空间3项，压缩预算/窗口/检查点/模板9项。它们不加载真实权重，不是手机性能或native推理证据。
+- 保留原流式每token整段partial解析、最终权威解析、无界缓冲和检查trySend；新增工具输出计量一次、Finish前usage测试。原模板/工具/取消/文件/HTTP下载/设置兼容测试继续运行。
+- 构建使用JDK21、NDK27.2.12479018、CMake3.22.1、`-Prikkahub.abi=arm64-v8a`；完整命令与日志在产物目录。`:llama-cpp:assembleDebug`仅为库AAR，不生成Debug安装包。
+- 真正APK检查包含207版本、非debuggable、原正式证书、ARM64库、原launcher/About身份资源、三语、WASM及CRC；native ELF 16KB对齐与JNI导出仍逐项核对，见最终JSON。
+- 最终完整test与Release一次调用成功，17分16秒，957任务中70执行、887 UP-TO-DATE。APK为**21,668,645 bytes（21.67 MB / 20.66 MiB）**，比11月17日首批增加34,880 bytes；versionName/Code确认为3.3.0-work.1/207，原正式证书SHA256为671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b，非debuggable、仅ARM64。
+- APK SHA256：`4f60e084c3c8e5f07d9b2ff76a5c5932d64a2cf64f60c9e7b94f2e9cc0fcba32`。20张launcher PNG逐像素、adaptive三层引用及源码21身份资源通过；三语各2683 key，新增31条和占位符一致，七个推理so的16KB ELF与20个JNI出口通过，WASM/浏览器资源与源码一致、CRC通过。
+- 精简源码最终字节数、文件集合和SHA256以同目录`SOURCE-VERIFICATION.json`、`SOURCE-MANIFEST.json`、`FOLLOWUP-DELTA.json`及`SHA256SUMS`为准；源码中包含本DELIVERY，避免把ZIP自身哈希写入ZIP造成自引用。
+
+## 验收状态
+
+| 任务书项目 | 已有离线证据 | 仍待手机/真实模型验证 |
+| --- | --- | --- |
+| 01 A1–A9 | 双input路径、主题色、三阶段秒数、失败映射、共用单例、未Ready发送与淡出均已接线并编译 | 胶囊实际位置/点击/主题/IME、加载失败详情与正常回复；截图未生成 |
+| 01 B1–B7 | 30秒仅提醒、权限检查、脉搏保留；推理锁及finally/前台撤销JVM验证 | ROM前后台生命周期、通知动作/时序、权限关闭及真native释放 |
+| 01 D1–D10 | 默认null导航参数、按模型定位只消费一次、本地K输入/API原预设；模态保留及投影器增删JVM验证 | 长按打开、旋转/保存、冷启动及不支持媒体提示 |
+| 01 回归C1–C4 | projector阶段、删除与推理锁、群组无胶囊；完整JVM报告见包外JSON | 真图片/音频/视频、删除及群聊实际发送 |
+| 01 F1–F11 | 总内存警告纯规则、API34守卫、512下限、融合余量/默认false持久化与三语说明检查 | 真实8/16GB设备、内存压力、swap/速度、无swap控件与诊断日志 |
+| 01 G1–G3 | .part前两次空间预检、NO_SPACE本地化；原下载/取消和空间规则JVM | 手机磁盘写满、文件清理、恢复下载 |
+| 02 C1–C3 | 大型历史夹具选前缀、严格输入检查、连续检查点原节点全保留JVM | 150K真实对话+16K权重成功压缩与后续聊天日志 |
+| 02 C4 | API仍全量、maxTokens=null、全局阈值；无新裁剪/估算/长度指令 | 同一真实API请求/缓存对比 |
+| 02 C5/C9 | 16K采用.75，真实usage优先，缺失仅本地估算并日志；同一自动压缩入口 | 连聊到约12K触发日志与实际单次压缩效果 |
+| 02 C6/C7 | 8000字工具结果前800/后400、标记和原件不变；4档+非本地规则JVM通过 | 模型摘要可读性 |
+| 02 C8 | native计数→Usage→现有StreamChunkHandler/UI链路编译，Usage先于Finish夹具通过 | 真promptTokens/completionTokens日志、三轮上下文显示 |
+
+**未连接ADB/模拟器/手机、下载GGUF权重或使用真实账号。没有伪造任务书要求的加载/通知截图、150K压缩、用量和AutoCompress日志。**
+日志代码已接入，但真实记录必须由维护者安装APK、加载模型后取得。
+
+## 非本地路径自查与任务书偏差
+
+- buildCompressPrompt的原文本与七段结构不改，maxCharacters=null不追加；API的source仍原messages.withoutVideoParts，buildStep默认限制与变更前相同。params.copy(maxTokens=null)语义保留，不采用任务书会回落助手上限的示例。
+- API自动阈值仍取全局设置，usage=null仍不触发，绝不加入估算。普通/API推理、F004审批、F007 reasoning、F009边界、群组/脉搏调度及Room34未改。
+- 16K阈值按档表及C9的.75，忽略C5矛盾的.7。估算窗口后追加真实模板预检及严格压缩适配器，是为了防止Provider原本的trim静默裁掉待压缩历史；不是新增压缩系统。
+- 胶囊用非focusable Popup保持可见位置与实际点击区域一致；两条宿主都接入，不占消息布局。视觉与输入法行为仍待验。
+- 通知大小明确为“已加载模型文件约X GB”，不冒称测得真实RAM或必可释放量。
+- 本地供应商此前仅配置页而无模型tab，本批按任务目标补CONFIG/MODELS；无API页签变化。本地模型安装集合仍由安装器管理，参数编辑按最新UUID合并。
+- 改设置影响下次显式load；已Ready须先卸载再加载应用新上下文/融合配置。极低内存降至512后，提示词与请求输出上限仍可能放不下，明确报错，不保证任何设备都可推理。
+
+## 未做项、参考、归档与回滚
+
+- 本批不做KV q8_0、默认4K、预算模型深度重写、KV session存盘、LiteRT、群组胶囊、加载取消/百分比或后台自动卸载。
+- 参考项目外`rikkahub-agent`固定a88f5854的Runtime锁/取消/释放、Provider与native接口；llama.cpp仍v1.0.0/b1b770d9，无子模块源码变化。Kai/PalmClaw保留，未改脉搏调度。
+- 逐文件及上游重套清单见`docs/f020-followup-change-map.md`。回滚以11月17日首批manifest为边界逐块撤销，不重置脏树、不撤销3.3.0合并、数据库或原图标，不删除用户权重/历史。
+- 新源码ZIP排除.git、artifacts、缓存、生成native输出、权重、APK及凭据；保留两个软链/权限、根DELIVERY和原Git跟踪的六个libsimple/proot依赖，纠正首批“一刀切排除.so”。这些既有依赖字节与HEAD核对，不是新构建产物。
+- llama.cpp实际子模块内容仍按约定不打包，保留.gitmodules、commit pin、MIT许可及README中的精确恢复命令。源码目录的实际集合/哈希/权限/UTF-8/CRC和产物SHA256均记包外JSON，避免ZIP自身哈希自引用。
+
+# 历史首批交付 — 上游3.3.0 + F020本地模型，3.3.0-work.1 / 207
+
+日期：2026-11-17，Asia/Shanghai。维护者最终指定合并后直接实施F020，
+统一交付一个ARM64 GitHub Release APK与精简源码ZIP；合并阶段没有生成APK。
+最终版本固定207，不采用早先建议的work.2/208，也不采用旧任务书的206/DB33。
+产物目录：`artifacts/3.3.0-work.1/upstream-f020-release-20261117/`。
+本节为当前交付记录，下方各版本均为历史。
+
+## 基线、范围与参考
+
+- fork合并前：31f3e849f349ba2bea4d302390b633c1a2f01f34；上游3.3.0：eb33917e483aae1427db9cb10232642a640d2986。
+  独立合并提交：655f8517c596be797eb081e9d1556404e82c6923。F020当前为该提交上的工作区增量，未自动commit/push/tag/发布。
+- 本地模型参考：保留在项目外的ExTV/rikkahub-agent，a88f5854b4d2e2706ea2ae8304a7d66a3f9f2bbc（v2.5.1-agent.1）。
+  先读其JNI、Runtime、Provider、DeltaTracker、请求映射、上下文规划，再适配本工程sealed StreamChunk及固定native接口；不覆盖现有API供应商实现。
+- llama.cpp：`llama-cpp/native/llama.cpp`，v1.0.0，**b1b770d90d94cad9e9ea5b993bdbc383a522fb28**。
+  未修改子模块源码。仅CPU，关闭GPU/OpenCL、ffmpeg、server及subprocess；使用mtmd和Android媒体解码。
+- 完整上游3.3.0功能随合并接入：DeepSeek ASR/TTS、DeepSeek记录导入、气泡段落拆分、工作区存储挂载、Vertex Interactions、安全模式和连接测试弹窗。
+  群组自动压缩统一全局入口，移除七个重复自动配置字段；保留手动压缩、分层摘要及可编辑提示词。Phone Use同步禁止操作微信。
+- DB34保留15表14索引；工作区14列，owner/shared_rootfs_from与fork行式记忆表保留，33.json字节不变。
+  三语各2652个string key（F020各新增57），原21个launcher/About应用身份资源逐文件匹配固定基准。F007/F009、群组、脉搏、Rootfs及玻璃入口保留。
+
+## 构建与测试证据
+
+- 合并阶段完整test成功，1分50秒；没有中间APK。
+- F020首次最小native原型构建成功45秒；完整JNI/模块与App Release Kotlin编译成功2分46秒。
+  这些是不同阶段的增量构建耗时，不是删除全部缓存后的冷构建耗时，也不包含真实模型加载。
+- 最终完整 `./gradlew test --no-parallel --max-workers=1 --console=plain` 成功，1分25秒，356任务中12执行、344 UP-TO-DATE。
+  去重270套件1806项：**1804通过、0失败、0错误、2跳过**。App962项、AI426项，其他模块合并统计；GitHub与Play重复用例只计一次。
+  跳过的是缺真实导出附件的DeepSeekImporterTest和缺PDF语料的PdfCorpusTest，均保留原Assume条件，未删改测试凑绿。
+- llama-cpp模块20项全部通过：流式缓冲与取消6、上下文及工具回放6、GGUF与目录4、真实loopback HTTP下载/取消4。
+  最终test复用前次通过的模块报告，不能称为全部1806项重新执行；详细任务状态/报告时间见本目录TEST-RESULTS.json。
+- Release命令：
+
+```bash
+LLAMA_NDK_PATH=/opt/android-sdk/ndk/27.2.12479018 \
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+./gradlew :llama-cpp:assembleDebug :app:assembleGithubRelease \
+  -Prikkahub.abi=arm64-v8a --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  '-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8' --console=plain
+```
+
+其中assembleDebug只生成本地模型库AAR/so，不生成Debug APK；最终安装包仅GitHub Release。
+最终构建耗时、包体与签名数据在本节末尾的“最终产物核验”及包外JSON补记。
+
+## F020逐项验收
+
+“静态/JVM通过”仅说明代码、编译或离线协议证据；没有ADB、模拟器、手机截图、真实账号或权重推理。
+所有真实交互/性能/识别效果仍待维护者安装本批APK验证。
+
+| 编号 | 已有证据与当前状态 |
+| --- | --- |
+| A1 | 本地模型模块AAR/native编译通过；先前ARM64和x86_64均编译，本次最终仅ARM64。 |
+| A2 | 最终Release构建成功，R8、资源优化、lintVital、签名及打包全部通过；见release-build.log。 |
+| A3 | APK内JNI及llama/ggml/mtmd动态库逐项检查，结果见APK-VERIFICATION.json。 |
+| A4 | 与206 ARM64 APK实测文件字节对比，见最终产物核验；不把任务书4~8MB预估当实测。 |
+| A5 | APK条目检查不含GGUF，源码ZIP同样排除模型权重。 |
+| B1 | 目录单测确认五个模型按主权重体积升序，列表接线静态通过；页面待实机。 |
+| B2 | 详情约屏幕66%高度、六格规格，4B主权重3.46GB+编码器0.68GB；视觉待实机。 |
+| B3 | 下载与真实Content-Length进度、成对完成后写索引有实现；loopback传输通过，真实大文件安装待验。 |
+| B4 | 下载IO/5xx最多两次重试、4xx不重试及本地化失败已检查；真实断网操作待验。 |
+| B5 | OpenDocument复制、GGUF magic/架构提示、同名后缀及原子改名有实现与文件测试；系统文件选择待验。 |
+| B6 | runtime锁内删除、索引清理及Settings模型/收藏/选择回退有实现和设置测试；实机文件删除待验。 |
+| B7 | 启动修复移除缺失主模型索引，清除自身目录的.part及无索引残留；真实重启待验。 |
+| C1 | 512片段慢消费者测试无丢字、无空正文增量；真实native逐字输出待验。 |
+| C2 | 阻塞生成取消及不伪造Finish有JVM测试；真实native停止延迟待验。 |
+| C3 | 保留system与最后user、按完整旧用户轮次裁剪、真实模板/媒体token复核有实现；长对话测试通过，真实模型待验。 |
+| C4 | 模型切换/串行锁/native句柄生命周期静态复核；真实两模型切换待验。 |
+| C5 | 五轮稳定性、温度/速度/内存：未实机，不能判通过。 |
+| D1 | RGBA图片→mtmd通道及能力映射编译通过；看图识别效果未测。 |
+| D2 | 纯文本模型不支持图片时移除附件并输出提示，继续正文；真机待验。 |
+| D3 | mmproj缺失/加载失败保留主模型并降级、显示失败提示；真机待验。 |
+| D4 | 多图片按parts顺序传递，每张有独立占位/bitmap；两图内容识别未测。 |
+| D5 | Android音频解码/单声道/重采样，最多60秒并提示截断；Gemma音频识别与编码耗时未测。 |
+| D6 | Android视频1fps最多16帧、无音轨/ffmpeg；Qwen视频内容识别未测。 |
+| D7 | 不支持音频时提示并继续文本；纯文本模型真机交互待验。 |
+| E1 | 三语XML、57新增key及旧key完整性检查通过；实际三语排版待验。 |
+| E2 | 上部滚动、底部固定及能力标签FlowRow已接线；小屏/大字体/横屏待验。 |
+| E3 | 安装后禁用“已安装”按钮并保留删除确认；实际点击待验。 |
+| E4 | 本地配置仅通用启用/名称/下载前缀/列表入口，隐藏API模型与高级页签及连接测试/分享；实机待验。 |
+| F1 | metadata内存规划、85%预检及本地化不足提示有测试；16GB设备加载9B未测，无法保证不会被ROM杀进程。 |
+| F2 | 30分钟加载标记，下次启动提示可重试、不禁用模型；真实杀进程/崩溃未测。 |
+| F3 | 复用原生成/保活机制，没有增加生成超时；后台切换实机待验。 |
+| F4 | load/template/generate/delete共用Mutex，取消按请求owner限制；真实标题+建议并发待验。 |
+| G1 | 原API类型复制/序列化、额度与视频回归通过；未使用真实API账号。 |
+| G2 | 本地Provider进入既有群聊链路，工具StreamChunk有离线测试；群内真实工具调用待验。 |
+| G2b | 两轮交错工具调用/结果请求映射测试通过，完整保留工具边界；真实模型连续工具轮待验。 |
+| G2c | 本地Provider进入既有脉搏链路、不扩展审批豁免；带工具心跳未实机。 |
+| G3 | 脉搏沿用标准ProviderManager选择本地类型；真实心跳未测。 |
+| G4 | Provider序列化/恢复旧设置与安装条目同步有JVM测试；备份只含设置和原附件目录，不含models权重，恢复后缺权重清理选择并需重新安装；设备恢复未测。 |
+
+## 任务书适配、边界及后续重套
+
+1. 以用户最终207/DB34为准。上游合并单的工作区13列、26新增key分别是数量误差，实际14列、25上游key；没有为凑数改schema或文案。
+2. llama.cpp v1.0.0的PEG parser没有参考版的JSON序列化API，改用native内存中的不可变parser票据。
+   应用只原样传递applied模板blob；每token仍整段解析，最终解析权威，结束时释放票据。保留模板声明的特殊token，避免工具/思考标记丢失。
+3. mtmd JNI与主JNI集中在同一C++文件，使用同一个上下文/取消标记；视频走Android解码器和v1.0.0的video source协议，不引入ffmpeg。
+   媒体token化或prefill编码失败在输出前退回纯文本；取消不触发正常完成事件。
+4. 新增Modality.AUDIO/VIDEO在枚举末尾；未给Model增加字段/新ModelAbility，也不改变其他供应商的音视频判据。工具请求分组仅把原PartGroup/扩展公开复用。
+5. 原设置归一化不会清理删除模型的全部收藏/助手/群组/脉搏引用，新增withLocalModels只处理本地供应商并保留既有UUID/API配置。
+   上游会话固定模型失效时，沿用getChatModelOf既有的助手模型回退，不重写会话历史。
+6. 安装所有文件完成才入索引；下载回调在取消后完全停止写入才删除.part。启动仅清理本应用私有模型目录内未索引GGUF/part，不遍历用户目录。
+7. ChannelWatermark按参考版处理append-only限制：中途reset抑制，终局修正保留内容；遇到解析器终局改口仍可能出现可见重复，这是参考策略的已知取舍，不承诺任意模型模板永无重复。
+8. SIGSEGV无法被JVM catch拦下；加载中断标记只是提示，不是兼容性判定。不下载权重、不实际推理，模型目录与文案依任务包固定内容，不宣称五模型均已实测可用。
+
+上游冲突重套重点：ProviderSetting/ProviderManager/ProviderQuota/VideoInput/ProviderMessageUtils、
+DefaultProviders/DataSourceModule/ViewModelModule/RikkaHubApp/RouteActivity、
+ProviderConfigure与两处供应商设置页、FilesPicker/ModelList/额度和加载动画、导入器与三语资源、settings.gradle/app构建接线。
+**完整逐文件列表与上游标记见 `docs/f020-change-map.md`**，不是仅列这几处作为全部改动。
+未改脉搏调度/工具策略实现，不引入Kai/PalmClaw以外的新脉搏设计；此前两仓继续保留在项目外。
+
+## 源码归档与复建
+
+- 精简源码ZIP根包含本DELIVERY，排除.git、artifacts、构建缓存、.cxx、.so、APK、模型权重、local.properties、签名私钥及参考克隆。
+- 按任务书排除llama-cpp/native/llama.cpp实际内容；ZIP无法编码Git gitlink，以.gitmodules、native/llama.cpp.commit与README记录精确指针及恢复命令。
+- Git checkout用git submodule update --init --recursive；直接解压源码ZIP则先按llama-cpp/README.md克隆并checkout固定hash，再配置自己的SDK/Release签名。
+  不提供本机私钥；签名一致性只对交付APK校验。
+- ZIP文件集合、逐文件哈希、UTF-8文件名、Unix权限、符号链接及CRC分别核验，SHA256SUMS放包外，避免自引用。
+- 未操作设备/模拟器/真实账号，没有远端push、tag、GitHub发布或源码上传。
+
+## 最终产物核验（2026-11-17）
+
+- 最终Release构建成功，**19分7秒**，632任务中125执行、507 UP-TO-DATE。该耗时包含最终ARM64模块AAR/native复核、Release Kotlin/R8/Lint/签名与打包，不是冷缓存全量耗时。
+- APK：`RikkaHub.Work-3.3.0-work.1-arm64-v8a-release.apk`，**21,633,765 bytes（20.63 MiB / 21.63 MB）**。
+  206基线ARM64为16,466,553 bytes（15.70 MiB），净增5,167,212 bytes（4.93 MiB / 5.17 MB），落在任务书4–8MB预估范围。
+- 包名me.rerere.rikkahub.plus；3.3.0-work.1 / 207；非debuggable；仅ARM64；无GGUF。
+  正式证书SHA256为671f265609eb23c6c84abbfc0342b4e11dd8ba20db9714bc475c536d8e2a6d6b，与旧Release相同。
+- JNI/llama/llama-common/ggml/mtmd共七个本地推理动态库存在、ELF LOAD均16KB对齐；20个Kotlin声明的JNI导出全部存在。
+  R8保留JNI类及TokenSink/onToken名称，APK资源仅默认英文/简中/繁中。
+- APK中原20张身份PNG逐像素匹配，adaptive图标继续引用原三层；源21资源也匹配固定基准。
+  deepseek_sha3.wasm与浏览器Readability脚本逐字节一致，ZIP CRC通过。
+- APK SHA256：`0d493661e786c7afc918fe48c248ce06adee813251ac064ce663b406561f2b16`。
+  本目录提供APK-VERIFICATION、STATIC-VERIFICATION、ICON-VERIFICATION、TEST-RESULTS及构建日志。
+- 精简源码集合1871项，根含DELIVERY，保留两个软链与Unix权限；不包含llama.cpp实际子模块内容，需按模块README恢复精确版本后构建。
+  ZIP最终大小、哈希及逐项验证由SOURCE-VERIFICATION.json与SHA256SUMS记录；不把本ZIP最终哈希写回ZIP内部。
+- 不生成Debug安装包；未安装设备或实际下载/运行模型。维护者重点验收B/C/D/E/F及群聊/脉搏工具场景，未实测项目不标为通过。
 
 # 源码同步准备 — 3.2.0-work.3 / 206
 

@@ -18,7 +18,8 @@ class AlarmRegistrationTest {
         assertEquals(9, old.size)
         assertEquals(LocalToolOption.Browser, old.last())
         assertEquals(Json.parseToJsonElement(json), Json.parseToJsonElement(JsonInstant.encodeToString(serializer, old)))
-        assertEquals(listOf(LocalToolOption.TimeInfo), Assistant().localTools)
+        assertEquals(listOf(LocalToolOption.TimeInfo, LocalToolOption.ClientContext), Assistant().localTools)
+        assertEquals(listOf(LocalToolOption.TimeInfo), JsonInstant.decodeFromString<Assistant>("{}").localTools)
         assertEquals(LocalToolOption.Alarm, JsonInstant.decodeFromString(LocalToolOption.serializer(),
             JsonInstant.encodeToString(LocalToolOption.serializer(), LocalToolOption.Alarm)))
     }

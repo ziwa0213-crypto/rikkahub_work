@@ -33,6 +33,11 @@ import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.BuiltInTools
+import me.rerere.ai.provider.ClientContext
+import me.rerere.ai.provider.providers.isDeepSeekDialect
+import me.rerere.ai.ui.ServerToolMetadata
+import me.rerere.ai.ui.ServerToolProtocol
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
@@ -273,6 +278,8 @@ class ChatCompletionsAPI(
                         else -> ReasoningReplayFormat.REASONING_CONTENT
                     },
                     supportInputModalities = params.model.inputModalities,
+                    clientContext = params.clientContext.takeIf { isDeepSeekDialect(host, params.model.modelId) },
+                    includeServerTools = isDeepSeekDialect(host, params.model.modelId),
                 )
             )
 
@@ -450,9 +457,15 @@ class ChatCompletionsAPI(
                 }
             }
 
-            if (hasTools) {
+            val serverTools = buildList {
+                if (isDeepSeekDialect(host, params.model.modelId)) {
+                    if (BuiltInTools.Search in params.model.tools) add("deepseek_web_search")
+                    if (BuiltInTools.ReadUrl in params.model.tools) add("deepseek_read_url")
+                }
+            }
+            if (hasTools || serverTools.isNotEmpty()) {
                 putJsonArray("tools") {
-                    params.tools.forEach { tool ->
+                    (if (hasTools) params.tools else emptyList()).forEach { tool ->
                         add(buildJsonObject {
                             put("type", "function")
                             put("function", buildJsonObject {
@@ -468,6 +481,7 @@ class ChatCompletionsAPI(
                             })
                         })
                     }
+                    serverTools.forEach { type -> add(buildJsonObject { put("type", type) }) }
                 }
             }
         }.mergeCustomBody(params.customBody)
@@ -475,14 +489,6 @@ class ChatCompletionsAPI(
 
     private fun hasTools(params: TextGenerationParams): Boolean =
         params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
-
-    /**
-     * DeepSeek requires historical reasoning_content whenever tools are sent,
-     * including when the user has disabled the generic history-reasoning option.
-     */
-    private fun isDeepSeekDialect(host: String, modelId: String): Boolean =
-        host.contains("deepseek", ignoreCase = true) ||
-                modelId.contains("deepseek", ignoreCase = true)
 
     private fun isModelAllowTemperature(model: Model): Boolean {
         val isMoonshotRestricted = ModelRegistry.KIMI_K2_5.match(model.modelId) ||
@@ -500,10 +506,18 @@ class ChatCompletionsAPI(
         reasoningReplayFormat: ReasoningReplayFormat = ReasoningReplayFormat.REASONING_CONTENT,
         supportInputModalities: List<Modality> = listOf(Modality.TEXT, Modality.IMAGE),
         forceReasoningBack: Boolean = false,
+        clientContext: ClientContext? = null,
+        includeServerTools: Boolean = false,
     ) = buildJsonArray {
         val filteredMessages = messages.filter { it.isValidToUpload() }
 
         filteredMessages.forEach { message ->
+            if (clientContext != null && message.role == MessageRole.USER) {
+                add(buildJsonObject {
+                    put("role", "latest_reminder")
+                    put("content", clientContext.forMessage(message.createdAt).toLatestReminderContent())
+                })
+            }
             if (message.role == MessageRole.ASSISTANT) {
                 addAssistantMessages(
                     message = message,
@@ -511,6 +525,7 @@ class ChatCompletionsAPI(
                     reasoningReplayFormat = reasoningReplayFormat,
                     forceReasoningBack = forceReasoningBack,
                     supportInputModalities = supportInputModalities,
+                    includeServerTools = includeServerTools,
                 )
             } else {
                 addNonAssistantMessage(message)
@@ -524,6 +539,7 @@ class ChatCompletionsAPI(
         reasoningReplayFormat: ReasoningReplayFormat,
         supportInputModalities: List<Modality>,
         forceReasoningBack: Boolean = false,
+        includeServerTools: Boolean = false,
     ) {
         val groups = groupPartsByToolBoundary(message.parts)
         val contentBuffer = mutableListOf<UIMessagePart>()
@@ -539,7 +555,9 @@ class ChatCompletionsAPI(
                         }
                     }
                     group.parts
-                        .filter { it is UIMessagePart.Text || it is UIMessagePart.Image || it is UIMessagePart.Video }
+                        .filter { it is UIMessagePart.Text || it is UIMessagePart.Image || it is UIMessagePart.Video ||
+                            (includeServerTools && it is UIMessagePart.ServerTool &&
+                                it.metadataAs<ServerToolMetadata>()?.protocol == ServerToolProtocol.DEEPSEEK_CHAT_COMPLETIONS) }
                         .forEach { contentBuffer.add(it) }
                 }
 
@@ -595,6 +613,7 @@ class ChatCompletionsAPI(
                 is UIMessagePart.Text -> part.text.isNotBlank()
                 is UIMessagePart.Image -> part.url.isNotBlank()
                 is UIMessagePart.Video -> part.url.isNotBlank()
+                is UIMessagePart.ServerTool -> true
                 else -> false
             }
         }
@@ -631,11 +650,12 @@ class ChatCompletionsAPI(
                 }
             }
 
-            // content
-            if (mistralThinking == null && contentParts.isEmpty()) {
+            // Server tools share the message, but are not content-array items.
+            val bodyParts = contentParts.filterNot { it is UIMessagePart.ServerTool }
+            if (mistralThinking == null && bodyParts.isEmpty()) {
                 put("content", "")
-            } else if (mistralThinking == null && contentParts.size == 1 && contentParts[0] is UIMessagePart.Text) {
-                put("content", (contentParts[0] as UIMessagePart.Text).text)
+            } else if (mistralThinking == null && bodyParts.size == 1 && bodyParts[0] is UIMessagePart.Text) {
+                put("content", (bodyParts[0] as UIMessagePart.Text).text)
             } else {
                 putJsonArray("content") {
                     if (mistralThinking != null) {
@@ -649,7 +669,7 @@ class ChatCompletionsAPI(
                             }
                         })
                     }
-                    contentParts.forEach { part ->
+                    bodyParts.forEach { part ->
                         when (part) {
                             is UIMessagePart.Text -> {
                                 add(buildJsonObject {
@@ -696,6 +716,35 @@ class ChatCompletionsAPI(
                         })
                     }
                 })
+            }
+            val serverTools = contentParts.filterIsInstance<UIMessagePart.ServerTool>()
+                .filter { it.metadataAs<ServerToolMetadata>()?.protocol == ServerToolProtocol.DEEPSEEK_CHAT_COMPLETIONS }
+            if (serverTools.isNotEmpty()) {
+                putJsonArray("server_tool_calls") {
+                    serverTools.groupBy { it.metadataAs<ServerToolMetadata>()?.callIndex ?: 0 }
+                        .toSortedMap().forEach { (stepIndex, calls) ->
+                            add(buildJsonObject {
+                                put("index", stepIndex)
+                                // The signed call is preserved; step-level reasoning was not persisted.
+                                put("reasoning_content", "")
+                                putJsonArray("calls") {
+                                    calls.forEachIndexed { order, part ->
+                                        add(part.metadataAs<ServerToolMetadata>()?.call ?: buildJsonObject {
+                                            put("index", order)
+                                            put("id", part.toolCallId)
+                                            put("type", part.toolName)
+                                            put("status", when (part.status) {
+                                                me.rerere.ai.ui.ServerToolStatus.COMPLETED -> "completed"
+                                                me.rerere.ai.ui.ServerToolStatus.FAILED -> "failed"
+                                                else -> "in_progress"
+                                            })
+                                            part.input?.let { put("action", it) }
+                                        })
+                                    }
+                                }
+                            })
+                        }
+                }
             }
         }
     }
@@ -845,6 +894,7 @@ class ChatCompletionsAPI(
                         )
                     )
                 }
+                jsonObject["server_tool_calls"]?.jsonArrayOrNull?.let { addAll(it.deepSeekServerTools()) }
                 if (content.isNotEmpty()) add(UIMessagePart.Text(content))
                 images.forEach { image ->
                     val imageObject = image.jsonObjectOrNull ?: return@forEach

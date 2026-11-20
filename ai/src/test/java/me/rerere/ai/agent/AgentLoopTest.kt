@@ -16,6 +16,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.core.Tool
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.LocalPromptDrop
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
@@ -36,6 +37,48 @@ class AgentLoopTest {
     private val model = Model(modelId = "test-model")
     private val provider = FakeProvider()
     private val hooks = RecordingHooks(model)
+
+    @Test fun `local budget omissions survive agent schema injection in both generation modes`() = runTest {
+        for (stream in listOf(true, false)) {
+            val provider = FakeProvider()
+            if (stream) provider.stream { text("answer"); finish() }
+            else provider.result(assistant(UIMessagePart.Text("answer")))
+            val request = request(tools = listOf(tool("lookup")), stream = stream).copy(
+                provider = provider, providerSetting = ProviderSetting.LlamaCppLocal())
+            val hooks = object : AgentHooks {
+                override suspend fun prepareStep(messages: List<UIMessage>) = StepRequest(messages,
+                    TextGenerationParams(model, localPromptDrops = listOf(LocalPromptDrop.TOOLS, LocalPromptDrop.MEMORY)))
+            }
+            runToEnd(request, hooks)
+            assertTrue(provider.requests.single().params.tools.isEmpty())
+            assertEquals(listOf(LocalPromptDrop.TOOLS, LocalPromptDrop.MEMORY), provider.requests.single().params.localPromptDrops)
+        }
+    }
+
+    @Test fun `API and local requests without tool omission retain original agent tools`() = runTest {
+        for ((setting, drops) in listOf(
+            ProviderSetting.OpenAI() to listOf(LocalPromptDrop.TOOLS),
+            ProviderSetting.LlamaCppLocal() to emptyList(),
+            ProviderSetting.LlamaCppLocal() to listOf(LocalPromptDrop.MEMORY),
+        )) {
+            val provider = FakeProvider().apply { stream { text("answer"); finish() } }
+            val tools = listOf(tool("lookup"))
+            val request = request(tools = tools).copy(provider = provider, providerSetting = setting)
+            runToEnd(request, object : AgentHooks {
+                override suspend fun prepareStep(messages: List<UIMessage>) = StepRequest(messages,
+                    TextGenerationParams(model, localPromptDrops = drops))
+            })
+            assertEquals(tools, provider.requests.single().params.tools)
+        }
+    }
+
+    @Test fun `local prompt metadata is transient and does not change serialized API parameters`() {
+        val params = TextGenerationParams(model, sessionId = "stable")
+        val json = kotlinx.serialization.json.Json { encodeDefaults = true }
+        assertEquals(json.encodeToString(TextGenerationParams.serializer(), params),
+            json.encodeToString(TextGenerationParams.serializer(), params.copy(localPromptDrops = LocalPromptDrop.entries)))
+        assertTrue(params.localPromptDrops.isEmpty())
+    }
 
     private fun request(
         messages: List<UIMessage> = listOf(UIMessage.user("hi")),

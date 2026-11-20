@@ -5,6 +5,8 @@ import kotlinx.serialization.SerializationException
 import me.rerere.ai.provider.ProviderHttpException
 import me.rerere.ai.provider.ProviderResponseException
 import me.rerere.ai.provider.VideoInputException
+import me.rerere.llamacpp.LocalModelError
+import me.rerere.llamacpp.LocalModelException
 import me.rerere.rikkahub.R
 import org.junit.Assert.*
 import org.junit.Test
@@ -22,6 +24,44 @@ import javax.net.ssl.SSLException
 import javax.xml.parsers.DocumentBuilderFactory
 
 class ErrorTextTest {
+    @Test fun gpuDeviceLossResolvesForEachLanguageWithoutDisplayingNativeError() {
+        val error = LocalModelException(LocalModelError.GPU_LOST)
+            .apply { initCause(RuntimeException("vk::Queue::submit: ErrorDeviceLost")) }
+        for (language in listOf("values", "values-zh", "values-zh-rTW")) {
+            val message = resolve(error, language)!!
+            assertTrue(message.contains("CPU"))
+            assertFalse(message.contains("ErrorDeviceLost"))
+        }
+    }
+
+    @Test fun videoVariantResponseIsLocalizedWithoutEchoingLargeRequestData() {
+        val error = ProviderHttpException(422, "unknown variant 'video_url': private-video-body")
+        for (language in listOf("values", "values-zh", "values-zh-rTW")) {
+            val text = resolve(error, language)!!
+            assertFalse(text.contains("private-video-body"))
+            assertFalse(text.contains("422"))
+        }
+        assertEquals("该供应商不接受视频输入，视频已按文字处理。", resolve(error))
+    }
+    @Test fun localContextFailureShowsActualWindowAndFallsBackForOldErrors() {
+        val actual = resolve(me.rerere.llamacpp.LocalModelException(me.rerere.llamacpp.LocalModelError.TOO_LONG, "nCtx=4096 input=3072"))!!
+        assertTrue(actual.contains("4096"))
+        assertTrue(actual.contains("3072"))
+        assertTrue(actual.contains("?"))
+        assertNotEquals(actual, resolve(me.rerere.llamacpp.LocalModelException(me.rerere.llamacpp.LocalModelError.TOO_LONG)))
+    }
+    @Test fun localContextBreakdownIsLocalizedAndUnknownCountsNeverShowNegativeOne() {
+        for (language in listOf("values", "values-zh", "values-zh-rTW")) {
+            val error = me.rerere.llamacpp.LocalModelException(me.rerere.llamacpp.LocalModelError.TOO_LONG,
+                "nCtx=4096 input=3072 system≈1500 tools≈-1 hist=735")
+            val text = resolve(error, language)!!
+            for (value in listOf("4096", "3072", "1500", "735", "?")) assertTrue(text, text.contains(value))
+            assertFalse(text.contains("-1"))
+            assertFalse(text.contains("%"))
+            assertTrue(resolve(me.rerere.llamacpp.LocalModelException(me.rerere.llamacpp.LocalModelError.TOO_LONG,
+                "nCtx=4096"), language)!!.contains("4096"))
+        }
+    }
     private fun resolve(error: Throwable, language: String = "values-zh"): String? {
         val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
             .parse(File("src/main/res/$language/strings.xml"))

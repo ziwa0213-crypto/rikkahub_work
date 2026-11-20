@@ -13,6 +13,11 @@ sealed class LocalToolOption {
     @SerialName("time_info")
     data object TimeInfo : LocalToolOption()
 
+    /** Request metadata only; intentionally absent from LocalTools.getTools(). */
+    @Serializable
+    @SerialName("client_context")
+    data object ClientContext : LocalToolOption()
+
     @Serializable
     @SerialName("clipboard")
     data object Clipboard : LocalToolOption()

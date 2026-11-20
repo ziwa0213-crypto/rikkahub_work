@@ -49,6 +49,7 @@ import me.rerere.hugeicons.stroke.PaintBoard
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.ui.components.message.WorkspaceDocumentChip
 import me.rerere.rikkahub.ui.components.ui.ImagePreviewDialog
 import me.rerere.ui.sketch.SketchDialog
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -189,6 +190,14 @@ internal fun MediaFileInputRow(
                 }
 
                 is UIMessagePart.Document -> {
+                    if (part.url.startsWith("/")) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            WorkspaceDocumentChip(part)
+                            IconButton(onClick = { removePart(part, part.url) }) {
+                                Icon(HugeIcons.Cancel01, contentDescription = stringResource(R.string.cancel))
+                            }
+                        }
+                    } else
                     AttachmentChip(
                         title = attachmentNameFromUrl(
                             url = part.url,

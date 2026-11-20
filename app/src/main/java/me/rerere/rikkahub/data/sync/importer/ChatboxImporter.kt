@@ -672,6 +672,7 @@ object ChatboxImporter {
         is ProviderSetting.Google -> "google|${provider.baseUrl.trimEnd('/')}|${provider.apiKey}"
         is ProviderSetting.Claude -> "claude|${provider.baseUrl.trimEnd('/')}|${provider.apiKey}"
         is ProviderSetting.DeepSeekWeb -> "deepseek-web|${provider.id}"
+        is ProviderSetting.LlamaCppLocal -> "local_llamacpp|${provider.id}"
         // 账号型提供商不会从外部导入，只按 id 区分
         is ProviderSetting.Account -> "account|${provider.id}"
     }
@@ -681,6 +682,7 @@ object ChatboxImporter {
         is ProviderSetting.Google -> "gemini"
         is ProviderSetting.Claude -> "claude"
         is ProviderSetting.DeepSeekWeb -> "deepseek-web"
+        is ProviderSetting.LlamaCppLocal -> "local_llamacpp"
         is ProviderSetting.ChatGPT -> "chatgpt"
         is ProviderSetting.Grok -> "grok"
     }

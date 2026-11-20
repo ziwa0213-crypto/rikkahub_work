@@ -2,6 +2,7 @@ package me.rerere.ai.provider
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonElement
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
@@ -74,7 +75,12 @@ data class TextGenerationParams(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val sessionId: String? = Uuid.random().toString(),
+    /** Per-request local notices, never part of persisted settings or API payloads. */
+    @Transient val localPromptDrops: List<LocalPromptDrop> = emptyList(),
+    @Transient val clientContext: ClientContext? = null,
 )
+
+enum class LocalPromptDrop { TOOLS, MEMORY }
 
 @Serializable
 data class ImageGenerationParams(

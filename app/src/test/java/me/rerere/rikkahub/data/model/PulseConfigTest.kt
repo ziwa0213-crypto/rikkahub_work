@@ -113,7 +113,7 @@ class PulseConfigTest {
 
     @Test fun `alarm registration follows its independent switch`() {
         assertFalse(LocalToolOption.Alarm in PulseConfig().toAssistant(Settings()).localTools)
-        val config = PulseConfig(enableInformation = false, enableCalendarCreate = false, enableAlarm = true)
+        val config = PulseConfig(enableInformation = false, enableClientContext = false, enableCalendarCreate = false, enableAlarm = true)
         assertEquals(listOf(LocalToolOption.Alarm), config.toAssistant(Settings()).localTools)
     }
 

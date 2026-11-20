@@ -250,10 +250,13 @@ internal fun FilesPicker(
                         add(AttachmentAction(HugeIcons.Image02, R.string.photo, onPickImage))
                         add(AttachmentAction(HugeIcons.PaintBoard, R.string.sketch, onSketch))
                         val isGoogle = provider is ProviderSetting.Google
-                        if (isGoogle || chatModel?.abilities?.contains(me.rerere.ai.provider.ModelAbility.VIDEO) == true) {
+                        val isLocal = provider is ProviderSetting.LlamaCppLocal
+                        val modalities = chatModel?.inputModalities.orEmpty()
+                        if (isGoogle ||
+                            (isLocal && me.rerere.ai.provider.Modality.VIDEO in modalities)) {
                             add(AttachmentAction(HugeIcons.Video01, R.string.video, onPickVideo))
                         }
-                        if (isGoogle) {
+                        if (isGoogle || (isLocal && me.rerere.ai.provider.Modality.AUDIO in modalities)) {
                             add(AttachmentAction(HugeIcons.MusicNote03, R.string.audio, onPickAudio))
                         }
                         add(AttachmentAction(HugeIcons.Files02, R.string.upload_file, onPickFile))

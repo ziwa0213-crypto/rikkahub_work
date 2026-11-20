@@ -16,6 +16,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.forProviderVideoInput
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
@@ -26,10 +27,12 @@ import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebGuard
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.limitContext
+import me.rerere.llamacpp.LlamaCppProvider
+import me.rerere.llamacpp.LocalModelException
+import me.rerere.llamacpp.LocalModelError
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
-import me.rerere.rikkahub.data.ai.prompts.buildRowMemoryPrompt
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
+import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
@@ -169,6 +172,7 @@ class ChatRequestFactory(
         finishTransform: (UIMessage) -> UIMessage = { it },
         takePendingParts: suspend () -> List<UIMessagePart> = { emptyList() },
         pauseAfterTools: (UIMessage) -> Boolean = { false },
+        onLocalPromptDrops: (List<me.rerere.ai.provider.LocalPromptDrop>) -> Unit = {},
     ): Pair<AgentRequest, AgentHooks> {
         // Approval resumption can start with existing tools, before prepareStep/finishStep run.
         messages.lastOrNull()?.let { validateDeepSeekWebToolCalls(turn.providerSetting, it) }
@@ -188,7 +192,10 @@ class ChatRequestFactory(
         val hooks = object : AgentHooks {
             override suspend fun prepareStep(messages: List<UIMessage>): StepRequest {
                 Log.i(TAG, "prepareStep: ${turn.model.id}")
-                return buildStep(turn, messages, processingStatus)
+                return buildStep(turn, messages, processingStatus).also { step ->
+                    if (turn.providerSetting is ProviderSetting.LlamaCppLocal && step.params.localPromptDrops.isNotEmpty())
+                        onLocalPromptDrops(step.params.localPromptDrops)
+                }
             }
 
             override suspend fun previewStep(message: UIMessage, newPartsFrom: Int) =
@@ -225,11 +232,12 @@ class ChatRequestFactory(
         turn: ChatTurnContext,
         messages: List<UIMessage>,
         compressPrompt: String,
+        maxTokens: Int? = null,
     ): String {
         // 组装请求要把全部历史过一遍输入转换器，长对话要算好几秒：不能放在调用方的主线程上，
         // 这段纯计算里也检查不到取消。放进独立的协程，调用方取消时 await 立刻返回、不用等它算完；
         // 没算完的那份同时被取消，在下一个挂起点停下，最迟在发出请求之前
-        val work = CoroutineScope(Dispatchers.IO).async { requestCompressionSummary(turn, messages, compressPrompt) }
+        val work = CoroutineScope(Dispatchers.IO).async { requestCompressionSummary(turn, messages, compressPrompt, maxTokens) }
         return try {
             work.await()
         } finally {
@@ -241,27 +249,48 @@ class ChatRequestFactory(
         turn: ChatTurnContext,
         messages: List<UIMessage>,
         compressPrompt: String,
+        maxTokens: Int?,
     ): String {
-        val (requestMessages, params) = buildStep(turn, messages.withoutVideoParts())
+        val isLocal = turn.providerSetting is ProviderSetting.LlamaCppLocal
+        val source = if (isLocal) prepareLocalCompressionMessages(messages) else messages
+        val (requestMessages, params) = buildStep(turn, source.withoutVideoParts(),
+            contextMessageLimit = if (isLocal) 0 else turn.assistant.contextMessageLimit)
         // 压缩指令不经过输入转换器，模板转换器会把其中的花括号当成模板语法
         val result = withRetry(
             policy = turn.settings.retryPolicy(),
             onRetry = { Log.w(TAG, "Compression request failed, retrying in ${it.delay}", it.cause) },
         ) {
-            usageRecorder.wrap(
+            if (turn.providerSetting is ProviderSetting.LlamaCppLocal) {
+                usageRecorder.wrap(
+                    localProvider().compressionProvider(CompressionBudgetRules.forLocal(turn.model.contextLength).inputTokens),
+                    UsageTag(UsageSource.COMPRESSION, turn.assistant.id, turn.conversationId),
+                ).generateText(turn.providerSetting, requestMessages + UIMessage.user(compressPrompt), params.copy(maxTokens = maxTokens))
+            } else usageRecorder.wrap(
                 providerManager.getProviderByType(turn.providerSetting),
                 UsageTag(UsageSource.COMPRESSION, turn.assistant.id, turn.conversationId),
             ).generateText(
                 providerSetting = turn.providerSetting,
                 messages = requestMessages + UIMessage.user(compressPrompt),
                 // 助手的输出上限是给聊天回复定的，结构化摘要写不完会被截断；max_tokens 不属于请求前缀，改了不影响缓存
-                params = params.copy(maxTokens = null),
+                params = params.copy(maxTokens = maxTokens),
             )
         }
         val summary = result.message.compressionSummaryOrNull()
             ?: error(context.getString(R.string.chat_page_compress_tool_call_response))
         return summary.ifBlank { error("Failed to generate compressed summary") }
     }
+
+    private fun localProvider() = providerManager.getProvider("local_llamacpp") as LlamaCppProvider
+
+    /** Count the transformed request, system, tool schema and instruction included. */
+    suspend fun fitLocalCompressionWindow(turn: ChatTurnContext, messages: List<UIMessage>, startExclusive: Int,
+        endExclusive: Int, candidate: Int, compressPrompt: String, budget: CompressionBudget): Int =
+        fitCompressionWindow(compressionBoundaries(messages, startExclusive, endExclusive), candidate) { end ->
+            val (input, params) = buildStep(turn, prepareLocalCompressionMessages(messages.take(end)).withoutVideoParts(),
+                contextMessageLimit = 0)
+            localProvider().compressionInputFits(input + UIMessage.user(compressPrompt),
+                params.copy(maxTokens = budget.outputTokens), budget.inputTokens)
+        } ?: throw LocalModelException(LocalModelError.TOO_LONG)
 
     /** Group compression retains its separately selected model and tiered prompt. */
     suspend fun generateGroupCompressionSummary(settings: Settings, conversationId: Uuid, prompt: String): String {
@@ -281,41 +310,25 @@ class ChatRequestFactory(
         turn: ChatTurnContext,
         messages: List<UIMessage>,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
+        contextMessageLimit: Int = turn.assistant.contextMessageLimit,
     ): StepRequest {
         val assistant = turn.assistant
+        val prompt = buildBudgetedSystemPrompt(turn, messages,
+            contextSize = if (turn.providerSetting is ProviderSetting.LlamaCppLocal)
+                localProvider().promptContextSize(turn.model) else turn.model.contextLength)
+        val clientContext = buildClientContext().takeIf { LocalToolOption.ClientContext in assistant.localTools }
+        val latestReminder = usesLatestReminder(turn.providerSetting, turn.model.modelId)
         val requestMessages = buildList {
-            val system = buildString {
-                val effectiveSystemPrompt =
-                    if (assistant.allowConversationSystemPrompt && !turn.conversationSystemPrompt.isNullOrBlank()) {
-                        turn.conversationSystemPrompt
-                    } else {
-                        assistant.systemPrompt
-                    }
-                if (effectiveSystemPrompt.isNotBlank()) {
-                    append(effectiveSystemPrompt)
-                }
-
-                appendPulseInstruction(this, turn.pulseInstruction)
-
-                // 记忆
-                if (assistant.enableMemory) {
-                    appendLine()
-                    append(buildRowMemoryPrompt(turn.rowMemories))
-                    append(buildMemoryPrompt(turn.memories))
-                }
-                // 工具prompt
-                turn.tools.forEach { tool ->
-                    appendLine()
-                    append(tool.systemPrompt(turn.model, messages))
-                }
-            }
+            val system = if (clientContext != null && !latestReminder)
+                prompt.system + "\n\n" + clientContext.toSystemLine() else prompt.system
             if (system.isNotBlank()) {
                 add(UIMessage.system(prompt = system).copy(isSynthetic = true))
             }
-            addAll((if (turn.isGroupChat) messages else messages.limitContext(assistant.contextMessageLimit)).withContinuationHint())
+            val effectiveMessages = messages.forProviderVideoInput(turn.providerSetting)
+            addAll((if (turn.isGroupChat) effectiveMessages else effectiveMessages.limitContext(contextMessageLimit)).withContinuationHint())
         }.transforms(
             transformers = if (turn.isGroupChat) listOf(GroupSpeakerTransformer(
-                assistant.contextMessageLimit, context.getString(R.string.group_quote_reply_prefix)
+                contextMessageLimit, context.getString(R.string.group_quote_reply_prefix)
             )) + inputTransformers else inputTransformers,
             context = context,
             model = turn.model,
@@ -330,7 +343,7 @@ class ChatRequestFactory(
             temperature = assistant.temperature,
             topP = assistant.topP,
             maxTokens = assistant.maxTokens,
-            tools = turn.tools,
+            tools = prompt.tools,
             reasoningLevel = assistant.reasoningLevel,
             customHeaders = buildList {
                 addAll(assistant.customHeaders)
@@ -341,6 +354,8 @@ class ChatRequestFactory(
                 addAll(turn.model.customBodies)
             },
             sessionId = turn.conversationId.toString(),
+            localPromptDrops = prompt.dropped,
+            clientContext = clientContext.takeIf { latestReminder },
         )
         return StepRequest(requestMessages, params)
     }

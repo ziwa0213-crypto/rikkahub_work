@@ -87,7 +87,12 @@ class SshWorkspaceBackend(
             withSftp(area, retry = false) { sftp ->
                 sftp.mkdirs(file.parentPath())
                 val target = if (sftp.statOrNull(file) == null) file else sftp.resolveConflict(file)
-                sftp.put(input, target.sftpQuote(), ChannelSftp.OVERWRITE)
+                try {
+                    sftp.put(input, target.sftpQuote(), ChannelSftp.OVERWRITE)
+                } catch (t: Throwable) {
+                    runCatching { sftp.rm(target.sftpQuote()) }
+                    throw t
+                }
                 sftp.requireStat(target, targetPath).toEntry(relativePath(area, target), target.fileName())
             }
         }

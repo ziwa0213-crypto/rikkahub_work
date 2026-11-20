@@ -20,12 +20,28 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.ChatAttachmentRouter
+import me.rerere.rikkahub.data.files.RoutedAttachment
+import me.rerere.rikkahub.data.files.UPLOAD_PROGRESS_THRESHOLD
+import me.rerere.rikkahub.data.files.toDocument
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.ProviderSetting
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Column
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
-import me.rerere.rikkahub.utils.isAllowedFileType
 import me.rerere.ui.sketch.SketchDialog
 import me.rerere.ui.sketch.SketchResult
 import me.rerere.ui.toast.ToastType
@@ -47,11 +63,77 @@ internal fun rememberChatAttachmentPickerActions(
     inputState: ChatInputState,
     setting: Settings,
     onAttachmentAdded: () -> Unit,
+    workspaceId: String?,
+    provider: ProviderSetting?,
+    model: Model?,
+    onBindWorkspace: () -> Unit,
+    initialUris: List<Uri> = emptyList(),
+    onInitialUrisConsumed: () -> Unit = {},
 ): ChatAttachmentPickerActions {
     val context = LocalContext.current
     val resources = LocalResources.current
     val toaster = LocalToaster.current
     val filesManager: FilesManager = koinInject()
+    val workspaces: WorkspaceRepository = koinInject()
+    val router = remember(context, filesManager, workspaces) { ChatAttachmentRouter(context, filesManager, workspaces) }
+    val scope = rememberCoroutineScope()
+    val uploadState = remember { MutableStateFlow<Triple<String, Long, Long?>?>(null) }
+    val upload by uploadState.collectAsState()
+    var transfer by remember { mutableStateOf<Job?>(null) }
+    var needsWorkspace by remember { mutableStateOf(false) }
+    DisposableEffect(inputState, workspaceId) {
+        onDispose { transfer?.cancel() }
+    }
+    fun routeFiles(uris: List<Uri>) {
+        if (transfer?.isCompleted == false) return
+        transfer = scope.launch {
+            try {
+                for (uri in uris) {
+                    val result = router.route(uri, workspaceId, provider, model) { name, done, total ->
+                        if ((total ?: done) > UPLOAD_PROGRESS_THRESHOLD) uploadState.value = Triple(name, done, total)
+                    }
+                    when (result) {
+                        is RoutedAttachment.ChatPart -> {
+                            inputState.messageContent = inputState.messageContent + result.parts
+                            onAttachmentAdded()
+                        }
+                        is RoutedAttachment.WorkspaceUpload -> {
+                            inputState.addFiles(listOf(result.toDocument(workspaceId)))
+                            onAttachmentAdded()
+                        }
+                        is RoutedAttachment.Rejected -> {
+                            if (result.reason == RoutedAttachment.Reason.NO_WORKSPACE) needsWorkspace = true
+                            else toaster.show(resources.getString(when (result.reason) {
+                                RoutedAttachment.Reason.TOO_LARGE -> R.string.workspace_upload_too_large
+                                RoutedAttachment.Reason.COPY_FAILED -> R.string.workspace_upload_failed
+                                else -> R.string.workspace_upload_unreadable
+                            }), type = ToastType.Error)
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                toaster.show(resources.getString(R.string.workspace_upload_failed), type = ToastType.Error)
+            } finally { uploadState.value = null }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(initialUris) { if (initialUris.isNotEmpty()) { routeFiles(initialUris); onInitialUrisConsumed() } }
+    upload?.let { (name, done, total) ->
+        AlertDialog(onDismissRequest = {}, title = { Text(resources.getString(R.string.workspace_upload_progress)) },
+            text = { Column {
+                Text(name)
+                if (total != null && total > 0) LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) })
+                else LinearProgressIndicator()
+                Text(if (total != null && total > 0) "${(done * 100 / total).coerceIn(0, 100)}%" else "${done / 1048576} MB")
+            } }, confirmButton = {}, dismissButton = {
+                TextButton(onClick = { transfer?.cancel(); uploadState.value = null }) { Text(resources.getString(R.string.cancel)) }
+            })
+    }
+    if (needsWorkspace) AlertDialog(onDismissRequest = { needsWorkspace = false },
+        text = { Text(resources.getString(R.string.workspace_upload_no_workspace)) },
+        confirmButton = { TextButton(onClick = { needsWorkspace = false; onBindWorkspace() }) { Text(resources.getString(R.string.workspace_upload_bind)) } },
+        dismissButton = { TextButton(onClick = { needsWorkspace = false }) { Text(resources.getString(R.string.cancel)) } })
     val cameraPermission = rememberPermissionState(PermissionCamera)
     PermissionManager(permissionState = cameraPermission)
 
@@ -123,8 +205,7 @@ internal fun rememberChatAttachmentPickerActions(
     val videoPickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selectedUris ->
             if (selectedUris.isNotEmpty()) {
-                inputState.addVideos(filesManager.createChatFilesByContents(selectedUris))
-                onAttachmentAdded()
+                routeFiles(selectedUris)
             }
         }
 
@@ -139,35 +220,10 @@ internal fun rememberChatAttachmentPickerActions(
     val filePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             if (uris.isNotEmpty()) {
-                val documents = uris.mapNotNull { uri ->
-                    val fileName = filesManager.getFileNameFromUri(uri) ?: "file"
-                    val mime = filesManager.getFileMimeType(uri) ?: "text/plain"
-                    if (isAllowedFileType(fileName, mime)) {
-                        val localUri = filesManager.createChatFilesByContents(listOf(uri)).firstOrNull()
-                            ?: run {
-                                toaster.show(
-                                    resources.getString(R.string.chat_input_file_read_failed, fileName),
-                                    type = ToastType.Error
-                                )
-                                return@mapNotNull null
-                            }
-                        UIMessagePart.Document(url = localUri.toString(), fileName = fileName, mime = mime)
-                    } else {
-                        toaster.show(
-                            resources.getString(R.string.chat_input_unsupported_file_type, fileName),
-                            type = ToastType.Error
-                        )
-                        null
-                    }
-                }
-                if (documents.isNotEmpty()) {
-                    inputState.addFiles(documents)
-                    onAttachmentAdded()
-                }
+                routeFiles(uris)
             }
         }
 
-    val scope = rememberCoroutineScope()
     var showSketch by remember { mutableStateOf(false) }
     if (showSketch) {
         SketchDialog(

@@ -178,7 +178,7 @@ private fun SearchPicker(
     val navBackStack = LocalNavController.current
 
     val provider = model?.findProvider(settings.providers)
-    val supportsBuiltInSearch = provider?.supportsBuiltInSearch == true
+    val supportsBuiltInSearch = provider?.supportsBuiltInSearch(model) == true
     val currentMode = searchModeOf(enableSearch, model)
     // 模型支持内置搜索，或已开启内置搜索（后者保证残留状态也能被关闭）时显示模型搜索选项
     val showModelSearch = model != null && (supportsBuiltInSearch || currentMode == SearchMode.BUILT_IN)

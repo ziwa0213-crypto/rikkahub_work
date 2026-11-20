@@ -9,6 +9,8 @@ import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.sum
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.provider.LocalPromptDrop
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.StreamChunkHandler
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
@@ -89,7 +91,11 @@ internal class AgentLoop(
         appendPendingParts()
         val current = message
         val step = hooks.prepareStep(if (current == null) history else history + current)
-        val params = step.params.copy(tools = request.tools)
+        // The request retains executable tools for approval resumption, but a local
+        // prompt-budget decision must also survive this per-step schema injection.
+        val params = step.params.copy(tools =
+            if (request.providerSetting is ProviderSetting.LlamaCppLocal &&
+                LocalPromptDrop.TOOLS in step.params.localPromptDrops) emptyList() else request.tools)
         // 只带着追加内容创建的消息还没有模型 id
         val base = current?.let { it.copy(modelId = it.modelId ?: params.model.id) } ?: UIMessage(
             role = MessageRole.ASSISTANT,

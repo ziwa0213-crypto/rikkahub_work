@@ -3,6 +3,7 @@ package me.rerere.workspace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -14,6 +15,28 @@ class LocalWorkspaceBackendTest {
     val tempFolder = TemporaryFolder()
 
     private val root = "test-workspace"
+
+    @Test fun failedOrCancelledUploadDeletesOnlyItsNewPartialFile() {
+        val (manager, _) = createManager()
+        val backend = manager.backend(root)
+        backend.writeText("uploads/demo.zip", "original", true)
+        for (failure in listOf(java.io.IOException("read failed"), java.util.concurrent.CancellationException("cancelled"))) {
+            val source = object : java.io.InputStream() {
+                var first = true
+                override fun read(): Int = throw failure
+                override fun read(bytes: ByteArray, off: Int, len: Int): Int {
+                    if (!first) throw failure
+                    first = false; bytes[off] = 42; return 1
+                }
+            }
+            assertThrows(failure.javaClass) { backend.importFile(WorkspaceStorageArea.FILES, "uploads", "demo.zip", source) }
+            assertEquals("original", backend.readText("uploads/demo.zip"))
+            assertEquals(listOf("demo.zip"), backend.listFiles(WorkspaceStorageArea.FILES, "uploads").map { it.name })
+        }
+        val imported = backend.importFile(WorkspaceStorageArea.FILES, "uploads", "demo.zip", "new".byteInputStream())
+        assertEquals("uploads/demo (1).zip", imported.path)
+        assertEquals("new", backend.readText(imported.path))
+    }
 
     private fun createManager(shellRunner: WorkspaceShellRunner = HostShellRunner()): Pair<WorkspaceManager, File> {
         val skillsDir = tempFolder.newFolder("skills")

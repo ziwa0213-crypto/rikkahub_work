@@ -11,6 +11,8 @@ import me.rerere.document.EpubParser
 import me.rerere.document.PdfParser
 import me.rerere.document.PptxParser
 import java.io.File
+import me.rerere.rikkahub.data.files.isTextReadable
+import me.rerere.rikkahub.data.files.unopenedUploadPrompt
 
 object DocumentAsPromptTransformer : InputMessageTransformer {
     override suspend fun transform(
@@ -24,6 +26,10 @@ object DocumentAsPromptTransformer : InputMessageTransformer {
                         val documents = filterIsInstance<UIMessagePart.Document>()
                         if (documents.isNotEmpty()) {
                             documents.forEach { document ->
+                                if (document.url.startsWith("/") || !isTextReadable(document.mime, document.fileName)) {
+                                    add(0, UIMessagePart.Text(unopenedUploadPrompt(document, resolveWorkspacePath(document))))
+                                    return@forEach
+                                }
                                 val content = readDocumentContent(document)
                                 val path = resolveWorkspacePath(document)
                                 val pathAttr = path?.let { " path=\"$it\"" } ?: ""
@@ -62,6 +68,7 @@ object DocumentAsPromptTransformer : InputMessageTransformer {
     // 上传文件保存在 filesDir/upload 下, 该目录通过 proot 挂载到 workspace 的 /upload
     // 返回文件在 workspace 内的绝对路径, 便于 AI 用 workspace 工具直接读取原始文件
     private fun resolveWorkspacePath(document: UIMessagePart.Document): String? {
+        if (document.url.startsWith("/")) return document.url
         val file = runCatching { document.url.toUri().toFile() }.getOrNull() ?: return null
         if (file.parentFile?.name != "upload") return null
         return "/upload/${file.name}"

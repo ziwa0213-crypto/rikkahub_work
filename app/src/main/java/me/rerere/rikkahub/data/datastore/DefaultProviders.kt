@@ -331,4 +331,5 @@ val DEFAULT_PROVIDERS = listOf(
         enabled = true,
         builtIn = true,
     ),
+    ProviderSetting.LlamaCppLocal(),
 )

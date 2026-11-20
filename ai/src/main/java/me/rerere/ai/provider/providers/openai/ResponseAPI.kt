@@ -35,6 +35,7 @@ import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.provider.BuiltInTools
+import me.rerere.ai.provider.providers.isDeepSeekDialect
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
@@ -247,13 +248,15 @@ class ResponseAPI(
         messages: List<UIMessage>,
         params: TextGenerationParams,
         stream: Boolean,
-    ): JsonObject = buildRequestBody(providerSetting.toResponsesEndpoint(params).capabilities, messages, params, stream)
+    ): JsonObject = buildRequestBody(providerSetting.toResponsesEndpoint(params).capabilities, messages, params, stream,
+        deepSeek = isDeepSeekDialect(providerSetting.baseUrl.toHttpUrl().host, params.model.modelId))
 
     internal fun buildRequestBody(
         capabilities: ResponseProviderCapabilities,
         messages: List<UIMessage>,
         params: TextGenerationParams,
-        stream: Boolean
+        stream: Boolean,
+        deepSeek: Boolean = false,
     ): JsonObject {
         val useFunctionTools = params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
         return buildJsonObject {
@@ -334,11 +337,15 @@ class ResponseAPI(
                         when (builtInTool) {
                             BuiltInTools.Search -> {
                                 add(buildJsonObject {
-                                    put("type", "web_search")
+                                    put("type", if (deepSeek || isDeepSeekDialect("", params.model.modelId)) "deepseek_web_search" else "web_search")
                                 })
                             }
 
                             BuiltInTools.UrlContext -> {} // not supported
+
+                            BuiltInTools.ReadUrl -> if (deepSeek || isDeepSeekDialect("", params.model.modelId)) {
+                                add(buildJsonObject { put("type", "deepseek_read_url") })
+                            }
 
                             BuiltInTools.ImageGeneration -> {
                                 add(buildJsonObject {

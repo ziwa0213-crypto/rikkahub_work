@@ -1,10 +1,74 @@
 # Repository Guidelines
 
+## 个人构建工具与源码归档（2026-11-20，优先于下方历史打包口径）
+
+- 维护者本次明确授权代理生成源码 ZIP，供维护者自行推送；不重新构建 APK、不提交或推送。后续日常仍由维护者自行构建。
+- 桌面菜单及配套工具仅供维护者个人使用，源码 ZIP 固定排除 tools 下的 build-delivery.sh、collect-delivery-apks.mjs、package-delivery-source.mjs、summarize-delivery-tests.mjs、test-build-delivery.mjs、BUILDING.md，以及历史 package-local-release.mjs、summarize-jvm-tests.mjs。保留本机文件，不整目录排除 tools；Gradle wrapper、CI 和其他项目工具照常归档。
+- 六个新增个人工具文件由本机 `.git/info/exclude` 忽略，避免普通 git add 误收；历史已跟踪文件不改 Git 状态。源码根必须含 DELIVERY.md，继续保留既有 native 依赖与 llama.cpp 固定指针/恢复说明，排除凭据、缓存和权重。
+
+## 构建堆内存（2026-11-20）
+
+- 桌面构建脚本沿用工程/用户 Gradle 的 `org.gradle.jvmargs`，不得再以固定 2560m 覆盖。当前工程 `gradle.properties` 为 `-Xmx8g`；正式三变体压缩曾因脚本压低堆上限在 packageGithubRelease / ApkFlinger 抛 Java heap space。保留单 worker 与构建矩阵；代理不擅自重跑 APK 打包。
+
+## 构建版本输入（2026-11-20，覆盖旧脚本直接读版本及只填版本名的口径）
+
+- 维护者自行构建时，桌面菜单选 Release / Debug 后弹出 `x.x.x-work.x/xxx` 输入框，同时填写 versionName / versionCode；下次默认预填上次确认的完整内容，状态放 `.gradle/delivery-last-version.txt`，不进入源码包。确认后同步更新工程两个字段，不另行自动递增；APK和源码内版本必须一致。旧状态只有版本名时补工程当前versionCode。取消不得修改工程或启动构建。
+- 代理本轮仅修改/验证构建工具与文档，不主动生成应用 APK / 源码归档。Release 三变体、Debug 单 ARM64、两者根含 DELIVERY 的规则保持。
+
+## 当前批次与长期交付方式（2026-11-20，F022 / F021）
+
+- 维护者最新指令：以后由维护者自行构建 APK 与源码 ZIP；代理完成代码、适当编译/单测检查并更新根 DELIVERY.md，不自动执行 assemble 或生成交付归档。此指令覆盖本包及历史 APK/ZIP 交付要求。桌面 TUI 的 Release 三变体 / Debug 单 ARM64 与两者附源码的规则保留；打包脚本必须包含 DELIVERY.md。
+- 本包先 F022，再 F021；各批单独完成 Kotlin 编译检查，不混批。保持3.3.0-work.1 / 207、DB34，不commit/tag/push/发布、不操作真实账号或设备。
+- F022：ReadUrl 独立内置开关；服务端工具声明仅 DeepSeek 方言，F007 hasTools/reasoning 回传守卫不改。latest_reminder仅DeepSeek Chat Completions，逐user使用消息日期；其他协议进system。新配置默认开，旧JSON不得被默认值静默开启；ClientContext不是Tool。
+- F021：Markdown复用MarkdownBlock，保留聊天绝对图及外链行为；HTML资源只由虚拟HTTPS源拦截读取，默认禁脚本，禁file/content及外网，canonical路径限制在文档目录。大于1MiB只源码；FILES保存与LINUX只读保持。实际resolveFile仅返回文件，不能照抄任务书将其作为目录解析。
+
+## 本机构建入口（2026-11-20）
+
+- 维护者要求桌面 TUI 自助构建：`tools/build-delivery.sh` 无参数打开菜单，或显式传 `release|debug`。Release 固定交付 ARM64/x86_64/Universal 三个 GitHub APK；Debug 仅 ARM64；两种都生成精简源码 ZIP。此为新的构建工具约定，覆盖以下历史“只提供 Release”的脚本口径。
+- 实时日志和末尾产物/测试/耗时摘要在独立 artifacts 目录保存；完整 JVM 单测失败停止，Lint 结果单列且不得误报通过。源码根含 DELIVERY，排除凭据/缓存/llama.cpp 实际子模块内容，保留恢复说明与原有 native 依赖。
+- 本批只验证构建工具，不主动重新构建应用、不改版本或产品行为、不提交/推送/发布。使用方式见 `tools/BUILDING.md`。
+
+## 当前批次：F020补充五与六（2026-11-18）
+
+- 保持 `3.3.0-work.1 / 207`、DB34；承接补充四。沿用维护者最新交付范围：仅 ARM64 GitHub Release APK 与根含 `DELIVERY.md` 的精简源码 ZIP，不生成 Debug，不自动 commit/tag/push/发布，不操作设备、真实账号或下载模型权重。
+- 补充五：本地提示预算降级状态只存在进程内、按会话提供给 UI；不进 StreamChunk/数据库/下一轮上下文。关闭以空集合标记同会话已关闭，直到进程结束；切换会话不清状态。媒体降级正文不动。`<think>`/`<thinking>` 兜底只在原 reasoning 缺失/为空时运行，避免 fenced/inline code；原生 reasoning、工具字段及 StreamChunk/消息数据结构保持。
+- 补充六：llama.cpp 固定 pin `b1b770d9…` 与子模块不修改。显式 `enableLocalGpu=false`；CPU 设置传 `n_gpu_layers=0` 和空 device 列表，保留原 CPU 执行路径。GPU 设置只选 Vulkan GPU/iGPU 并请求99层。模型或上下文加载失败时释放GPU半成品、最多回退CPU一次；取消不触发回退，设置不被回写。内存融合、ContextPlanner、提示预算不改。
+- 固定 pin 实际使用 `GGML_VULKAN`、Vulkan CMake `glslc` component 与 `SPIRV-Headers::SPIRV-Headers`，已独立配置验证。主机需要 glslc、Vulkan 开发头与 SPIR-V headers；CMake可经 `LLAMA_GLSLC`、`LLAMA_VULKAN_INCLUDE_DIR`、`LLAMA_SPIRV_HEADERS_DIR` 指定本机位置。不得以关闭 Vulkan 绕过工具链错误。
+- `vulkan-android.cmake` 在构建目录生成 Android 兼容的 Vulkan 源文件，3 处特性查询走运行时 dispatch，入口缺失由现有 CPU 回退处理。JNI 只在显式 GPU 加载时注册 Vulkan 后端，minSdk 26。
+- 主要落点为 `LocalPromptNoticeStore`、ChatService/ChatRequestFactory登记、ChatPage提示条、`InlineThinking` 与 llama JNI/runtime Vulkan开关。AGPL更新记入 CHANGES；本轮文件映射、构建/包体、toolchain、待维护者实测与回滚边界见根 `DELIVERY.md` 和 `docs/f020-supplement5-6-change-map.md`。
+- `test :app:assembleGithubRelease` 成功（9 分 20 秒）。279 套件、1,872 项，1,870 通过、2 缺语料跳过，最终调用复用了最新 JVM 报告。APK 31,913,762 bytes，原签名、ARM64、207、原图标、三语、21 JNI 出口和推理库 16 KiB 对齐均通过。A1–A6、B1–B5 及 G2–G8 真机待验。
+
+## 当前批次：F020补充四提示预算（2026-11-18，覆盖旧默认16K口径）
+
+- 保持3.3.0-work.1 / 207、DB34。读完补充四00/01；随包02-AGENTS与改前本地一致。维护者最新要求仍为ARM64 GitHub Release与根含DELIVERY的精简源码，不生成Debug APK，不commit/tag/push/发布。
+- 只给withLocalModels中新导入模型默认8192，已存contextLength及Settings/Model/Assistant字段不改。本地按字符/3估算system+工具schema，超过输入55%先省略工具及其systemPrompt/技能列表，仍超过75%再省略两类记忆；不截断人格或原消息，不存估算。
+- 实际StepRequest在ai模块且AgentLoop会重新注入request.tools，故以TextGenerationParams的@Transient localPromptDrops携带当轮决定，AgentLoop仅对LlamaCppLocal的TOOLS标志保留空schema；原执行/审批恢复表保留。API的system字节、工具注入与请求体必须保持。
+- Provider将两类省略提示与现有媒体提示合并为一段；预算优先用同名Ready模型真实窗口。TOO_LONG失败时才额外计原始system/schema/history，保留nCtx/input并显示未知为?；正常token/usage仍由模板真实计数决定。
+- 线程为cores.coerceIn(2,6)，n_batch/ubatch512及CPU/F16保持，日志包含threads。已有local_llm_context_hint更新并共用，三语新增3key而非重复新增4key。没有KV量化、GPU、第二引擎或ChatToolFactory改动。
+- 参考固定rikkahub-agent的ContextPlanner/Provider分请求预算与系统计数边界，不引入其量化/内存缩窗/懒加载。Kai/PalmClaw保留，不改脉搏调度。交付在artifacts/3.3.0-work.1/f020-supplement4-release-20261118，真机/UI/真实GGUF速度待维护者验证。
+- 最终定向成功1分5秒；完整test/Release成功7分54秒，277套件1862项中1860通过、2缺语料跳过，含缓存复用。APK21,688,525 bytes，207/原签名/非debuggable/ARM64/原21图标/2703三语key/21JNI及16KiB ELF通过；源码相对补充三5增23改0删，根含DELIVERY，最终归档大小/哈希以包外JSON为准。
+
+## 当前批次：F020补充三（2026-11-18，优先于历史状态）
+
+- 固定3.3.0-work.1 / 207、DB34；按A/B→C→D/E/F实施，G独立。维护者最新要求覆盖任务书Debug口径，本轮只交ARM64 GitHub Release与含根DELIVERY的精简源码，不commit/tag/push/发布，不操作设备/账号或下载权重。旧Release不覆盖。
+- 胶囊为页面内内容，禁止恢复Popup/写死高度；只一处按inputHeightPx定位，玻璃输入框底部对齐仍保留。
+- nCtx不受availMem夹制；min(训练上限,用户设置,16384)及既有512地板保留。F16/默认16K不改；fileBytes/4热页与逐层KV数组只用于估算，createContext=0报MEMORY，TOO_LONG带真实nCtx/input。
+- Model唯一新增chatTemplate:String?=null，自动/ChatML/Llama3/Gemma/自定义；无模板警告不拦加载，不擅自增加LFM预设。正常终局无正文或有效工具报EMPTY_OUTPUT，取消不抛；无界流与每token重解析保持。
+- 视频直传仅Google或本地VIDEO输入模态，其他历史视频只改请求副本为[视频]。旧ModelAbility.VIDEO/UIMessagePart.Video不可删，去UI开关和标签但保兼容路由字段。
+- 非聊天附件存FILES/uploads/日期，单个2GiB，重名不覆盖，200MiB以上进度与取消。无工作区先提示且不落盘、保文字草稿；Document.url以/开头、metadata记录workspace_id/size，不读取二进制全文、不进聊天附件备份、不改cleanupTempDirs。
+- 为取消清半文件，允许FilesManager/WorkspaceFileSystem/SshWorkspaceBackend最小异常收尾，保旧文件；GGUF扫描只读有界metadata。不要照抄任务书不存在的路由/entry字段或把SSH的resolveFile(null)当文件不存在。
+- 长按本地模型恢复默认供应商配置，手动模型卡编辑保留。仅values/values-zh/values-zh-rTW及原21身份图标；设备视觉/真实权重/升级验收未做时必须写待验。
+- 本批全模块test与内部Debug检查成功4分22秒，最终按用户要求仅交Release（5分41秒成功）。去重1846项中1844通过、2缺语料跳过；ARM64 APK21,683,929 bytes，原签名/207/非debuggable/21原图标/三语2700key/21JNI及16KiB ELF核验通过，真机/权重待验。最终目录artifacts/3.3.0-work.1/f020-supplement3-release-20261118；源码8新增46修改，无删除，压缩包根含DELIVERY。
+
 ## 当前批次：合并3.3.0后实施F020（2026-11-17）
 
 - 上游3.3.0固定eb33917e483aae1427db9cb10232642a640d2986，合并独立提交后才开始F020。合并阶段不出包；最终统一交付3.3.0-work.1 / 207、ARM64 GitHub Release APK、精简源码ZIP及根DELIVERY.md。无自动推送或发布授权。
 - DB34保留fork表与工作区归属，33.json不可变。群组自动压缩统一上游全局入口；七个旧Group自动压缩字段按本次明确要求移除，JSON已配置ignoreUnknownKeys，手动压缩与分层摘要保留。
 - F020以合并后的3.3.0/DB34为基线，旧任务书206/DB33口径作废。使用rikkahub-agent参考与固定llama.cpp v1.0.0，权重不随APK/源码分发。真实模型与设备功能未测试时必须如实写明。
+- F020实现与完整JVM测试已完成：270套件1806项，1804通过、2项缺语料跳过；最终test有UP-TO-DATE复用。安装/模板流式/工具回放/取消/上下文及设置兼容有离线证据，不代表真实权重和手机验收。
+- 最终交付仅ARM64签名Release与根含DELIVERY的精简源码，目录artifacts/3.3.0-work.1/upstream-f020-release-20261117/。可用-Prikkahub.abi=arm64-v8a限制本次构建，默认双架构支持仍保留；不构建Debug APK。
+- llama.cpp指针固定b1b770d90d94cad9e9ea5b993bdbc383a522fb28，源码ZIP排除其实际内容，以.gitmodules及llama-cpp/native/llama.cpp.commit/README恢复；构建必须先补齐。F020保持工作区增量，不自动提交/推送/发布，不下载权重或操作设备/真实账号。
+- 最终Release构建19分7秒成功；唯一ARM64 APK为21,633,765 bytes，207/原正式证书/非debuggable/三语/原图标/WASM/CRC及七个推理so的16KB对齐和20个JNI导出均通过。本批源码1871项含根DELIVERY、两个软链；最终ZIP大小和哈希只记包外核验文件。
 
 ## 当前源码同步准备（2026-11-17，3.2.0-work.3 / 206）
 
@@ -912,3 +976,15 @@ Material 3 look (cards with dividers, plain forms).
 - `:app:compileDebugKotlin` 与 `:app:testDebugUnitTest` 已通过；本批再执行一次 `:app:assembleDebug`。只交付 ARM64 Debug APK 和不含 APK 的完整源码 ZIP。
 - 不提交、不打 tag、不推送、不发布、不操作设备或真实账号。设备交互、DeepSeek 登录白屏诊断、系统浏览器出口及视觉一致性由维护者安装 APK 后验证。
 - `liquidglass/.../LiquidGlassView.java` 的 fork 补丁已登记到 `FEATURES.md` 的上游升级需重做清单；仓库没有 `DEVELOPMENT.md`，不创建替代文件。
+
+## F020后续当前约定（2026-11-18，优先于上述历史状态）
+
+- 本批保持3.3.0-work.1 / 207、DB34，承接655f8517上的F020增量。先显式加载及Release Kotlin编译，再短上下文压缩；最终ARM64签名GitHub Release及精简源码ZIP，根含DELIVERY。旧交付保留；不自动commit/push/tag/发布。
+- Runtime四态与三阶段、withReady不加载/重载、整轮mutex及finally消费pendingUnload；前台取消待卸载。后台30秒仅通知、用户点才卸载，脉搏会用时保留，无权限静默。无加载取消和群组胶囊；普通/玻璃单聊及脉搏胶囊共用同一加载协调器。
+- 长按本地模型直达模型表单，API分支不改；仅本地1..16 K输入。模态由用户配置与实际引擎支持取交集，探测不得写Settings。物理内存只警告，availMem只规划上下文到512，F16/默认16K保持；下载空间不足在.part创建前拒绝。
+- 唯一新增持久字段为设备级Settings.enableMemoryFusion=false；仅为上下文加min(SwapTotal/8,1GiB)，不进入物理内存门禁。三语完整说明，swap不可读/为0时禁用，记录Fusion及每轮ctx/VmSwap诊断。
+- 同一insertCompressionCheckpoint按本地分1500/300、3000/500、6000/800、12000/1200预算及.65/.70/.75/.80阈值。按完整用户轮切窗、旧checkpoint计入、被替代历史不再计入；实际模板计数校验全部system/tools/prompt，压缩禁止底层静默裁历史，无法放入一整轮则失败不写checkpoint。一次只压一段，检查点插在windowEnd-1。
+- API压缩全量输入、maxTokens=null、全局阈值、无字符估算/规则裁剪/长度限制保持；任务书params.maxTokens兜底示例不采用。16K阈值采用档表与C9的.75，C5写.7是文档矛盾。Usage来自native真实计数，释放applied前完成、Finish前发送，不改merge/sum，不持久化估算。
+- 参考项目外rikkahub-agent固定a88f5854，llama.cpp固定b1b770d9且无源码修改；Kai/PalmClaw保留，不改脉搏调度。原21应用图标、仅三语与F004/F007/F009保持。
+- 新产物目录artifacts/3.3.0-work.1/f020-followup-release-20261118/。源码排除产物/缓存/权重/凭据/实际llama.cpp，但须包含已有被Git跟踪的libsimple/proot六个jniLibs依赖；旧归档对.so的一刀切排除不再沿用。模型/手机/截图没有实测时必须标待验。
+- 最终完整test/Release成功17分16秒；273套件1828项，1826通过/2缺语料跳过，含UP-TO-DATE复用。ARM64 APK21,668,645 bytes，原签名/207/非debuggable/三语2683key/原图标/WASM/CRC/native16KB与20JNI出口核验通过；最终源码集合与哈希记包外JSON。

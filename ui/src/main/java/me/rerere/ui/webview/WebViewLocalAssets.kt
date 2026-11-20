@@ -33,24 +33,10 @@ internal object WebViewLocalAssets {
         return runCatching {
             WebResourceResponse(
                 mimeType,
-                if (mimeType.startsWith("text/") || mimeType.endsWith("json") || mimeType.endsWith("xml")) "UTF-8" else null,
+                if (isTextualMime(mimeType)) "UTF-8" else null,
                 context.assets.open(assetPath)
             )
         }.getOrNull()
     }
 
-    private fun mimeTypeOf(path: String): String = when (path.substringAfterLast('.', "").lowercase()) {
-        "js", "mjs" -> "text/javascript"
-        "css" -> "text/css"
-        "html", "htm" -> "text/html"
-        "json" -> "application/json"
-        "svg" -> "image/svg+xml"
-        "png" -> "image/png"
-        "jpg", "jpeg" -> "image/jpeg"
-        "webp" -> "image/webp"
-        "woff2" -> "font/woff2"
-        "woff" -> "font/woff"
-        "ttf" -> "font/ttf"
-        else -> "application/octet-stream"
-    }
 }

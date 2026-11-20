@@ -10,6 +10,14 @@ import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import me.rerere.ai.provider.ProviderManager
+import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.Modality
+import me.rerere.llamacpp.LocalModelStore
+import me.rerere.llamacpp.LlamaCppRuntime
+import me.rerere.llamacpp.LlamaCppProvider
+import me.rerere.llamacpp.LlamaCppInstall
+import me.rerere.rikkahub.data.ai.withLocalModels
+import me.rerere.rikkahub.R
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.mediagen.provider.MediaGenerationManager
 import me.rerere.rikkahub.AppScope
@@ -254,8 +262,30 @@ val dataSourceModule = module {
         )
     }
 
+    single { LocalModelStore(get()) }
+    single { LlamaCppRuntime(get(), get()) }
+    single { me.rerere.rikkahub.service.LocalModelIdleWatcher(get(), get(), get(), get()) }
     single {
-        ProviderManager(client = get(), context = get(), accountCredentials = get<ProviderAccountManager>())
+        val settings = get<SettingsStore>()
+        LlamaCppInstall(get(), get(), get(), get()) { models ->
+            settings.awaitLoaded()
+            settings.update { it.withLocalModels(models) }
+        }
+    }
+    single {
+        val context = get<Context>()
+        val settings = get<SettingsStore>()
+        ProviderManager(client = get(), context = context, accountCredentials = get<ProviderAccountManager>()).also { manager ->
+            manager.registerProvider("local_llamacpp", LlamaCppProvider(context, get(), get(), notice = { key ->
+                context.getString(when (key) {
+                    "vision_failed" -> R.string.local_llm_vision_failed
+                    "audio_truncated" -> R.string.local_llm_audio_truncated
+                    "tools_dropped" -> R.string.local_llm_notice_tools_dropped
+                    "memory_dropped" -> R.string.local_llm_notice_memory_dropped
+                    else -> R.string.local_llm_unsupported
+                })
+            }))
+        }
     }
 
     single { BackupManager(context = get(), database = get(), settingsStore = get(), json = get()) }
