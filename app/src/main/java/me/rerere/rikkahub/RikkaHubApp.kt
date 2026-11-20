@@ -26,7 +26,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import me.rerere.common.android.appTempFolder
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
-import me.rerere.rikkahub.data.ai.migrateAwayFromLocalModels
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
@@ -60,7 +59,6 @@ const val PULSE_RUN_NOTIFICATION_CHANNEL_ID = "pulse_run"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 const val MEDIA_CREATION_NOTIFICATION_CHANNEL_ID = "media_creation"
 const val MEMORY_DREAM_NOTIFICATION_CHANNEL_ID = "memory_dream"
-const val LOCAL_MODEL_NOTIFICATION_CHANNEL_ID = "local_model"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
@@ -85,17 +83,6 @@ class RikkaHubApp : Application() {
             modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
         }
         this.createNotificationChannel()
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching {
-                val settingsStore = get<SettingsStore>()
-                settingsStore.awaitLoaded()
-                settingsStore.update { it.migrateAwayFromLocalModels() }
-            }.onFailure { Log.e(TAG, "Local model reference migration failed", it) }
-        }
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching { get<me.rerere.llamacpp.LlamaCppInstall>().repair() }
-                .onFailure { Log.e(TAG, "Local model index repair failed", it) }
-        }
 
         // set cursor window size to 32MB
         DatabaseUtil.setCursorWindowSize(32 * 1024 * 1024)
@@ -276,10 +263,6 @@ class RikkaHubApp : Application() {
 
     private fun createNotificationChannel() {
         val notificationManager = NotificationManagerCompat.from(this)
-        notificationManager.createNotificationChannel(NotificationChannelCompat
-            .Builder(LOCAL_MODEL_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-            .setName(getString(R.string.local_llm_title)).setVibrationEnabled(false).setSound(null, null)
-            .setShowBadge(false).build())
         val chatCompletedChannel = NotificationChannelCompat
             .Builder(
                 CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID,

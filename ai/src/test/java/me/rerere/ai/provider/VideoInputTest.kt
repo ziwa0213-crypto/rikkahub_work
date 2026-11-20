@@ -8,23 +8,17 @@ import org.junit.Test
 import kotlin.uuid.Uuid
 
 class VideoInputTest {
-    @Test fun onlyGoogleAndLocalKeepOriginalVideoAndOtherProvidersKeepMetadataInRequestCopies() {
+    @Test fun onlyGoogleKeepsOriginalVideoAndOtherProvidersKeepMetadataInRequestCopies() {
         val original = UIMessage(role = MessageRole.USER, parts = listOf(
             UIMessagePart.Text("before"), UIMessagePart.Video("private-video"), UIMessagePart.Audio("audio")),
             translation = "retained", stepCount = 3, isSynthetic = true)
         val messages = listOf(original)
-        for (provider in listOf(ProviderSetting.Google(), ProviderSetting.LlamaCppLocal())) {
-            assertSame(messages, messages.forProviderVideoInput(provider))
-        }
+        assertSame(messages, messages.forProviderVideoInput(ProviderSetting.Google()))
         for (provider in listOf(ProviderSetting.OpenAI(), ProviderSetting.Claude(), ProviderSetting.DeepSeekWeb())) {
             val result = messages.forProviderVideoInput(provider).single()
             assertEquals(original.copy(parts = listOf(original.parts[0], UIMessagePart.Text("[视频]"), original.parts[2])), result)
         }
         assertTrue(original.parts[1] is UIMessagePart.Video)
-    }
-    @Test fun localVideoReachesFrameDecoderWithoutNativeVideoAbility() {
-        validateVideoInput(ProviderSetting.LlamaCppLocal(), Model(), listOf(UIMessage(
-            role = MessageRole.USER, parts = listOf(UIMessagePart.Video("file:///video.mp4")))))
     }
     @Test fun textOnlyMessagesRetainTheirInstances() {
         val messages = listOf(UIMessage.user("hello"), UIMessage.assistant("world"))

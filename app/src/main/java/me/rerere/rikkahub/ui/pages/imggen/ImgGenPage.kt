@@ -102,7 +102,6 @@ import me.rerere.hugeicons.stroke.Tools
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.data.files.FileUtils
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
@@ -417,7 +416,7 @@ private fun InputBar(
         ) {
             ModelSelector(
                 modelId = settings.imageGenerationModelId,
-                providers = settings.uiProviders,
+                providers = settings.providers,
                 type = ModelType.IMAGE,
                 onlyIcon = true,
                 onSelect = { model ->

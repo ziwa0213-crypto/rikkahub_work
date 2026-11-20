@@ -35,7 +35,6 @@ import me.rerere.hugeicons.stroke.Translate
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.ui.components.ai.ModelField
 import me.rerere.rikkahub.ui.components.ai.ModelListSheet
 import me.rerere.rikkahub.ui.components.ai.ModelListState
@@ -128,27 +127,27 @@ private fun ModelSettingsPage(settings: Settings, vm: SettingVM, contentPadding:
     // CardGroup 里放不了弹窗，各项的选择状态先在这里建好，弹窗统一放在列表后面
     val chatModel = rememberModelListState(
         modelId = settings.chatModelId,
-        providers = settings.uiProviders,
+        providers = settings.providers,
         type = ModelType.CHAT,
     )
     val fastModel = rememberModelListState(
         modelId = settings.fastModelId,
-        providers = settings.uiProviders,
+        providers = settings.providers,
         type = ModelType.CHAT,
     )
     val memoryModel = rememberModelListState(
         modelId = settings.memoryModelId,
-        providers = settings.uiProviders,
+        providers = settings.providers,
         type = ModelType.CHAT,
     )
     val translateModel = rememberModelListState(
         modelId = settings.translateModeId,
-        providers = settings.uiProviders,
+        providers = settings.providers,
         type = ModelType.CHAT,
     )
     val ocrModel = rememberModelListState(
         modelId = settings.ocrModelId,
-        providers = settings.uiProviders,
+        providers = settings.providers,
         type = ModelType.CHAT,
     )
 

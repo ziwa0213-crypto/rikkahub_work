@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import me.rerere.ai.provider.ModelType
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.GroupMember
 import me.rerere.rikkahub.data.model.GroupMemberRef
@@ -149,7 +148,7 @@ fun NewMemberDialog(settings: Settings, initial: GroupMember, onDismiss: () -> U
             }
             FormItem(label = { Text(stringResource(R.string.group_model)) },
                 description = { Text(stringResource(R.string.assistant_page_chat_model_desc)) }) {
-                ModelSelector(member.chatModelId, settings.uiProviders, ModelType.CHAT,
+                ModelSelector(member.chatModelId, settings.providers, ModelType.CHAT,
                     onSelect = { member = member.copy(chatModelId = it.id) })
             }
             FormItem(label = { Text(stringResource(R.string.group_prompt)) }) {

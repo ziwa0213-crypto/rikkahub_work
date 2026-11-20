@@ -85,8 +85,6 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         json(DISPLAY_SETTING, Settings::displaySetting) { copy(displaySetting = it) },
         json(NETWORK_SETTING, Settings::networkSetting) { copy(networkSetting = it) },
         plain(DEVELOPER_MODE, Settings::developerMode) { copy(developerMode = it) },
-        plain(ENABLE_MEMORY_FUSION, Settings::enableMemoryFusion) { copy(enableMemoryFusion = it) },
-        plain(ENABLE_LOCAL_GPU, Settings::enableLocalGpu) { copy(enableLocalGpu = it) },
 
         // 模型选择
         json(FAVORITE_MODELS, Settings::favoriteModels) { copy(favoriteModels = it) },
@@ -124,7 +122,13 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         plain(AUTO_COMPRESS_THRESHOLD, Settings::autoCompressThreshold) { copy(autoCompressThreshold = it) },
 
         // 提供商
-        json(PROVIDERS, Settings::providers) { copy(providers = it) },
+        SettingsField(
+            PROVIDERS,
+            Settings::providers,
+            { copy(providers = it) },
+            encode = { JsonInstant.encodeToString(ProviderListCompatSerializer, it) },
+            decode = { JsonInstant.decodeFromString(ProviderListCompatSerializer, it) },
+        ),
 
         // 助手
         uuid(SELECT_ASSISTANT, Settings::assistantId) { copy(assistantId = it) },

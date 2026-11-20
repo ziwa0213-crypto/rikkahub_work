@@ -182,7 +182,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel(), initial
     val settings by vm.settings.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val provider = settings.providers.find { it.id == id } ?: return
-    val tabs = if (provider is ProviderSetting.LlamaCppLocal) listOf(ProviderDetailTab.CONFIG, ProviderDetailTab.MODELS) else ProviderDetailTab.entries
+    val tabs = ProviderDetailTab.entries
     val pager = rememberPagerState(initialPage = if (initialTab == "models") 1 else 0) { tabs.size }
     val toaster = LocalToaster.current
     val context = LocalContext.current
@@ -192,9 +192,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel(), initial
             latest.copy(
                 providers = latest.providers.map {
                     if (newProvider.id == it.id) {
-                        if (newProvider is ProviderSetting.LlamaCppLocal && it is ProviderSetting.LlamaCppLocal)
-                            newProvider.copy(models = it.models)
-                        else newProvider.preserveCredential(it)
+                        newProvider.preserveCredential(it)
                     } else {
                         it
                     }
@@ -228,7 +226,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel(), initial
                 },
                 actions = {
                     // 账号型提供商离开账号就没法用，不提供分享
-                    if (provider !is ProviderSetting.Account && provider !is ProviderSetting.LlamaCppLocal) {
+                    if (provider !is ProviderSetting.Account) {
                         val shareSheetState = rememberShareSheetState()
                         ShareSheet(shareSheetState)
                         IconButton(
@@ -282,15 +280,7 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel(), initial
                     ProviderDetailTab.MODELS -> {
                         SettingProviderModelPage(
                             provider = provider,
-                            onEdit = if (provider is ProviderSetting.LlamaCppLocal) { edited ->
-                                // Installer owns membership; editing only updates installed
-                                // entries against the latest settings, never a stale snapshot.
-                                vm.updateSettings { latest -> latest.copy(providers = latest.providers.map { current ->
-                                    if (current is ProviderSetting.LlamaCppLocal && current.id == provider.id)
-                                        current.copy(models = current.models.map { model -> edited.models.find { it.id == model.id } ?: model })
-                                    else current
-                                }) }
-                            } else onEdit,
+                            onEdit = onEdit,
                         )
                     }
 
@@ -377,10 +367,8 @@ private fun SettingProviderConfigPage(
                 expanded = expanded,
                 colors = CustomColors.floatingToolbarColors,
                 leadingContent = {
-                    if (provider !is ProviderSetting.LlamaCppLocal) {
-                        IconButton(onClick = { showTestDialog = true }) {
-                            Icon(HugeIcons.Connect, null)
-                        }
+                    IconButton(onClick = { showTestDialog = true }) {
+                        Icon(HugeIcons.Connect, null)
                     }
 
                     if (!internalProvider.builtIn) {
@@ -561,7 +549,7 @@ private fun ModelList(
                 }
             }
         }
-        if (providerSetting !is ProviderSetting.LlamaCppLocal) HorizontalFloatingToolbar(
+        HorizontalFloatingToolbar(
             expanded = expanded,
             colors = CustomColors.floatingToolbarColors,
             modifier = Modifier
@@ -690,14 +678,10 @@ private fun ModelSettingsForm(
 
                             ModelContextLengthSelector(
                                 contextLength = model.contextLength,
-                                isLocal = parentProvider is ProviderSetting.LlamaCppLocal,
                                 onUpdateContextLength = {
                                     onModelChange(model.copy(contextLength = it))
                                 }
                             )
-                            if (parentProvider is ProviderSetting.LlamaCppLocal) {
-                                me.rerere.rikkahub.ui.pages.setting.locallm.LocalChatTemplateEditor(model, onModelChange)
-                            }
                         }
                     }
                 }
@@ -1251,27 +1235,7 @@ private val ContextLengthPresets = listOf(128_000, 200_000, 1_000_000)
 private fun ModelContextLengthSelector(
     contextLength: Int,
     onUpdateContextLength: (Int) -> Unit,
-    isLocal: Boolean = false,
 ) {
-    if (isLocal) {
-        var text by remember { mutableStateOf((contextLength / 1024).toString()) }
-        val k = text.toIntOrNull()
-        OutlinedTextField(value = text, onValueChange = { value ->
-            text = value.filter { it.isDigit() }
-            text.toIntOrNull()?.takeIf { it in 1..16 }?.let { onUpdateContextLength(it * 1024) }
-        }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            label = { Text(stringResource(R.string.setting_provider_page_context_length)) },
-            suffix = { Text("K") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = k == null || k !in 1..16,
-            supportingText = {
-                Column {
-                    Text(if (k != null && k in 1..16) "= ${k * 1024} tokens"
-                        else stringResource(R.string.local_llm_context_range))
-                    Text(stringResource(R.string.local_llm_context_hint))
-                }
-            })
-        return
-    }
     var custom by remember { mutableStateOf(contextLength !in ContextLengthPresets) }
     // 输入过程中允许为空，只有合法的正整数才写回模型
     var customText by remember { mutableStateOf(contextLength.toString()) }
@@ -1459,7 +1423,7 @@ private fun ModelCard(
                 }
             }
 
-            if (parentProvider !is ProviderSetting.LlamaCppLocal) ItemActionMenu(
+            ItemActionMenu(
                 actions = listOf(
                     ItemAction(
                         text = stringResource(R.string.delete),

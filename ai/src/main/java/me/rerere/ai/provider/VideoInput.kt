@@ -31,13 +31,12 @@ class VideoInputException(val reason: Reason) : IllegalArgumentException(
 fun List<UIMessage>.withoutVideoPartsAsText(): List<UIMessage> = withoutVideoParts("[视频]")
 
 fun List<UIMessage>.forProviderVideoInput(setting: ProviderSetting): List<UIMessage> =
-    if (setting is ProviderSetting.Google || setting is ProviderSetting.LlamaCppLocal) this
+    if (setting is ProviderSetting.Google) this
     else withoutVideoPartsAsText()
 
 /** Google and local frame decoding are the only direct-video paths. */
 fun validateVideoInput(setting: ProviderSetting, model: Model, messages: List<UIMessage>) {
     if (messages.none { message -> message.parts.any { it is UIMessagePart.Video } }) return
     if (setting is ProviderSetting.Google) return
-    if (setting is ProviderSetting.LlamaCppLocal) return
     throw VideoInputException(VideoInputException.Reason.UNSUPPORTED_PROTOCOL)
 }

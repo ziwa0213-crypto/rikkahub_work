@@ -10,12 +10,10 @@ import org.junit.Test
 class ProviderSettingForkCompatibilityTest {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    @Test fun `old video ability stays readable and model template is optional and round trips`() {
-        val old = json.decodeFromString<Model>("""{"modelId":"old","abilities":["VIDEO"]}""")
+    @Test fun oldVideoAbilityAndRetiredTemplateFieldsStayReadable() {
+        val old = json.decodeFromString<Model>("""{"modelId":"old","abilities":["VIDEO"],"chatTemplate":"legacy template"}""")
         assertEquals(listOf(ModelAbility.VIDEO), old.abilities)
-        assertEquals(null, old.chatTemplate)
-        val edited = old.copy(chatTemplate = "{% for m in messages %}{{ m.content }}{% endfor %} 🌍")
-        assertEquals(edited, json.decodeFromString<Model>(json.encodeToString(edited)))
+        assertEquals(old, json.decodeFromString<Model>(json.encodeToString(old)))
     }
 
     @Test
@@ -25,7 +23,7 @@ class ProviderSettingForkCompatibilityTest {
         val headers = listOf(CustomHeader("X-Test", "test"))
         val providers = listOf(
             ProviderSetting.OpenAI(), ProviderSetting.Google(), ProviderSetting.Claude(),
-            ProviderSetting.ChatGPT(), ProviderSetting.Grok(), ProviderSetting.DeepSeekWeb(), ProviderSetting.LlamaCppLocal(),
+            ProviderSetting.ChatGPT(), ProviderSetting.Grok(), ProviderSetting.DeepSeekWeb(),
         )
         providers.forEach { provider ->
             val copy = provider.copyProvider(
@@ -37,19 +35,6 @@ class ProviderSettingForkCompatibilityTest {
             val decoded = json.decodeFromString<ProviderSetting>(json.encodeToString(copy))
             assertEquals(copy, decoded)
         }
-    }
-
-    @Test fun `local provider defaults use stable identity and never participate in API conversion`() {
-        val first = json.decodeFromString<ProviderSetting>("""{"type":"local_llamacpp"}""") as ProviderSetting.LlamaCppLocal
-        val second = ProviderSetting.LlamaCppLocal()
-        assertEquals(LLAMACPP_PROVIDER_ID, first.id)
-        assertEquals(first.id, second.id)
-        assertTrue(first.enabled)
-        assertTrue(first.builtIn)
-        assertEquals("https://huggingface.co", first.downloadBase)
-        assertTrue(ProviderSetting.Types.none { it.qualifiedName == ProviderSetting.LlamaCppLocal::class.qualifiedName })
-        assertFalse(first.supportsQuota)
-        assertFalse(first.supportsBuiltInSearch)
     }
 
     @Test

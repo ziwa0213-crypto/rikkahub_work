@@ -1,7 +1,6 @@
 package me.rerere.rikkahub.data.files
 
 import kotlinx.coroutines.CancellationException
-import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import org.junit.Assert.*
@@ -10,12 +9,10 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 class ChatAttachmentRouterTest {
-    @Test fun onlyGoogleAndVideoEnabledLocalModelsReceiveDirectVideo() {
+    @Test fun onlyGoogleReceivesDirectVideo() {
         fun target(provider: ProviderSetting?, model: Model? = Model()) = attachmentTarget("clip.mp4", "video/mp4", provider, model)
         assertEquals(AttachmentTarget.VIDEO, target(ProviderSetting.Google()))
         assertEquals(AttachmentTarget.WORKSPACE, target(ProviderSetting.OpenAI()))
-        assertEquals(AttachmentTarget.WORKSPACE, target(ProviderSetting.LlamaCppLocal()))
-        assertEquals(AttachmentTarget.VIDEO, target(ProviderSetting.LlamaCppLocal(), Model(inputModalities = listOf(Modality.VIDEO))))
         assertEquals(AttachmentTarget.WORKSPACE, target(null, null)) // Group attachment route.
         assertEquals(AttachmentTarget.WORKSPACE, target(ProviderSetting.Google(), Model(providerOverwrite = ProviderSetting.OpenAI())))
         assertEquals(AttachmentTarget.VIDEO, target(ProviderSetting.OpenAI(), Model(providerOverwrite = ProviderSetting.Google())))

@@ -75,12 +75,10 @@ data class TextGenerationParams(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val sessionId: String? = Uuid.random().toString(),
-    /** Per-request local notices, never part of persisted settings or API payloads. */
-    @Transient val localPromptDrops: List<LocalPromptDrop> = emptyList(),
+    /** Per-request client metadata, never part of persisted settings. */
     @Transient val clientContext: ClientContext? = null,
 )
 
-enum class LocalPromptDrop { TOOLS, MEMORY }
 
 @Serializable
 data class ImageGenerationParams(

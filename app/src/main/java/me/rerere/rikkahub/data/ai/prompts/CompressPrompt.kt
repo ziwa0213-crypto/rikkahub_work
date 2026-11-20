@@ -10,7 +10,6 @@ internal fun buildCompressPrompt(
     additionalPrompt: String,
     locale: String,
     midTurn: Boolean = false,
-    maxCharacters: Int? = null,
 ): String = buildString {
     appendLine(
         """
@@ -58,10 +57,6 @@ internal fun buildCompressPrompt(
     if (additionalPrompt.isNotBlank()) {
         appendLine()
         appendLine("Additional instructions from user: $additionalPrompt")
-    }
-    if (maxCharacters != null) {
-        appendLine()
-        appendLine("Length limit: keep the entire summary under about $maxCharacters characters. Preserve identifiers, file paths, error codes and version numbers verbatim instead of paraphrasing them.")
     }
 }.trimEnd()
 

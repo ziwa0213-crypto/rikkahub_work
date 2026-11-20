@@ -1,5 +1,20 @@
 # Repository Guidelines
 
+## 当前操作：源码归档与维护者手动推送（2026-11-20）
+
+- 维护者明确要求本次打包源码并提供推送命令，授权生成源码 ZIP；版本3.3.0-work.2 / 208、DB34不改，不重新构建APK。覆盖下方F023代码实施阶段的“不生成ZIP”口径，日常自行构建约定保持。
+- 根含DELIVERY，继续排除八个个人构建工具、权重、缓存和凭据，保留Gradle/CI/项目工具、原有必要jniLibs与F023新增兼容文件。产物和核验清单放artifacts/3.3.0-work.2的独立source-for-github目录，不覆盖旧交付。
+- 本轮不自动commit、merge、push或打标签；维护者在原Git仓库执行给出的提交/拉取合并/普通推送命令，不在解压目录推送、不强推master。归档前只读fetch核对origin/master与本地HEAD一致；归档不改变既有index状态。
+
+## 当前批次：F023 永久移除本地模型（2026-11-20，覆盖全部旧 F020 约定）
+
+- 维护者指定 `3.3.0-work.2 / 208`，覆盖任务包保留207的旧口径；DB34、原 launcher/about 身份图标不改。代理完成实现、编译/单测与根 DELIVERY；APK/ZIP由维护者自行构建，不commit/tag/push/发布。
+- F020 已永久下线，删除本地供应商类型、推理模块/子模块、JNI/Vulkan、加载通知、预算省略与专用UI/文案；不得在上游合并时重新套回旧F020接线。下方所有F020及其补充仅作历史记录，恢复基线为be5ed028。
+- R1 的本批明确例外：删两个Settings开关及本地供应商子类之前，先验证providers列表的旧类型过滤；Settings完整JSON与SettingsFields独立DataStore字段必须共用ProviderListCompatSerializer。只忽略已移除的类型，不吞未知供应商/损坏配置，不重置全部设置。
+- 全局聊天模型失效才回落现有第一个模型；其他五个非空专用槽位保持。助手、组员、脉搏的失效可空引用清除。旧enable_memory_fusion/enable_local_gpu磁盘键不主动删除；已下载GGUF及local_models目录不动、不加清理UI。
+- 保留F021 Markdown/HTML回退、F022 ClientContext/服务端工具、普通API完整system/工具/压缩行为、Google视频与工作区上传；仅values/values-zh/values-zh-rTW，各移除103key后2616key。
+- 源码归档继续包含DELIVERY、原有必要jniLibs并排除个人脚本；不再要求.gitmodules或本地推理模块恢复材料。删除/恢复清单、验证证据与手机待验见docs/44-记录-本地模型下线（F023）.md及DELIVERY。
+
 ## 当前修正：F021 HTML / SVG 预览回退（2026-11-20，覆盖下方旧预览边界）
 
 - 依据维护者新任务包，只回退 HTML / SVG：恢复原 `loadDataWithBaseURL` + 固定虚拟源，不使用资源拦截或脚本按钮，不重新加入网络加载限制。删除原拦截器、解析器和专用测试，共三个文件；Git 基线 `532dee9e` 可恢复。
@@ -11,7 +26,7 @@
 
 - 维护者本次明确授权代理生成源码 ZIP，供维护者自行推送；不重新构建 APK、不提交或推送。后续日常仍由维护者自行构建。
 - 桌面菜单及配套工具仅供维护者个人使用，源码 ZIP 固定排除 tools 下的 build-delivery.sh、collect-delivery-apks.mjs、package-delivery-source.mjs、summarize-delivery-tests.mjs、test-build-delivery.mjs、BUILDING.md，以及历史 package-local-release.mjs、summarize-jvm-tests.mjs。保留本机文件，不整目录排除 tools；Gradle wrapper、CI 和其他项目工具照常归档。
-- 六个新增个人工具文件由本机 `.git/info/exclude` 忽略，避免普通 git add 误收；历史已跟踪文件不改 Git 状态。源码根必须含 DELIVERY.md，继续保留既有 native 依赖与 llama.cpp 固定指针/恢复说明，排除凭据、缓存和权重。
+- 六个新增个人工具文件由本机 `.git/info/exclude` 忽略，避免普通 git add 误收；历史已跟踪文件不改 Git 状态。源码根必须含 DELIVERY.md，继续保留既有必要 native 依赖，排除凭据、缓存和权重；F023后不再要求本地推理子模块材料。
 
 ## 构建堆内存（2026-11-20）
 
@@ -32,7 +47,7 @@
 ## 本机构建入口（2026-11-20）
 
 - 维护者要求桌面 TUI 自助构建：`tools/build-delivery.sh` 无参数打开菜单，或显式传 `release|debug`。Release 固定交付 ARM64/x86_64/Universal 三个 GitHub APK；Debug 仅 ARM64；两种都生成精简源码 ZIP。此为新的构建工具约定，覆盖以下历史“只提供 Release”的脚本口径。
-- 实时日志和末尾产物/测试/耗时摘要在独立 artifacts 目录保存；完整 JVM 单测失败停止，Lint 结果单列且不得误报通过。源码根含 DELIVERY，排除凭据/缓存/llama.cpp 实际子模块内容，保留恢复说明与原有 native 依赖。
+- 实时日志和末尾产物/测试/耗时摘要在独立 artifacts 目录保存；完整 JVM 单测失败停止，Lint 结果单列且不得误报通过。源码根含 DELIVERY，排除凭据/缓存/权重/个人构建工具，保留原有必要 native 依赖。
 - 本批只验证构建工具，不主动重新构建应用、不改版本或产品行为、不提交/推送/发布。使用方式见 `tools/BUILDING.md`。
 
 ## 当前批次：F020补充五与六（2026-11-18）
@@ -480,7 +495,7 @@ Material 3 look (cards with dividers, plain forms).
 
 ## 五、当前状态
 
-> 当前目标以文件开头2026-11-17批次为准：3.3.0-work.1 / 207，DB34，先合并再F020。下方2026-10-27至更早条目仅作历史记录，不覆盖当前授权。
+> 当前目标以文件开头F023批次为准：3.3.0-work.2 / 208，DB34，本地模型永久下线。下方条目仅作历史记录，不覆盖当前授权。
 
 - **当前开发目标**：`3.1.0-work.1 / 199`，固定上游3.1.0标签的合并尚未提交。阶段二修正和阶段三①组员库保留；阶段三②恢复群组列表、配置及五个子页，群聊界面仍待包③。继续暂时归一为CHAT，到包③解除。每批交付结果以末尾最新段与对应DELIVERY为准；全量App旧测试、玻璃实机和真实登录仍有未验项目。不Release、不commit/tag/push/上传、不操作设备或真实账号。
 

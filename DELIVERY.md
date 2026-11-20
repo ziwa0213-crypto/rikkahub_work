@@ -1,4 +1,157 @@
-# 当前源码合并 — 远端文档更新（2026-11-20）
+# 2026-11-20 源码交付：3.3.0-work.2 / 208
+
+维护者本轮明确要求“打包源码，推送命令，我推送”。本次仅归档当前源码并提供手动命令，
+不重新构建 APK，不执行 commit、merge、push、tag 或发布。版本 **3.3.0-work.2 / 208**，数据库仍为 **34**。
+此节覆盖下方F023代码实施阶段的“未生成源码ZIP”状态；日常由维护者自行构建的长期方式保持。
+
+## 本次归档
+
+- 目录：`artifacts/3.3.0-work.2/source-for-github-20261120-dRMFeo/`；文件：`RikkaHub.Work-3.3.0-work.2-source.zip`。
+- 收录当前工作区，含F023永久移除本地模型、旧Settings/真实DataStore兼容、失效模型引用清理，以及F021 HTML/SVG预览回退、F022 DeepSeek服务端工具/客户端元信息和既有上游3.3.0合并。
+- 源码根含本DELIVERY，包含F023新增兼容器、测试、下线记录；保留Unix权限、软链接、UTF-8路径、Gradle wrapper/CI/项目工具和六个原有必要jniLibs。不恢复已删除的llama-cpp模块或.gitmodules。
+- 排除个人build-delivery及配套检查/归档/报告脚本、BUILDING.md和两份历史个人工具，共八个路径；保留本机文件。APK、缓存、artifacts、凭据、签名私钥、GGUF权重和实际Git历史不入ZIP。
+- 使用既有个人归档工具核对文件集合、逐文件SHA-256、权限/软链和CRC；最终大小、哈希与核验结果写包外 `SOURCE-MANIFEST.json`、`SOURCE-VERIFICATION.json` 和 `SHA256SUMS`，避免源码包自身哈希自引用。
+
+## Git与验证状态
+
+- 打包前只读fetch origin/master，确认本地HEAD和origin/master同为 `be5ed028`，没有未解决合并项。当前分支为 `merge/upstream-3.3.0`，origin使用SSH地址 `git@github.com:ziwa0213-crypto/rikkahub_work.git`。
+- F023产品代码仍为未提交增量。本次不自动暂存或提交，保留既有index；之前移除gitlink的暂存项仍在。维护者应在 `/home/li/CDX/rikkahub` 执行提交与普通推送命令，无需解压ZIP来推送，不强推master。
+- 只补充本节及AGENTS/FEATURES/DEVELOPMENT的归档状态；不再改产品代码、版本或个人脚本。既有Debug/Release Kotlin编译及205套件中1423项通过/1缺语料跳过的结果沿用，不重复执行未变产品测试。
+- 完整Lint未通过、旧配置覆盖安装/云端各模式对话/预览及真实DeepSeek接口仍待验，详见下方F023记录。本轮源码归档校验不代替Android构建、真机或真实API验证。
+- 后续维护者推送前仍先fetch并普通merge最新origin/master；若出现冲突，命令链会停止，需解决后再推送。归档是本次工作区快照，后续merge产生的新源码应以Git仓库为准。
+
+---
+
+# 2026-11-20 F023：永久移除本地模型
+
+当前版本为 **3.3.0-work.2 / 208**，按维护者直接指定覆盖任务包中的 work.1 / 207；数据库保持 **34**。
+依据 `RikkaHub Work-F023移除本地模型-20261120.zip` 的两份文档实施。维护者自行构建 APK / 源码 ZIP 的长期约定保持，
+本批只完成代码、编译 / 单测检查和交付文档，没有 assemble、APK / ZIP 交付、commit、tag、push 或发布。
+本节为当前状态，下方 F020、F021 及历史产物说明不代表本次仍保留本地模型或已经生成新 APK。
+
+## 完成内容与范围
+
+- 维护者决定：“安卓跑本地模型太慢，用户体验差；低参数量化模型效果也差。”F020 已永久移除，不再是隐藏入口或无限期停滞。
+- 删除 llama-cpp 模块 **40 个普通文件及 1 个 gitlink**、app 本地专用主代码 **14 个文件**、专用测试 **4 个文件**及 `.gitmodules`，合计 **59 个普通文件 + 1 个 gitlink**。同步删除模块注册 / 依赖、供应商类型 / ID / 默认项、JNI / Vulkan、启动修复、DI、通知 / receiver、路由、预算提示和本地 UI 接线。混合测试保留非本地用例。
+- 完整删除与修改清单、新增文件、任务包差异及恢复说明见 [本地模型下线记录](./docs/44-记录-本地模型下线（F023）.md)。任务包 app 专用列表实际有13项而不是12项；另删本地压缩专用 `CompressionBudget.kt`，主代码合计14项。
+- 新增 `ProviderListCompatSerializer`，先过滤 `local_llamacpp` 再解码正常供应商。完整 Settings JSON 和 `SettingsFields.PROVIDERS` 独立 DataStore 字段共用该兼容器；不能只加字段注解。仅识别已移除类型，其他未知类型或损坏数据仍报错，不重置全部设置。
+- Settings 只删除 `enableMemoryFusion` / `enableLocalGpu`；旧磁盘键保留但不识别。删除仅本地使用的 `Model.chatTemplate`，旧 JSON 字段仍可按原 unknown-key 策略忽略。VIDEO 能力枚举、历史视频消息和其他模型字段保留。
+- 全局聊天模型失效时回落到现有第一个模型；没有模型则保留非空 UUID，由既有查找失败路径处理。助手、组员、脉搏的失效可空引用清除，快速 / 翻译 / OCR / 压缩 / 图像生成五个非空槽位不替换。任务包 B2“清空全局槽位”与 §4.3 矛盾，按 §4.3 及实际 UUID 类型处理。
+- 普通 API 恢复统一完整 system / 记忆 / 工具，AgentLoop 保留所有注册工具；压缩使用既定完整输入、`maxTokens = null` 和全局阈值，不再按本地短窗口裁剪、估算或限制输出长度。取消及原始历史消息保留。
+- F021 Markdown、已回退的 HTML / SVG、F022 ClientContext / DeepSeek 服务端工具、工作区上传、Google 视频及其他 API 协议保持。没有修改本批前 `docs/f021-f022-change-map.md` 的既有增量。
+- 英文 / 简中 / 繁中各删除 **103** 个本地专用 key，实测各 **2719 → 2616**；XML 可解析、无重复、集合一致，没有增加其他语言。原 launcher / About 身份资源、DB schema、既有 libsimple / proot native 依赖保持。
+- README 中英文、DEVELOPMENT、FEATURES、CHANGES、AGENTS 和本文件已同步当前版本与永久下线状态；旧 F020 文档只留作历史，上游合并不得重新套回其接线。
+
+## 编译与测试证据
+
+使用本机 JDK21，沿用工程 `org.gradle.jvmargs=-Xmx8g`，没有用小堆覆盖工程配置。最终检查命令：
+
+```bash
+env JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew \
+  :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+  :ai:testDebugUnitTest :ui:testDebugUnitTest :app:compileGithubReleaseKotlin \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain
+```
+
+| 阶段 | 结果与日志 |
+| --- | --- |
+| 删除类型前的兼容门禁 | 成功，1分1秒；当时的3项专项全部通过。`/tmp/rikkahub-f023-compat-first-20261120.log` |
+| 删除类型后的编译定位 | 按计划暴露剩余旧类型引用并逐项修复；临时失败日志 `/tmp/rikkahub-f023-deletion-check-20261120.log` 不代表最终结果 |
+| 首次综合检查 | Debug 主代码编译通过，新增测试的 PulseConfig 包名错误导致测试源码编译失败；已修复。日志 `/tmp/rikkahub-f023-check-20261120.log` |
+| 修复后综合检查 | **成功，2分钟**，390个任务：23执行、367 up-to-date；Debug / Release Kotlin 及三个模块测试均通过。`/tmp/rikkahub-f023-check-final-20261120.log` |
+| 最终源码检查 | ChatService 最后精简阈值方法签名后再确认，**成功，32秒**，386个任务：6执行、380 up-to-date。App Debug 编译 / 测试实际执行，AI / UI 测试与 Release 编译复用已成功报告。`/tmp/rikkahub-f023-verification-20261120.log` |
+
+最终选定的测试报告共 **205 套件、1424 项：1423 通过、1 跳过、0 失败 / 错误**，不是所有模块的完整测试矩阵，也不能与历史统计相加：
+
+| 模块 / 任务 | 套件 | 项数 | 通过 | 跳过 |
+| --- | --- | --- | --- | --- |
+| app / testGithubDebugUnitTest | 144 | 979 | 978 | 1 |
+| ai / testDebugUnitTest | 58 | 439 | 439 | 0 |
+| ui / testDebugUnitTest | 3 | 6 | 6 | 0 |
+
+- `ProviderListCompatibilityTest` **5项**全部通过：完整备份 JSON 过滤和云端配置 / API Key 保留；真实 JVM Preferences DataStore 临时文件加载、归一化、保存后重开；旧磁盘开关键仍在且不影响加载；未知 / 损坏配置仍报错；有效引用不变及无模型时不伪造 UUID。没有读取真实用户配置。
+- `ApiSystemPromptTest` **1项**通过：多种云端协议在小 contextLength 与大记忆下仍保留完整 system 字节及工具提示；工具提示只构造一次。AgentLoop 流式 / 非流式工具注入、视频路由及原供应商配置回归均通过。
+- 唯一跳过为 `DeepSeekImporterTest` 的真实归档导入用例，因未提供所需真实语料；没有用新 Ignore 或删断言规避失败。仅本地专用测试按本次明确移除要求删除，API system 回归保留在新测试文件。
+- JUnit XML：`app/build/test-results/testGithubDebugUnitTest/`、`ai/build/test-results/testDebugUnitTest/`、`ui/build/test-results/testDebugUnitTest/`。这些是本机检查证据，不进入源码包。
+- XML / 三语集合、差异空白、受保护文件 blob、模块 / 类型残留核对通过。`git submodule status` 为空、仓库无 `llama-cpp/`。生产源码中只保留兼容器的旧类型常量，兼容测试中的旧字段字符串按验收需要保留；Ollama 搜索、品牌动画等无关逻辑保留。
+- 本批未运行完整 Lint；此前完整 Lint 未通过的结论不变。既有 deprecated / opt-in 等编译警告未归零，不把 Kotlin 编译或 JVM 测试说成整版 / 真机验收通过。
+
+## 用户数据与可恢复删除
+
+本次没有操作用户 GGUF，也没有新增清理 UI。基线 LlamaCppInstall 的实际路径为
+`File(context.filesDir, "models/llamacpp")`，即应用私有目录。Android 主用户常见路径示例（未连接设备确认安装位置）：
+
+```text
+/data/user/0/me.rerere.rikkahub.plus/files/models/llamacpp/
+/data/user/0/me.rerere.rikkahub.debug/files/models/llamacpp/
+```
+
+任务书中以下外部目录为旧口径，不是当前基线代码的下载路径；同样未操作：
+
+```text
+Android/data/me.rerere.rikkahub.plus/files/local_models/
+Android/data/me.rerere.rikkahub.debug/files/local_models/
+```
+
+删除前本地推理模块及其构建缓存已整体移动到仓库外保存：
+
+```text
+/home/li/CDX/rikkahub-f023-retired-20261120-XsGiQU/llama-cpp
+```
+
+Git 历史 `be5ed028` 亦可恢复全部删除前跟踪源码；原子模块 Git 历史保留。恢复研究应在独立分支逐块取回，
+不整树 reset、不回退 DB34。已经归一化并保存的本地供应商 / 选择不会自动恢复，需要旧备份或重新配置。
+本批唯一新增暂存操作为移除旧 gitlink；其余代码及文档仍为工作区增量，没有执行提交或覆盖维护者的既有更改。
+
+## 个人构建与维护者待验
+
+- 个人归档 / 构建工具已适配模块移除：取消对旧 .gitmodules / llama README / 指针文件的必需检查；继续保留根 DELIVERY、原有必要 jniLibs，排除个人构建工具、权重、凭据与缓存。桌面入口和 Release 三变体 / Debug 单 ARM64 规则保持。
+- `tools/build-delivery.sh`、`tools/package-delivery-source.mjs`、`tools/test-build-delivery.mjs`、`tools/BUILDING.md` 仅留本机，不进源码 ZIP。**14组离线工具流程通过**；临时假工程内的模拟 APK / ZIP 不代表 Android 构建或本批交付包。
+- 维护者构建时使用 **3.3.0-work.2 / 208**。根 DELIVERY 的源码归档必含校验仍在；本批未生成实际 APK 或源码 ZIP，旧 work.1 产物不含 F023，不能直接用于本批验收。
+- 未运行 ADB / 模拟器 / 真机，也未使用真实 API Key。需装机验证：旧配置覆盖安装不崩、其他供应商与凭据保留、本地供应商与入口消失、失效引用正确回落；聊天 / 群组 / 脉搏云端各跑一轮；Markdown、HTML / SVG、工作区上传、Google 视频与 DeepSeek 搜索 / 读链接 / 元信息正常；旧 GGUF 文件仍在。
+
+---
+
+# 2026-11-20 后修正：回退 HTML 预览
+
+版本保持 **3.3.0-work.1 / 207**，DB34；依据 `RikkaHub Work-F021回退HTML预览-20261120.zip` 的两份文档实施。沿用维护者自行构建约定，本轮不生成 APK / 源码 ZIP，不推送、打标签或发布。
+
+## 原因与处理
+
+- 维护者实测 HTML 打开失败并显示 `ERR_HTTP_RESPONSE_CODE_FAILURE`。任务包将原因归于新增网络加载限制阻止 data 主文档，以及拦截器对未识别的主文档请求返回 404。本轮撤销这两条路径，不宣称已在本机重现该 Android WebView 故障。
+- 删除 `WorkspacePreviewInterceptor.kt`、`WorkspacePreviewResources.kt`、`WorkspacePreviewResourcesTest.kt` 三个文件；Git 基线 `532dee9e` 保留原内容，可按需恢复。
+- `WorkspaceFileEditorPage.kt` 的 HTML / SVG 恢复原 `loadDataWithBaseURL` + 固定虚拟源，不传资源拦截器，不加网络加载限制；移除脚本开关，脚本行为沿用旧 WebView。预览函数逐字比对与改动前 `655f8517` 一致。接受同目录 CSS / 图片等本地资源不再映射的回退，不承诺离线隔离或脚本默认关闭。
+- 加载、源码/预览切换、保存时仅对 Markdown 计算 1 MiB；原大小常量移到编辑页，值不变。Markdown 渲染器、图片目录上下文、聊天共用的绝对路径 / http(s) 图片行为及三个保留文案未改。FILES 可保存、LINUX 只读及原 512 KiB 读取保护保持。
+- 保留公共 MIME 工具与测试、WebView 可选 `requestInterceptor`、`remember(state)` 与更新 client；这些文件逐字未改，可选接口仅有内部转发，当前无外部调用方。F022、版本、DB34、原应用身份图标和个人构建工具不改。
+- 三语各只删除脚本开关一条。XML 实测各 **2720→2719**，集合一致、无重复。任务书写“各2717”是计数误差；不额外删除两个无关 key 凑数。
+
+## 本批检查
+
+命令（省略本机工具链路径）：
+
+```bash
+./gradlew :app:compileGithubReleaseKotlin \
+  :app:testGithubDebugUnitTest --tests me.rerere.rikkahub.ui.components.richtext.WorkspaceImagePathTest \
+  :ui:testDebugUnitTest --tests me.rerere.ui.webview.MimeTypesTest \
+  -Prikkahub.abi=arm64-v8a --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain
+```
+
+- **成功，32 秒**；409 个任务，31 执行、378 up-to-date。Release Kotlin 编译与 App Debug 测试源码编译通过；图片路径 **2 项**、MIME **1 项**全部本次执行通过，无失败/错误/跳过。没有运行 assemble、R8、签名或 APK 打包，不把编译成功说成新 APK 交付。
+- 日志：`/tmp/rikkahub-f021-html-rollback-20261120-E6m6yW.log`。JUnit XML 位于 `app/build/test-results/testGithubDebugUnitTest/TEST-me.rerere.rikkahub.ui.components.richtext.WorkspaceImagePathTest.xml` 和 `ui/build/test-results/testDebugUnitTest/TEST-me.rerere.ui.webview.MimeTypesTest.xml`；均为本机检查证据，不进入源码包。
+- 差异检查确认 Markdown 核心文件、共用图片处理、ui WebView / MIME、AI / F022、仓库读写与版本配置相对基线无修改；源码扫描旧预览类、网络加载限制与已删脚本 key 均为零引用。XML 解析、三语集合 / 唯一性和 `git diff --check` 通过。
+- 本批未重跑全量 JVM / Lint；此前完整 Lint 未通过的结论不变。编译有既有 ExperimentalNavigation3Api opt-in 警告，不影响本次成功结果。
+
+## 维护者待验与源码状态
+
+- 重新构建安装后检查 `.html` / `.svg` 实际显示、HTML 顶栏无脚本按钮、大 HTML 不触发 Markdown 大小提示；Markdown 渲染、相对图片、3 MiB Markdown 只源码和聊天工作区图片保持。未运行 ADB、模拟器或真机，这些视觉与行为不标通过。
+- 旧的三个 Release APK 和源码 ZIP 都生成于本次回退前，不包含本修正。后续由维护者桌面构建流程生成新 APK / ZIP，源码包继续包含本 DELIVERY 并排除个人构建脚本；本轮没有修改归档工具。
+- 本轮未执行 git commit。实施检查期间检测到本地 HEAD 已新增 `be5ed028`，包含回退代码及部分台账；保留该提交，后续 README / DEVELOPMENT / 本文件与映射修正为工作区增量。没有撤销外部操作或擅自重写提交。
+
+---
+
+# 前次源码合并 — 远端文档更新（2026-11-20）
 
 - 维护者手动合并 origin/master 时 README.md 发生冲突；本次以本地 6f0d5e2a 与远端 8a5eca08 为父提交完成文档合并，保留远端中英文 README 的四板块结构、角色规划及 DEVELOPMENT 开发说明。
 - 按当前源码同步 3.3.0-work.1 / 207、DB34、F021 / F022 已完成、本地 AI 模型无限期停滞与入口隐藏；更正旧群组自动压缩、视频输入及 20 分钟生成截止等过时描述。

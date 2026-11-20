@@ -143,7 +143,7 @@ fun PulseSettingsPage(initialTab: Int = 0, logs: Boolean = false) {
                     0 -> {
                         item { CardGroup {
                             formItem(headlineContent = { Text(stringResource(R.string.pulse_model)) }) {
-                                val pulseProviders = remember(settings.uiProviders) { settings.uiProviders.filterNot { it is ProviderSetting.DeepSeekWeb } }
+                                val pulseProviders = remember(settings.providers) { settings.providers.filterNot { it is ProviderSetting.DeepSeekWeb } }
                                 ModelSelector(config.chatModelId ?: settings.chatModelId, pulseProviders, ModelType.CHAT) { model ->
                                     update { it.copy(chatModelId = model.id) }
                                 }

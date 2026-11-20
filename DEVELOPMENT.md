@@ -1,16 +1,16 @@
 # 开发进度 / Development Status
 
 > 最后更新：**2026-11-20**
-> 本文件**只记录当前正在开发的版本**：`3.3.0-work.1`（尚未发布）。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
+> 本文件**只记录当前正在开发的版本**：`3.3.0-work.2`（尚未发布）。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
 > 上一版 `3.2.0-work.3` / 206 已发布，其内容见 Releases 页。
 
 ---
 
 ## 0. 一句话状态
 
-**上游 3.3.0、F021 工作区文件预览与 F022 DeepSeek 服务端工具 / 客户端元信息已完成，并已构建三个签名 Release；尚未发布，真实接口和设备交互仍待验。**
+**上游 3.3.0、F021 工作区文件预览、F022 DeepSeek 服务端工具 / 客户端元信息及 F023 永久移除本地模型已完成。Debug / Release Kotlin 编译和应用 / AI / UI 的 JVM 检查通过，本批 APK 由维护者构建；尚未发布，真实接口和设备交互仍待验。**
 
-- 版本号：`3.3.0-work.1` / versionCode **207**（未发布前不升）
+- 版本号：`3.3.0-work.2` / versionCode **208**（按维护者本轮指定）
 - 数据库：**33 → 34**（装上之后不可回退，先备份）
 - 包名：`me.rerere.rikkahub.plus`
 
@@ -36,8 +36,8 @@
 ### 1.2 工作区文件预览（F021）｜ 已完成
 
 - Markdown 复用现有 `MarkdownBlock`，默认渲染并可切回源码；相对图片按文档目录和实际 FILES / LINUX 区域解析，Markdown 外链图片保持原行为，可能联网
-- HTML / SVG 通过虚拟 HTTPS 源读取当前文档目录内资源，禁止路径与符号链接越界、file/content 访问及外网加载；HTML 脚本默认关闭，可手动开启
-- FILES 超过 1 MiB 时只看源码，仍可编辑保存；LINUX 保留只读及原有 512 KiB 读取保护；SSH 暂不支持本地关联资源预览
+- 2026-11-20 后修正：HTML / SVG 恢复改动前的 WebView 预览，删除新增资源拦截与脚本开关，不再映射同目录本地资源；沿用旧脚本行为，不新增网络加载限制
+- Markdown 超过 1 MiB 时只看源码；HTML / SVG 不套用该阈值。FILES 仍可编辑保存，LINUX 保留只读及原有 512 KiB 读取保护；SSH 暂不支持本地关联资源预览
 
 ### 1.3 DeepSeek 服务端工具与客户端元信息（F022）｜ 已完成
 
@@ -47,15 +47,16 @@
 - 新助手与脉搏默认开启元信息；旧配置不静默开启，群组保留自身工具列表
 - 未新增 `safety_check`、`title` 或文件输入。本节不涉及上游已合并的 TTS/ASR；真实 DeepSeek 多步搜索、抓取与签名回传仍待账号验证
 
-### 1.4 本地模型 ｜ 已实现，本版不提供入口
+### 1.4 本地模型（F023）｜ 已永久移除
 
-> 这一区块**无限期停滞**，具体大规模更新的时间待定。
+维护者决定：“安卓跑本地模型太慢，用户体验差；低参数量化模型效果也差。”因此 F020 已从当前源码移除，不再只是隐藏入口。
 
-在手机上跑 GGUF（llama.cpp）这条路走过一遍：代码是完整的，CPU 路径也能正常出字。问题在 GPU——开启后部分机型在提交阶段就被驱动回收（`ErrorDeviceLost`），一个字都产不出来；而只用 CPU 的话速度只有个位数 token/s，离日常可用还差得远。
+- 删除本地供应商、推理模块 / 子模块、JNI / Vulkan、加载通知、内存融合 / GPU 开关、提示预算降级和专用界面 / 文案；普通 API 继续使用完整 system、工具和原全量压缩流程
+- 旧完整 Settings JSON 和 DataStore 独立 providers 字段共用解码兼容器，只过滤 `local_llamacpp`，保留云端配置和 API Key；其他未知类型和损坏数据仍报错，不重置全部设置
+- 全局聊天模型失效时回落到现有第一个模型；助手、组员、脉搏的失效可空引用清除。其他五个非空专用模型槽位不被替换，旧磁盘开关键仅忽略，不主动清盘
+- 已下载 GGUF 文件不删除，也不提供清理入口。历史代码恢复、完整文件清单和兼容边界见 [F023 记录](./docs/44-记录-本地模型下线（F023）.md)
 
-所以这一版**不开放**：界面不提供任何入口，已绑定到本地模型的助手、群组成员、脉搏会回落到默认模型；已下载的模型文件保留，代码也留在仓库里，等将来再评估。
-
-为什么不删干净：本地模型在设置数据里是一个供应商类型，直接删掉会让老用户的设置文件解析失败，连带丢掉 API Key、对话和记忆。所以只在界面层面收起来，数据层保持原样。
+旧版源码及交付记录作为历史保留；后续合并上游不得按旧 F020 文档重新接入本地推理。
 
 ---
 
@@ -80,27 +81,30 @@
 
 | 项 | 状态 |
 |---|---|
-| 编译 / JVM 单测 | 本机检查通过：1,908 项，1,906 通过、2 项缺语料跳过；包含缓存复用，不是全部重跑 |
-| APK 构建 | 维护者自行构建通过：ARM64 / x86_64 / Universal 三个签名 Release；签名、版本、ABI、CRC 核验通过 |
-| 三语 key 一致性 | 通过，English / 简中 / 繁中各 2,720 条 |
+| 本次 F023 编译 | Debug / Release Kotlin 编译通过；先完成本地类型过滤验证，再删除类型和模块 |
+| 本次 F023 JVM | 应用 / AI / UI 共 205 套件、1,424 项：1,423 通过、1 项缺语料跳过；AI / UI 在最终调用复用报告，不是全模块重跑 |
+| 旧配置兼容 | 5 项专项通过，包含真实 JVM Preferences DataStore 文件的读写 / 重开、云端凭据保留、失效引用清理及旧开关键忽略；不代表 Android 覆盖安装已验 |
+| API 行为回归 | 完整 system / 记忆 / 工具提示与 AgentLoop 工具注入回归通过，其他 API 协议及视频测试通过 |
+| APK / 源码归档 | F023未执行assemble；随后按维护者要求归档work.2源码，根含DELIVERY、排除个人构建工具。旧版三个Release生成于F023前，不能用于验证本批 |
+| 三语 key 一致性 | 通过，English / 简中 / 繁中各 2,616 条；各删除 103 条本地模型专用文案 |
 | 完整 Lint | 未通过，不计入通过项 |
 | 真机 / 真实接口 | UI、覆盖安装及 DeepSeek 服务端工具真实调用与签名回传仍待验 |
 
-> 本文件不把编译与 JVM 测试当成真机通过。构建与检查证据见 [DELIVERY.md](./DELIVERY.md)；本次远端文档合并只修正文档，未重新构建 APK。
+> 本文件不把编译与 JVM 测试当成真机通过。检查命令、日志与报告见 [DELIVERY.md](./DELIVERY.md)；本批未生成 APK，旧配置覆盖安装、各模式云端对话及文件预览仍需维护者装机验收。
 
 ---
 
 ## 4. 下一步
 
-1. 维护者补充真机与真实 DeepSeek 接口验收
-2. 维护者推送当前源码并发布 `3.3.0-work.1`
+1. 维护者通过个人构建入口生成 `3.3.0-work.2 / 208` APK，再补充覆盖安装、真机与真实 DeepSeek 接口验收；当前源码按本轮要求独立归档
+2. 维护者推送当前源码并发布 `3.3.0-work.2`
 3. 等待角色板块实施指令，先出界面预览
 
 ---
 
 ## English Summary
 
-**`3.3.0-work.1` (versionCode 207) is in development; the previous `3.2.0-work.3` (206) is the current release.**
+**`3.3.0-work.2` (versionCode 208) is in development; the previous `3.2.0-work.3` (206) is the current release.**
 Database moves from 33 to 34 and cannot be rolled back.
 
 **Upstream 3.3.0 is already merged** — DeepSeek speech, DeepSeek history import, paragraph-split bubbles,
@@ -109,25 +113,29 @@ dialog. Every existing fork feature is preserved.
 
 The following are also implemented:
 
-- **Workspace file previews (F021)** — rendered Markdown with a source toggle; HTML / SVG resources restricted
-  to the document directory, external network access blocked, and HTML scripts disabled by default. Markdown
-  external images retain their existing network behavior. FILES saving and read-only LINUX limits remain.
+- **Workspace file previews (F021)** — rendered Markdown with a source toggle, relative images and the existing
+  1 MiB limit. HTML / SVG have reverted to the original WebView preview without the added resource interceptor
+  or script toggle. Markdown external images retain their existing network behavior. FILES saving and
+  read-only LINUX limits remain.
 - **DeepSeek server-side tools (F022)** — `web_search` / `read_url`, a separate Read URL switch, streaming
   status, sources, errors, and persisted signatures replayed on subsequent turns.
 - **Client context (F022)** — optional date, weekday, language and platform metadata. DeepSeek uses each user
   message's own date; other protocols use system context. Defaults apply to new assistants and Pulse only.
 
-Three signed Release variants (ARM64, x86_64, Universal) have been built by the maintainer. JVM reports contain
-1,906 passed tests and two skipped for missing fixtures, including cached results. Full Lint has not passed;
-real-service and device checks remain pending. This documentation merge did not rebuild the APKs.
+F023 passed Debug / Release Kotlin compilation and application / AI / UI JVM checks: 205 suites,
+1,423 passed tests and one skipped for a missing fixture, with AI / UI reports reused in the final invocation.
+Five compatibility tests cover legacy provider decoding, real JVM Preferences DataStore read / save / reopen,
+cloud credential preservation and invalid model references. No APK was built for F023; the maintainer builds it.
+A source ZIP was subsequently requested for manual Git synchronization. Earlier Release APKs predate F023.
+Full Lint has not passed; real-service and device
+checks remain pending. The three language files now contain 2,616 keys each, after removing 103 per language.
 
 **Scheduled after that:** a fourth section, **Characters** — role-play as a first-class entity, separate from
 assistants, with its own conversations, SillyTavern card import, and a shared workspace selected by checkbox
 rather than owned by one mode.
 
-**A note on on-device models:** this area is **on indefinite hold**, with no timeline for larger updates.
-llama.cpp support was built and does work on CPU, but the GPU backend is not stable on phones
-(`ErrorDeviceLost` before the first token), and CPU-only speed is well short of usable. This version therefore
-ships **no entry point** for it; downloaded model files are kept and the code stays in the repository for a later
-attempt. It is hidden rather than deleted because it is a provider type in the settings data — removing the type
-would break deserialization for existing users and lose API keys, conversations and memories.
+**On-device models are permanently removed (F023).** Android inference speed and small quantized model
+quality did not meet usability requirements. The provider type, inference module and dedicated UI are removed.
+Compatibility decoding filters only the retired provider before sealed-class decoding; cloud configuration and
+API keys remain intact. Downloaded GGUF files are untouched. Historical recovery and future merge boundaries
+are documented in the F023 record; old F020 integration instructions no longer apply.

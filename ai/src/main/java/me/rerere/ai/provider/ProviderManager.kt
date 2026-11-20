@@ -66,7 +66,6 @@ class ProviderManager(
             is ProviderSetting.Google -> getProvider("google")
             is ProviderSetting.Claude -> getProvider("claude")
             is ProviderSetting.DeepSeekWeb -> getProvider("deepseek-web")
-            is ProviderSetting.LlamaCppLocal -> getProvider("local_llamacpp")
             is ProviderSetting.ChatGPT -> getProvider("chatgpt")
             is ProviderSetting.Grok -> getProvider("grok")
         } as Provider<T>

@@ -638,9 +638,6 @@ class RouteActivity : ComponentActivity() {
                             entry<Screen.SettingModels> {
                                 SettingModelPage()
                             }
-                            entry<Screen.SettingLocalLlm> {
-                                me.rerere.rikkahub.ui.pages.setting.locallm.LocalModelList()
-                            }
 
                             entry<Screen.SettingAbout> {
                                 SettingAboutPage()
@@ -941,8 +938,6 @@ sealed interface Screen : NavKey {
     @Serializable
     data object SettingModels : Screen
 
-    @Serializable
-    data object SettingLocalLlm : Screen
 
     @Serializable
     data object SettingAbout : Screen

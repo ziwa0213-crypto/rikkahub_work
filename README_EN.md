@@ -8,8 +8,8 @@ English | [简体中文](README.md)
 </div>
 
 > ✅ **Current release: [`3.2.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 206, 2026-11-13) — silent-heartbeat detection, video stripped from compression, localized error messages.
-> 🔧 **Ready for release: `3.3.0-work.1` / 207** — upstream 3.3.0, workspace previews, DeepSeek server-side tools and client context are implemented; three Release variants are built. Progress and pending checks: [DEVELOPMENT.md](./DEVELOPMENT.md).
-> ⚠️ **Back up before upgrading.** The published release uses database **33**; the local `3.3.0-work.1` build uses **34**. Downgrades are unsupported. See "Install & Upgrade" below.
+> 🔧 **Pending release: `3.3.0-work.2` / 208** — upstream 3.3.0, workspace previews, DeepSeek server-side tools and client context are implemented, and on-device models have been permanently removed. Compilation and JVM checks passed; the maintainer builds the APKs. Progress and pending checks: [DEVELOPMENT.md](./DEVELOPMENT.md).
+> ⚠️ **Back up before upgrading.** The published release uses database **33**; the local `3.3.0-work.2` build uses **34**. Downgrades are unsupported. See "Install & Upgrade" below.
 
 <div align="center">
   <img src="docs/img/chat.png" alt="Chat" width="150" />
@@ -46,7 +46,7 @@ Upstream RikkaHub is a carefully built chat client. This fork arranges it differ
 One-to-one. Call tools, read and write files, run commands, search the web — or just talk.
 
 - **Three approval levels** — saved per assistant: **ask every time**, **ask only for risk** (the default), **allow everything**. Tools are graded L0–L3, and unregistered tools default to the highest risk.
-- **Workspaces** — a local Linux environment via proot, or a remote machine over SSH; files live in `/workspace`. Markdown switches between rendered and source views. HTML / SVG resources stay within the document directory with external network access blocked; HTML scripts are off by default. SSH does not support local linked-resource previews.
+- **Workspaces** — a local Linux environment via proot, or a remote machine over SSH; files live in `/workspace`. Markdown switches between rendered and source views. HTML / SVG use the original WebView preview, without mapping local resources from the document directory or offering a script toggle.
 - **Memory** — per-item memory and file-based memory coexist; several assistants can share one memory group while keeping private and global memory. Copying an assistant or moving memory between scopes lets you tick exactly which entries travel, and choose copy or move.
 - **Built-in browser (credential isolation)** — when a page needs a login, a CAPTCHA or JavaScript, the AI asks for the browser, **you sign in**, and the AI only reads content filtered on-device. Eight fixed tools; no arbitrary JavaScript, raw DOM, cookies, headless mode, screenshots or OCR. Payment, deletion, authorization, publishing, transfer, password and file controls are **hard-refused** and cannot be approved around.
 - **Search providers** — a dozen from upstream, plus **Suixiang** (¥0.06/request, no charge on failure), **DeepSeek official search & fetch** (¥0.005/request, with long summaries meant for models), and **AnySearch** (anonymous available; 1,000 free requests a day with a key).
@@ -136,16 +136,16 @@ Not tied to one mode, but used by all of them:
 
 ## 🔧 In Development
 
-`3.3.0-work.1 / 207` is implemented and three signed Release variants have been built. It is not published yet; real-service and device interaction checks remain pending.
+`3.3.0-work.2 / 208` is implemented and passed Debug / Release Kotlin compilation and application / AI / UI JVM checks. It is not published yet; the maintainer builds this batch's APKs. Real-service and device interaction checks remain pending.
 
 - **Upstream 3.3.0** — DeepSeek speech recognition and synthesis, DeepSeek history import, paragraph-split assistant bubbles, shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test dialog
-- **Workspace file previews (F021)** — Markdown renders by default with a source-view toggle; HTML / SVG use local resources within the document directory, with traversal and external network access blocked and HTML scripts off by default. FILES saving and existing read-only LINUX limits remain
+- **Workspace file previews (F021)** — Markdown renders by default with a source-view toggle, relative images and the existing 1 MiB rendering limit. HTML / SVG have reverted to the original WebView preview, without the added interceptor, script toggle or Markdown size limit. FILES saving and existing read-only LINUX limits remain
 - **DeepSeek server-side tools (F022)** — a separate Read URL switch; Chat Completions supports `web_search` / `read_url` declarations, streaming status, sources, errors, and stored tool signatures replayed on subsequent turns
 - **Client context (F022)** — optional date, weekday, language and platform metadata; DeepSeek uses each user message's own date, while other protocols use system context. New assistants and Pulse enable it by default; existing settings are not silently enabled
 
-### On-device AI models (F020) — on indefinite hold
+### On-device AI models (F023) — permanently removed
 
-Local-model entry points are hidden in this version and are not offered as an available feature. Source code, configuration compatibility and native modules remain; downloaded weights are kept. There is no date for resuming development. Source ZIPs exclude weights and the actual llama.cpp submodule contents; see [llama-cpp/README.md](./llama-cpp/README.md) for the pinned revision and restoration instructions.
+On-device inference speed and small quantized model quality did not meet usability requirements. F020's provider, inference module and dedicated UI have been removed. Compatibility decoding filters only the retired provider, preserving cloud configuration and API keys; invalid model references are cleaned up. Downloaded GGUF files remain untouched. See the [F023 record](./docs/44-记录-本地模型下线（F023）.md) for compatibility boundaries and historical recovery instructions.
 
 Progress and verification scope: [DEVELOPMENT.md](./DEVELOPMENT.md). Delivery records: [DELIVERY.md](./DELIVERY.md).
 
@@ -169,7 +169,7 @@ Download the APK from **Releases**.
 - Three builds: `arm64-v8a`, `x86_64` and `universal`; most phones want `arm64-v8a`. Refer to the corresponding Release attachments for actual sizes
 
 > [!WARNING]
-> **The database only moves forward.** The published release uses **33**; the local `3.3.0-work.1` build already uses **34**. Direct downgrades to DB33 or earlier are unsupported; plan for data and backups before reverting.
+> **The database only moves forward.** The published release uses **33**; the local `3.3.0-work.2` build already uses **34**. Direct downgrades to DB33 or earlier are unsupported; plan for data and backups before reverting.
 > **Make a full backup first** in Settings → Backup (tick "include database") and keep a copy of the current APK. Settings, conversations and API keys live in the app's private directory and are lost on uninstall.
 
 ## 🧭 Versions and packages
@@ -180,7 +180,7 @@ Download the APK from **Releases**.
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version scheme | `{upstream}-work.{n}` |
 | Current release | `3.2.0-work.3` (versionCode 206, 2026-11-13) |
-| Pending release | `3.3.0-work.1` (versionCode 207, three Release variants built) |
+| Pending release | `3.3.0-work.2` (versionCode 208; this batch's APKs are built by the maintainer) |
 | Database | 33 (34 in the dev build, forward only) |
 | License | AGPL-3.0 |
 

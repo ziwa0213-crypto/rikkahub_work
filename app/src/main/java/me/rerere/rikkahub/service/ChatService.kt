@@ -68,9 +68,6 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.ChatRequestFactory
 import me.rerere.rikkahub.data.ai.ChatTurnContext
-import me.rerere.rikkahub.data.ai.CompressionBudgetRules
-import me.rerere.rikkahub.data.ai.estimateLocalTokens
-import me.rerere.rikkahub.data.ai.selectCompressionWindow
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.data.ai.ConversationMetaGenerator
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
@@ -282,11 +279,6 @@ class ChatService(
     private val _errors = MutableStateFlow<List<ChatError>>(emptyList())
     val errors: StateFlow<List<ChatError>> = _errors.asStateFlow()
 
-    private val localPromptNoticeStore = LocalPromptNoticeStore()
-    val localPromptNotices = localPromptNoticeStore.state
-    fun noteLocalPromptDrops(conversationId: Uuid, drops: List<me.rerere.ai.provider.LocalPromptDrop>) =
-        localPromptNoticeStore.note(conversationId, drops)
-    fun dismissLocalPromptNotices(conversationId: Uuid) = localPromptNoticeStore.dismiss(conversationId)
 
     fun addError(
         error: Throwable,
@@ -295,7 +287,7 @@ class ChatService(
         solution: ChatErrorSolution? = null,
         autoDismiss: Boolean = true,
     ) {
-        if (error is CancellationException || error is me.rerere.llamacpp.LocalModelNotLoadedException) return
+        if (error is CancellationException) return
         val shown = ErrorText.resolve(context, error)?.let { IllegalArgumentException(it, error) } ?: error
         _errors.update {
             it + ChatError(
@@ -461,8 +453,7 @@ class ChatService(
                     )
                     if (turn.providerSetting is ProviderSetting.DeepSeekWeb) throw me.rerere.rikkahub.data.datastore.PulseWebProviderBlockedException()
                     onStarted()
-                    val (request, hooks) = requestFactory.createAgent(turn, input.messages, session.processingStatus,
-                        onLocalPromptDrops = { noteLocalPromptDrops(conversationId, it) })
+                    val (request, hooks) = requestFactory.createAgent(turn, input.messages, session.processingStatus)
                     var response: UIMessage? = null
                     var reason: AgentFinishReason? = null
                     runAgent(request, hooks).flowOn(Dispatchers.IO).collect { event ->
@@ -993,8 +984,7 @@ class ChatService(
                             if (!canCompress || compressionUseless) return@pause false
                             // 同一条回复只试一次，压缩失败后接着它写时不再重试
                             if (message.id == session.autoCompressedReplyId) return@pause false
-                            if (!reachesAutoCompressThreshold(turn.providerSetting, turn.model, message.contextTokens(),
-                                    session.state.value.currentMessages.dropLastWhile { it.id == message.id } + message)) return@pause false
+                            if (!reachesAutoCompressThreshold(turn.model, message.contextTokens())) return@pause false
                             if (freshReply && (message.stepCount ?: 0) <= 1) {
                                 compressionUseless = true
                                 return@pause false
@@ -1077,8 +1067,7 @@ class ChatService(
         transform: (UIMessage) -> UIMessage = { it },
     ): AgentFinishReason {
         val (request, hooks) = requestFactory.createAgent(turn, history, session.processingStatus,
-            finishTransform = transform, takePendingParts = takePendingParts, pauseAfterTools = pauseAfterTools,
-            onLocalPromptDrops = { noteLocalPromptDrops(session.id, it) })
+            finishTransform = transform, takePendingParts = takePendingParts, pauseAfterTools = pauseAfterTools)
         var reason: AgentFinishReason? = null
         runAgent(request, hooks).flowOn(Dispatchers.IO).collect { event ->
             when (event) {
@@ -1460,8 +1449,8 @@ class ChatService(
             if (reply.id == session.autoCompressedReplyId) return null
             // 已经压缩过的话检查点在回复之后，这里取到的是 null
             val model = settings.getChatModelOf(conversation) ?: return null
-            val provider = model.findProvider(settings.providers) ?: return null
-            if (!reachesAutoCompressThreshold(provider, model, conversation.lastContextTokens(), conversation.currentMessages)) return null
+            if (model.findProvider(settings.providers) == null) return null
+            if (!reachesAutoCompressThreshold(model, conversation.lastContextTokens())) return null
 
             session.autoCompressedReplyId = reply.id
             return launchCompressionJob(
@@ -1515,17 +1504,11 @@ class ChatService(
         return job
     }
 
-    private fun reachesAutoCompressThreshold(providerSetting: ProviderSetting, model: Model, contextTokens: Int?, messages: List<UIMessage>): Boolean {
+    private fun reachesAutoCompressThreshold(model: Model, contextTokens: Int?): Boolean {
         val settings = settingsStore.settingsFlow.value
         if (!settings.enableAutoCompress || model.contextLength <= 0) return false
-        val isLocal = providerSetting is ProviderSetting.LlamaCppLocal
-        val threshold = CompressionBudgetRules.of(model.contextLength, isLocal).threshold ?: settings.autoCompressThreshold
-        val used = contextTokens ?: if (isLocal) estimateLocalTokens(messages.limitContext(0)).also {
-            Log.d(TAG, "Local usage missing, estimated=$it")
-        } else return false
-        val reached = used >= model.contextLength * threshold
-        if (isLocal && reached) Log.d(TAG, "AutoCompress: ${if (contextTokens == null) "estimated" else "real"}=$used window=${model.contextLength} threshold=$threshold")
-        return reached
+        val used = contextTokens ?: return false
+        return used >= model.contextLength * settings.autoCompressThreshold
     }
 
     /**
@@ -1608,28 +1591,18 @@ class ChatService(
         val turn = requestFactory.createContext(settings, conversation,
             assistantOverride = member?.toAssistant(checkNotNull(group)),
             memoryScope = group?.let { "grp:" + it.id + ":" + conversation.id })
-        val isLocal = turn.providerSetting is ProviderSetting.LlamaCppLocal
-        val budget = CompressionBudgetRules.of(turn.model.contextLength, isLocal)
-        val prompt = buildCompressPrompt(additionalPrompt, Locale.getDefault().displayName, midTurn,
-            maxCharacters = budget.outputTokens?.times(2))
-        val windowEnd = if (isLocal) {
-            val estimated = selectCompressionWindow(conversation.currentMessages, checkpointIndex, endIndex, budget.inputTokens)
-            requestFactory.fitLocalCompressionWindow(turn, conversation.currentMessages, checkpointIndex, endIndex,
-                estimated, prompt, budget)
-        } else endIndex
-        if (windowEnd < endIndex) Log.d(TAG, "Compression windowed: windowEnd=$windowEnd endIndex=$endIndex budget=${budget.inputTokens}")
+        val prompt = buildCompressPrompt(additionalPrompt, Locale.getDefault().displayName, midTurn)
         val summary = requestFactory.generateCompressionSummary(
             turn = turn,
-            messages = conversation.currentMessages.take(windowEnd),
+            messages = conversation.currentMessages.take(endIndex),
             compressPrompt = prompt,
-            maxTokens = budget.outputTokens,
         )
 
         // 原消息原样保留，摘要插在压缩范围的最后一条消息之后。摘要生成期间对话可能已变化，
         // 因此按节点定位插入到最新状态。
         session.update { latest ->
             val updated = latest.insertContextCheckpoint(
-                afterNodeId = nodes[windowEnd - 1].id,
+                afterNodeId = nodes[endIndex - 1].id,
                 summary = summary,
             ) ?: throw IllegalStateException(
                 context.getString(R.string.chat_page_compress_conversation_changed)

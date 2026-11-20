@@ -83,7 +83,6 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.QRCodeScannerDialog
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.RECOMMENDED_PROVIDERS
-import me.rerere.rikkahub.data.datastore.uiProviders
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.ItemAction
@@ -111,11 +110,11 @@ fun SettingProviderPage(vm: SettingVM = koinViewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<ProviderSetting?>(null) }
     val lazyListState = rememberLazyListState()
-    val filteredProviders = remember(settings.uiProviders, searchQuery) {
+    val filteredProviders = remember(settings.providers, searchQuery) {
         if (searchQuery.isBlank()) {
-            settings.uiProviders
+            settings.providers
         } else {
-            settings.uiProviders.filter { provider ->
+            settings.providers.filter { provider ->
                 provider.name.contains(searchQuery, ignoreCase = true)
             }
         }
@@ -661,7 +660,6 @@ private fun ProviderSetting.typeName(): String = when (this) {
     is ProviderSetting.Google -> "Google"
     is ProviderSetting.Claude -> "Claude"
     is ProviderSetting.DeepSeekWeb -> stringResource(R.string.setting_provider_page_type_deepseek_web)
-    is ProviderSetting.LlamaCppLocal -> stringResource(R.string.local_llm_title)
     is ProviderSetting.ChatGPT -> stringResource(R.string.setting_provider_page_type_subscription, "ChatGPT")
     is ProviderSetting.Grok -> stringResource(R.string.setting_provider_page_type_subscription, "Grok")
 }

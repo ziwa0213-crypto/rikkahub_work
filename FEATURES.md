@@ -1,5 +1,21 @@
 # RikkaHub 二次开发功能台账
 
+## [源码归档供维护者手动推送] 2026-11-20（3.3.0-work.2 / 208）
+
+- 按维护者本轮要求生成源码ZIP，根含DELIVERY、F023旧类型兼容与失效引用清理、F021 HTML回退和F022；继续排除个人构建工具、权重、缓存、凭据，保留原有必要native依赖。版本208、DB34及产品逻辑不再改。
+- 独立目录artifacts/3.3.0-work.2/source-for-github-20261120-dRMFeo；逐文件内容/权限/软链/UTF-8/CRC核验和源码哈希写包外报告，不把ZIP自身哈希写入源码。详细归档范围与当前状态见根DELIVERY最新节。
+- 只读fetch后origin/master与本地HEAD be5ed028一致；无合并冲突。产品编译/JVM沿用F023已通过结果与设备待验；本次不重建APK、不重新执行未变产品测试、不自动commit/merge/push/tag，维护者自行执行推送命令。
+
+## [F023 本地模型永久下线] 2026-11-20（3.3.0-work.2 / 208）
+
+- F020已移除，不再是隐藏/无限期停滞；下方F020条目只记录历史，不要求上游合并时重套。维护者指定208覆盖包内207，DB34不动；无本批提交，不commit/tag/push/发布。
+- 删除llama-cpp模块40个普通文件及1个gitlink、app专用13文件、本地压缩预算文件及4个专用测试；移除模块注册/依赖、子模块配置、供应商sealed子类/ID、启动修复/通知/DI/路由及UI分支。全量清单与恢复基线be5ed028见docs/44-记录-本地模型下线（F023）.md。
+- 新ProviderListCompatSerializer同时用于Settings.providers与SettingsFields.PROVIDERS，覆盖备份和独立DataStore两条解码路径。类型删除前先验证过滤；不吞未知类型/损坏数据。Settings只删两个本地开关，Model的仅本地chatTemplate随功能删除、旧JSON字段被忽略。
+- SettingsNormalization补全局聊天回落与助手/脉搏引用检查，normalizeGroupData补组员模型引用检查；其余五个非空专用槽位不被替换。旧偏好磁盘键不主动删，GGUF不触碰。
+- ChatRequestFactory/AgentLoop/ChatService恢复统一API提示/工具/全量压缩，保留F021/F022、Google视频、工作区上传与原图标；三语各2719→2616（删除103）。个人构建脚本适配无子模块、源码继续含DELIVERY且不含个人脚本。
+- 上游重套：保留旧provider列表兼容解码及失效引用清理、现有API行为与fork功能，不恢复F020。回滚只能在独立分支逐块对照be5ed028取回所列模块/接线，勿整树reset或回退DB34；已经落盘的过滤结果不会自动恢复旧本地provider。
+- 实际编译/测试及设备待验以本批根DELIVERY为准；本轮不生成交付APK/ZIP。
+
 ## [F021 HTML / SVG 预览回退] 2026-11-20
 
 - 基线 532dee9e，保持3.3.0-work.1/207、DB34。按新修正包恢复旧 HTML / SVG WebView 预览；移除新增拦截器、资源解析器、专用测试及脚本开关文案。不再映射同目录本地资源，不把网络加载限制移到其他入口。

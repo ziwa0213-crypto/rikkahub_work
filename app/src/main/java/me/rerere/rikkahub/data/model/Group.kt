@@ -71,8 +71,12 @@ fun Group.moveMember(fromId: Uuid, toId: Uuid): Group {
 
 fun Settings.normalizeGroupData(validWorkspaceIds: Set<String>? = null): Settings {
     val validTags = groupTags.map { it.id }.toSet()
+    val validModels = providers.flatMap { it.models }.mapTo(HashSet()) { it.id }
     val members = groupMembers.distinctBy { it.id }.map { member ->
-        member.copy(tags = member.tags.distinct().filter { it in validTags })
+        member.copy(
+            chatModelId = member.chatModelId?.takeIf { it in validModels },
+            tags = member.tags.distinct().filter { it in validTags },
+        )
     }
     val validMembers = members.map { it.id }.toSet()
     return copy(

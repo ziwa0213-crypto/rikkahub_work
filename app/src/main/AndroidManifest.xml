@@ -141,7 +141,6 @@
     <service android:name=".service.PulseDaemonService" android:exported="false" android:foregroundServiceType="specialUse">
       <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled scheduled personal assistant tasks" />
     </service>
-    <receiver android:name=".receiver.LocalModelUnloadReceiver" android:exported="false" />
     <receiver android:name=".service.pulse.PulseAlarmReceiver" android:exported="false" />
     <receiver android:name=".service.pulse.PulseBootReceiver" android:exported="false">
       <intent-filter>

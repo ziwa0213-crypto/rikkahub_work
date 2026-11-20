@@ -122,7 +122,6 @@ fun ProviderConfigure(
             is ProviderSetting.Google -> ProviderConfigureGoogle(provider, onEdit)
             is ProviderSetting.Claude -> ProviderConfigureClaude(provider, onEdit)
             is ProviderSetting.DeepSeekWeb -> ProviderConfigureDeepSeekWeb(provider, onEdit)
-            is ProviderSetting.LlamaCppLocal -> me.rerere.rikkahub.ui.pages.setting.locallm.ProviderConfigureLlamaCpp(provider, onEdit)
             is ProviderSetting.ChatGPT -> ProviderConfigureAccount(
                 provider = provider,
                 onEdit = onEdit,

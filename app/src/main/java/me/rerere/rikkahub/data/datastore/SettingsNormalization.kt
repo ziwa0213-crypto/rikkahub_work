@@ -67,6 +67,9 @@ internal fun Settings.withoutInvalidReferences(): Settings {
     val validModelIds by lazy { settings.providers.flatMap { it.models }.mapTo(HashSet()) { it.id } }
     val asrProviders = settings.asrProviders.distinctBy { it.id }
     return settings.copy(
+        chatModelId = settings.chatModelId.takeIf { it in validModelIds }
+            ?: settings.providers.firstNotNullOfOrNull { it.models.firstOrNull()?.id }
+            ?: settings.chatModelId,
         providers = settings.providers.distinctBy { it.id }.map { provider ->
             if (provider is ProviderSetting.DeepSeekWeb) provider.copy(
                 models = DeepSeekWebModels.withImageInput(provider.models.distinctBy { it.id }),
@@ -76,6 +79,7 @@ internal fun Settings.withoutInvalidReferences(): Settings {
         },
         assistants = settings.assistants.distinctBy { it.id }.map { assistant ->
             assistant.copy(
+                chatModelId = assistant.chatModelId?.takeIf { it in validModelIds },
                 memoryGroupId = assistant.memoryGroupId?.takeIf { it in validMemoryGroupIds },
                 // 过滤掉不存在的 MCP 服务器 ID
                 mcpServers = assistant.mcpServers.filter { serverId ->
@@ -111,7 +115,7 @@ internal fun Settings.withoutInvalidReferences(): Settings {
 private fun Settings.withValuesInRange(): Settings = copy(
     pulse = pulse.copy(
         chatModelId = pulse.chatModelId?.takeIf { id ->
-            findModelById(id)?.isAllowedForPulse(providers) != false
+            findModelById(id)?.isAllowedForPulse(providers) == true
         },
         activeStartMinute = if (pulse.activeStartMinute < 0) -1 else pulse.activeStartMinute.coerceIn(0, 1439),
         activeEndMinute = if (pulse.activeEndMinute < 0) -1 else pulse.activeEndMinute.coerceIn(0, 1439),

@@ -33,8 +33,8 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 207
-        versionName = "3.3.0-work.1"
+        versionCode = 208
+        versionName = "3.3.0-work.2"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
@@ -356,7 +356,6 @@ dependencies {
 
     // modules
     implementation(project(":ai"))
-    implementation(project(":llama-cpp"))
     implementation(project(":web"))
     implementation(project(":document"))
     implementation(project(":search"))

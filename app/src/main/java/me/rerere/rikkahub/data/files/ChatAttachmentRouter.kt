@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.UIMessagePart
@@ -36,8 +35,7 @@ internal fun attachmentTarget(name: String, mime: String, provider: ProviderSett
     mime.startsWith("image/") -> AttachmentTarget.IMAGE
     mime.startsWith("audio/") -> AttachmentTarget.AUDIO
     isAllowedFileType(name, mime) -> AttachmentTarget.DOCUMENT
-    mime.startsWith("video/") && (effectiveProvider is ProviderSetting.Google ||
-        (effectiveProvider is ProviderSetting.LlamaCppLocal && Modality.VIDEO in model?.inputModalities.orEmpty())) -> AttachmentTarget.VIDEO
+    mime.startsWith("video/") && effectiveProvider is ProviderSetting.Google -> AttachmentTarget.VIDEO
     else -> AttachmentTarget.WORKSPACE
     }
 }

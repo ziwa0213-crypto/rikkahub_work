@@ -78,8 +78,6 @@ class ChatVM(
     // 聊天输入状态 - 保存在 ViewModel 中避免 TransactionTooLargeException
     val inputState = ChatInputState()
 
-    val localPromptNotices = chatService.localPromptNotices
-    fun dismissLocalPromptNotices(conversationId: Uuid) = chatService.dismissLocalPromptNotices(conversationId)
 
     val voiceSession = VoiceSessionController(viewModelScope, context::getString) {
         chatService.enqueueVoiceMessage(_conversationId, it)
