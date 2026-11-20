@@ -2,14 +2,13 @@
   <img src="docs/icon.png" alt="App icon" width="100" />
   <h1>RikkaHub Work</h1>
 
-An AI platform built on RikkaHub: getting work done, role-play, multi-agent collaboration and automation — four modes, one job each.
+An AI platform built on RikkaHub: work, characters, groups and pulse — four modes, one job each.
 
 English | [简体中文](README.md)
 </div>
 
-> ✅ **Current release: [`3.2.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 206, 2026-11-13) — silent-heartbeat detection, video stripped from compression, localized error messages.
-> 🔧 **Pending release: `3.3.0-work.2` / 208** — upstream 3.3.0, workspace previews, DeepSeek server-side tools and client context are implemented, and on-device models have been permanently removed. Compilation and JVM checks passed; the maintainer builds the APKs. Progress and pending checks: [DEVELOPMENT.md](./DEVELOPMENT.md).
-> ⚠️ **Back up before upgrading.** The published release uses database **33**; the local `3.3.0-work.2` build uses **34**. Downgrades are unsupported. See "Install & Upgrade" below.
+> ✅ **Current release: [`3.3.0-work.2`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 208, 2026-11-20) — upstream 3.3.0 merged, DeepSeek server-side tools and client metadata, workspace file preview, and on-device AI models removed.
+> ⚠️ **Back up before upgrading.** The database is **34** and only moves forward. See "Install & Upgrade" below.
 
 <div align="center">
   <img src="docs/img/chat.png" alt="Chat" width="150" />
@@ -33,7 +32,7 @@ Upstream RikkaHub is a carefully built chat client. This fork arranges it differ
 
 **This is not an official RikkaHub build.** Everything here rests on upstream work; please file issues about this fork on this repository, not upstream.
 
-- **Versioning**: `{upstream}-work.{n}`, e.g. `3.2.0-work.3`; `n` resets to 1 whenever a new upstream is merged
+- **Versioning**: `{upstream}-work.{n}`, e.g. `3.3.0-work.2`; `n` resets to 1 whenever a new upstream is merged
 - **Languages**: English, Simplified Chinese, Traditional Chinese only
 - **Distribution**: builds ship through this repository's GitHub Releases
 
@@ -46,11 +45,14 @@ Upstream RikkaHub is a carefully built chat client. This fork arranges it differ
 One-to-one. Call tools, read and write files, run commands, search the web — or just talk.
 
 - **Three approval levels** — saved per assistant: **ask every time**, **ask only for risk** (the default), **allow everything**. Tools are graded L0–L3, and unregistered tools default to the highest risk.
-- **Workspaces** — a local Linux environment via proot, or a remote machine over SSH; files live in `/workspace`. Markdown switches between rendered and source views. HTML / SVG use the original WebView preview, without mapping local resources from the document directory or offering a script toggle.
+- **Workspaces** — a local Linux environment via proot (Ubuntu, Debian or Alpine), or a remote machine over SSH, with a built-in terminal. Files live in `/workspace` and preview in-app: Markdown is rendered with a source toggle, relative images resolve against the document's own directory, and HTML / SVG keep the original web preview, without mapping sibling assets or offering a script toggle. File writes and commands still go through approval.
+- **Workspace uploads** — videos, archives and other binaries no longer travel inside the request body; they are uploaded to `FILES/uploads/<date>/` in the workspace, and the message shows name and size while the model receives a path instead of tens of megabytes of Base64.
 - **Memory** — per-item memory and file-based memory coexist; several assistants can share one memory group while keeping private and global memory. Copying an assistant or moving memory between scopes lets you tick exactly which entries travel, and choose copy or move.
 - **Built-in browser (credential isolation)** — when a page needs a login, a CAPTCHA or JavaScript, the AI asks for the browser, **you sign in**, and the AI only reads content filtered on-device. Eight fixed tools; no arbitrary JavaScript, raw DOM, cookies, headless mode, screenshots or OCR. Payment, deletion, authorization, publishing, transfer, password and file controls are **hard-refused** and cannot be approved around.
-- **Search providers** — a dozen from upstream, plus **Suixiang** (¥0.06/request, no charge on failure), **DeepSeek official search & fetch** (¥0.005/request, with long summaries meant for models), and **AnySearch** (anonymous available; 1,000 free requests a day with a key).
-- **DeepSeek web (free)** — drives conversations with a browser login instead of an API key, using a read-only tool whitelist and request pacing by default. Custom capabilities require explicit opt-in and risk confirmation. Login credentials can be imported by pasting a cURL, so you no longer have to separate token from cookie.
+- **Search providers** — a dozen from upstream, plus **Suixiang** (¥0.06/request, no charge on failure), **DeepSeek official search & fetch** (¥0.005/request, with long summaries meant for models), and **AnySearch** (anonymous available; 1,000 free requests a day with a key). All three also fetch page text, so both `search_web` and `scrape_web` work.
+- **DeepSeek server-side tools** — on Chat Completions you can declare web search and URL reading in the request itself; the API runs them and returns results, source links and citations in the same turn, with no extra client-side tool round. Execution state, result cards and failure reasons are shown. Turn on thinking mode under the same switch and the model searches while it reasons.
+- **Client metadata** — tells the model today's date, weekday, interface language and platform. DeepSeek gets it attached to each user message with that message's own date; other protocols get it in the system prompt. New assistants and Pulse configurations start with it on; existing configurations keep their choice.
+- **DeepSeek web (free)** — drives conversations with a browser login instead of an API key, using a read-only tool whitelist and request pacing by default; the restricted capabilities (file writes, shell, code execution, skills and MCP) can be opened one by one, each behind a risk confirmation. Login credentials can be imported by pasting a cURL, so you no longer have to separate token from cookie.
 
 ### 02 Characters — spending time with AI characters (planned)
 
@@ -62,7 +64,7 @@ Role-play currently means building characters as assistants and mixing them into
 - **Their own conversation list**; existing assistant conversations can be migrated by ticking them, choosing copy or move per item
 - **SillyTavern card import** — PNG / JSON with field mapping, example dialogue, lorebooks, regex scripts and a macro engine
 - **Memory becomes file-based**, with optional read-only reference to selected memory from Work
-- Against the usual "assistant voice" in role-play — lines like *"I've got you"* or *"Let me be clear first"* that perform a helpful assistant instead of a character — several layers are applied: prompt, example dialogue, depth injection, and regex cleanup
+- Against the usual "assistant voice" in role-play — lines like *"I've got you"* or *"Let me be clear first"* that perform a helpful assistant instead of a character, along with web-novel phrasing such as *"a low, husky voice"* or *"deep, dark eyes"* — several layers are applied: prompt, example dialogue, depth injection, and regex cleanup
 
 ### 03 Groups — several AIs working together
 
@@ -72,7 +74,7 @@ The second mode in the drawer. A few members at one table, speaking in order.
 - **Group settings**: members and priority, MCP, local tools, extensions (prompt injection / lorebooks / skills), group memory, custom headers and bodies, background, compression, group-level reasoning level
 - **Generation**: strictly sequential turns, each member seeing what came before; multiple conversations per group, full group duplication, a deputy that dispatches, @ mentions, two-way message quoting
 - **Per-group nicknames and avatars**, resolved live in history without rewriting it
-- **Group compression**: manual compression, layered summaries and editable prompts remain available; automatic compression uses the global switch and threshold.
+- **Group compression**: shares the same automatic-compression switch and threshold as Work and Pulse; manual compression keeps layered summaries and editable prompts
 
 ### 04 Pulse — AI running on its own
 
@@ -96,9 +98,13 @@ Memory is **read-only across modes**: nobody writes into another mode's bucket.
 
 - 🎨 Material You and 🌙 dark mode
 - 🧠 Two memory systems: per-item and file-based
-- 🎬 Media generation: images and video
-- 📦 Workspaces: proot Linux, SSH remote machines, built-in terminal
+- 🎬 Media generation: images, video, and a drawing board
+- 📦 Workspaces: proot Linux, SSH remote machines, built-in terminal, shared-storage mounts
 - 🪟 Background generation overlay — leave mid-generation and come back to it
+- 📱 Phone Use — let the AI operate the phone via accessibility, in Work mode only
+- 🗣️ DeepSeek speech recognition and synthesis
+- 📥 DeepSeek chat history import
+- 💬 Assistant replies split into one bubble per paragraph
 - 🔄 Any OpenAI / Google / Anthropic-compatible endpoint, with custom API, URL and model
 - 🖼️ Multimodal input (images, text documents, PDF, Docx)
 - 🖥️ Web access from other platforms
@@ -114,6 +120,7 @@ Memory is **read-only across modes**: nobody writes into another mode's bucket.
 - 🌐 Custom HTTP headers and bodies
 - 💌 SillyTavern character-card import
 - ✂️ Image cropping, context-compression stepper, tool-call timings
+- 🛡️ Safe mode that trims oversized settings
 
 ---
 
@@ -123,31 +130,21 @@ Not tied to one mode, but used by all of them:
 
 - **Memory** — groups, per-item migration, two-way import between chat and group chat; copy by default, with a warning before moving shared memory
 - **Tool approval** — four tiers: L0 read-only, L1 self-management, L2 create, L3 rewrite. The mode layer can only raise risk, never lower it, so a tool's own safety declarations are never weakened
-- **Video and workspace uploads** — Google retains native video input. For other providers, historical videos become text placeholders only in the request copy; original messages remain intact. Videos, archives and other non-chat attachments can be uploaded to the bound workspace, up to 2 GiB per file; if no workspace is bound, the draft is kept and the user is prompted to select one
+- **Attachments** — images go through multimodal input (Google keeps native video input); videos, archives and other binaries go through workspace uploads capped at 2 GiB per file, with the draft kept if no workspace is bound; historical videos from other providers are replaced by a text placeholder only in the request copy, never in the stored message
+- **Automatic context compression** — on by default, triggered when the context reaches 80% of the window, with adjustable threshold and keep-recent count; shared by Work, Groups and Pulse, and organized through checkpoints so originals are never deleted
 - **Calendar deletion** — `calendar_delete` added; deletion always asks
 - **DeepSeek reasoning replay** — in thinking mode after a tool call, historical `reasoning_content` is replayed in full, fixing HTTP 400 interruptions
 - **Per-provider loading animations** — brand-matched automatically, a built-in preset, or your own GIF; OpenAI spin, Claude star, Gemini sparkle, DeepSeek pulse and a generic breathe
 - **Liquid glass** — real refraction and dispersion in the input bar on Android 13+; older devices or a rendering failure fall back to blurred glass instead of crashing
 - **Fork-aware update check** — reads this repository's GitHub Releases only and opens the release page for you to download
-- **Stability** — generation holds and renews a `PARTIAL_WAKE_LOCK`, with no application-level generation deadline or cancellation on device sleep; request logs use active time and report sleep separately; a startup race that reverted group mode to chat on relaunch is fixed
+- **Stability** — generation holds a `PARTIAL_WAKE_LOCK` under a bounded lease that is renewed periodically, so a foreground/background switch does not drop it; request logs measure active time and report sleep separately; there is no app-level generation timeout, and stopping is done through the foreground service or manually; a startup race that reverted group mode to chat on relaunch is fixed
 - **Interface and branding** — the app is `RikkaHub Work`, the About page links to this repository only, and sponsorship entries and the export watermark are gone
 
 ---
 
-## 🔧 In Development
+## 🛣 What's next
 
-`3.3.0-work.2 / 208` is implemented and passed Debug / Release Kotlin compilation and application / AI / UI JVM checks. It is not published yet; the maintainer builds this batch's APKs. Real-service and device interaction checks remain pending.
-
-- **Upstream 3.3.0** — DeepSeek speech recognition and synthesis, DeepSeek history import, paragraph-split assistant bubbles, shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test dialog
-- **Workspace file previews (F021)** — Markdown renders by default with a source-view toggle, relative images and the existing 1 MiB rendering limit. HTML / SVG have reverted to the original WebView preview, without the added interceptor, script toggle or Markdown size limit. FILES saving and existing read-only LINUX limits remain
-- **DeepSeek server-side tools (F022)** — a separate Read URL switch; Chat Completions supports `web_search` / `read_url` declarations, streaming status, sources, errors, and stored tool signatures replayed on subsequent turns
-- **Client context (F022)** — optional date, weekday, language and platform metadata; DeepSeek uses each user message's own date, while other protocols use system context. New assistants and Pulse enable it by default; existing settings are not silently enabled
-
-### On-device AI models (F023) — permanently removed
-
-On-device inference speed and small quantized model quality did not meet usability requirements. F020's provider, inference module and dedicated UI have been removed. Compatibility decoding filters only the retired provider, preserving cloud configuration and API keys; invalid model references are cleaned up. Downloaded GGUF files remain untouched. See the [F023 record](./docs/44-记录-本地模型下线（F023）.md) for compatibility boundaries and historical recovery instructions.
-
-Progress and verification scope: [DEVELOPMENT.md](./DEVELOPMENT.md). Delivery records: [DELIVERY.md](./DELIVERY.md).
+The next release builds the fourth mode, **Characters**: characters as their own entity with their own list and conversations, SillyTavern card compatibility, file-based memory, and a multi-layer pass against role-play "assistant voice". The design is closed; no code yet, and the first step is a UI preview.
 
 ## ⚠️ Known Limitations
 
@@ -157,7 +154,8 @@ Progress and verification scope: [DEVELOPMENT.md](./DEVELOPMENT.md). Delivery re
 | Desktop mode is display only | Same engine underneath; `navigator.platform` and similar are still detectable, and a page that already redirected to its mobile site cannot be pulled back |
 | Liquid glass needs Android 13+ | Older devices get blurred glass silently; the minimum SDK is not raised |
 | Characters mode is not implemented | Design only, no code, no date |
-| The database only moves forward | 33 in the current release, 34 in the dev build; installing an older version cannot read it — clearing data is the only way back |
+| Workspace HTML preview does not map sibling assets | HTML and SVG render, but images, CSS and JS next to the file are not picked up; run a local server in the workspace for a full page |
+| The database only moves forward | It is 34 now; installing any older build cannot read it — clearing data is the only way back |
 
 ## 📥 Install & Upgrade
 
@@ -166,10 +164,10 @@ Download the APK from **Releases**.
 - **Package name**: `me.rerere.rikkahub.plus` — different from upstream's `me.rerere.rikkahub`, so **this fork and official RikkaHub can coexist**
 - **Upgrading this fork**: install over it. The signature must match and versionCode must not go backwards, or Android refuses the install
 - **Coming from another fork or the official app**: uninstall first; signatures differ
-- Three builds: `arm64-v8a`, `x86_64` and `universal`; most phones want `arm64-v8a`. Refer to the corresponding Release attachments for actual sizes
+- Three builds: `arm64-v8a`, `x86_64` and `universal`; most phones want `arm64-v8a`. The APK is about 16 MB (`universal` about 19 MB)
 
 > [!WARNING]
-> **The database only moves forward.** The published release uses **33**; the local `3.3.0-work.2` build already uses **34**. Direct downgrades to DB33 or earlier are unsupported; plan for data and backups before reverting.
+> **The database only moves forward.** It is currently at **34**. Any older build will fail to start because of a Room downgrade — the only way back is clearing data.
 > **Make a full backup first** in Settings → Backup (tick "include database") and keep a copy of the current APK. Settings, conversations and API keys live in the app's private directory and are lost on uninstall.
 
 ## 🧭 Versions and packages
@@ -179,9 +177,8 @@ Download the APK from **Releases**.
 | Release package | `me.rerere.rikkahub.plus` |
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version scheme | `{upstream}-work.{n}` |
-| Current release | `3.2.0-work.3` (versionCode 206, 2026-11-13) |
-| Pending release | `3.3.0-work.2` (versionCode 208; this batch's APKs are built by the maintainer) |
-| Database | 33 (34 in the dev build, forward only) |
+| Current release | `3.3.0-work.2` (versionCode 208, 2026-11-20) |
+| Database | 34 (forward only) |
 | License | AGPL-3.0 |
 
 > Development history, current stage and defect analyses: [DEVELOPMENT.md](./DEVELOPMENT.md).
@@ -208,6 +205,8 @@ Upstream split distribution into two flavors; the GitHub build is **`assembleGit
 
 > [!IMPORTANT]
 > Translation PRs from upstream are not accepted; only English, Simplified Chinese and Traditional Chinese are kept.
+>
+> **On-device AI models are no longer supported.** Phone-class inference speed and small quantized models both fall short of usable quality; the code and entry points were removed in `3.3.0-work.2`.
 
 ## 🙏 Credits
 
