@@ -1,150 +1,133 @@
 # 开发进度 / Development Status
 
-> 最后更新：**2026-11-10**
-> 本文件记录**正在开发中的工作**。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
+> 最后更新：**2026-11-20**
+> 本文件**只记录当前正在开发的版本**：`3.3.0-work.1`（尚未发布）。功能说明见 [README.md](./README.md)，版本变更见 [CHANGES.md](./CHANGES.md)。
+> 上一版 `3.2.0-work.3` / 206 已发布，其内容见 Releases 页。
+
+---
+
+## 0. 一句话状态
+
+**上游 3.3.0、F021 工作区文件预览与 F022 DeepSeek 服务端工具 / 客户端元信息已完成，并已构建三个签名 Release；尚未发布，真实接口和设备交互仍待验。**
+
+- 版本号：`3.3.0-work.1` / versionCode **207**（未发布前不升）
+- 数据库：**33 → 34**（装上之后不可回退，先备份）
+- 包名：`me.rerere.rikkahub.plus`
+
+---
+
+## 1. 这一版包含什么
+
+### 1.1 合并上游 3.3.0 ｜ 已完成
+
+| 变化 | 说明 |
+|---|---|
+| DeepSeek 语音 | 语音识别与合成本地接入，可直接对话 |
+| DeepSeek 记录导入 | 可把 DeepSeek 的聊天记录导进来 |
+| 气泡分段 | 助手回复按段落拆分渲染 |
+| 工作区共享存储 | 外部存储挂载到工作区 |
+| Vertex Interactions | 新的 Google 接口形态 |
+| 安全模式 | 清理超大设置，避免设置撑爆 |
+| 连接测试弹窗 | 供应商连通性测试结果集中展示 |
+| Phone Use | 跟进上游：不再操作微信 |
+
+合并时保留本 fork 的全部既有能力（F004 审批、F007 reasoning 回传、F009 网页版边界、F012 群组、F013 浏览器、F015 脉搏、F017 工作区、F019 闹钟）。
+
+### 1.2 工作区文件预览（F021）｜ 已完成
+
+- Markdown 复用现有 `MarkdownBlock`，默认渲染并可切回源码；相对图片按文档目录和实际 FILES / LINUX 区域解析，Markdown 外链图片保持原行为，可能联网
+- HTML / SVG 通过虚拟 HTTPS 源读取当前文档目录内资源，禁止路径与符号链接越界、file/content 访问及外网加载；HTML 脚本默认关闭，可手动开启
+- FILES 超过 1 MiB 时只看源码，仍可编辑保存；LINUX 保留只读及原有 512 KiB 读取保护；SSH 暂不支持本地关联资源预览
+
+### 1.3 DeepSeek 服务端工具与客户端元信息（F022）｜ 已完成
+
+- DeepSeek 方言的 Chat Completions 接入 `web_search` / `read_url` 声明、流式状态、来源、错误与工具签名保存及后续回传；客户端不伪执行服务端工具，F007 的 reasoning 回传守卫保持
+- 新增独立的内置“读取网页”开关；Responses / Claude 工具声明按各自协议处理，其他供应商保留原内置搜索行为
+- “客户端元信息”为本地选项，不注册成可执行工具：DeepSeek 按每条 user 消息自身日期生成 `latest_reminder`，其他协议进入 system，包含日期、星期、语言和平台
+- 新助手与脉搏默认开启元信息；旧配置不静默开启，群组保留自身工具列表
+- 未新增 `safety_check`、`title` 或文件输入。本节不涉及上游已合并的 TTS/ASR；真实 DeepSeek 多步搜索、抓取与签名回传仍待账号验证
+
+### 1.4 本地模型 ｜ 已实现，本版不提供入口
+
+> 这一区块**无限期停滞**，具体大规模更新的时间待定。
+
+在手机上跑 GGUF（llama.cpp）这条路走过一遍：代码是完整的，CPU 路径也能正常出字。问题在 GPU——开启后部分机型在提交阶段就被驱动回收（`ErrorDeviceLost`），一个字都产不出来；而只用 CPU 的话速度只有个位数 token/s，离日常可用还差得远。
+
+所以这一版**不开放**：界面不提供任何入口，已绑定到本地模型的助手、群组成员、脉搏会回落到默认模型；已下载的模型文件保留，代码也留在仓库里，等将来再评估。
+
+为什么不删干净：本地模型在设置数据里是一个供应商类型，直接删掉会让老用户的设置文件解析失败，连带丢掉 API Key、对话和记忆。所以只在界面层面收起来，数据层保持原样。
+
+---
+
+## 2. 已排期：第四板块「角色」
+
+现在应用里有三个板块：**工作**（原「聊天」）、**群组**、**脉搏**。计划新增第四个 **角色**，专门承载娱乐向的角色扮演。
+
+顺序调整为：工作 → 角色 → 群组 → 脉搏。
+
+- **角色是独立实体**，不占用助手列表，也不复用助手的设置；助手列表里不会出现角色
+- 角色有自己的会话列表；已有助手的会话可以按用户勾选迁移过来，逐个选「复制」还是「移动」
+- **工作区从「归属一个模式」改成「勾选」**：同一个工作区可以同时被工作、角色、群组选中；脉搏的工作区固定，不参与
+- 角色**不保留按条记忆**，改用文件形式的记忆，另外可以只读引用工作侧的指定记忆
+- **兼容酒馆（SillyTavern）角色卡**：导入 PNG/JSON，字段映射、示例对话、世界书、正则、宏引擎
+- 针对角色扮演里常见的「AI 味」（例如「我接住了」「我得先明说」这种在演助理而不是在演角色），从提示词、示例对话、深度注入、正则清洗几层一起压
+
+设计已闭合，代码一行没动。开工第一步是先出界面预览确认样子。
+
+---
+
+## 3. 验证状态
+
+| 项 | 状态 |
+|---|---|
+| 编译 / JVM 单测 | 本机检查通过：1,908 项，1,906 通过、2 项缺语料跳过；包含缓存复用，不是全部重跑 |
+| APK 构建 | 维护者自行构建通过：ARM64 / x86_64 / Universal 三个签名 Release；签名、版本、ABI、CRC 核验通过 |
+| 三语 key 一致性 | 通过，English / 简中 / 繁中各 2,720 条 |
+| 完整 Lint | 未通过，不计入通过项 |
+| 真机 / 真实接口 | UI、覆盖安装及 DeepSeek 服务端工具真实调用与签名回传仍待验 |
+
+> 本文件不把编译与 JVM 测试当成真机通过。构建与检查证据见 [DELIVERY.md](./DELIVERY.md)；本次远端文档合并只修正文档，未重新构建 APK。
+
+---
+
+## 4. 下一步
+
+1. 维护者补充真机与真实 DeepSeek 接口验收
+2. 维护者推送当前源码并发布 `3.3.0-work.1`
+3. 等待角色板块实施指令，先出界面预览
 
 ---
 
 ## English Summary
 
-**`3.1.2-work.1` (versionCode 202, database 33) shipped on 10 November 2026**, merging upstream
-**3.1.2** and finishing **Pulse mode** — the third mode next to Chat and Groups.
+**`3.3.0-work.1` (versionCode 207) is in development; the previous `3.2.0-work.3` (206) is the current release.**
+Database moves from 33 to 34 and cannot be rolled back.
 
-**Pulse mode is done.** An assistant that runs on its own schedule: heartbeat self-checks,
-scheduled tasks (one-off, cron, or every heartbeat), change-only watchers, optional notification
-and SMS sensing, its own memory bucket with a "dreaming" consolidation step, its own workspace,
-and layered keep-alive so Android does not freeze it. It never messages you unless something
-actually needs your attention.
+**Upstream 3.3.0 is already merged** — DeepSeek speech, DeepSeek history import, paragraph-split bubbles,
+shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, and a connection-test
+dialog. Every existing fork feature is preserved.
 
-The upstream merge brought a new text-rendering library replacing the `highlight` module, a
-rewritten message inbox, a split chat list with swipe-to-preview, a floating top-bar capsule, and
-background workspace commands.
+The following are also implemented:
 
-**Next:** nothing scheduled. Optional items are listed in §6.
+- **Workspace file previews (F021)** — rendered Markdown with a source toggle; HTML / SVG resources restricted
+  to the document directory, external network access blocked, and HTML scripts disabled by default. Markdown
+  external images retain their existing network behavior. FILES saving and read-only LINUX limits remain.
+- **DeepSeek server-side tools (F022)** — `web_search` / `read_url`, a separate Read URL switch, streaming
+  status, sources, errors, and persisted signatures replayed on subsequent turns.
+- **Client context (F022)** — optional date, weekday, language and platform metadata. DeepSeek uses each user
+  message's own date; other protocols use system context. Defaults apply to new assistants and Pulse only.
 
-## 1. 当前状态
+Three signed Release variants (ARM64, x86_64, Universal) have been built by the maintainer. JVM reports contain
+1,906 passed tests and two skipped for missing fixtures, including cached results. Full Lint has not passed;
+real-service and device checks remain pending. This documentation merge did not rebuild the APKs.
 
-**已发布**：**`3.1.2-work.1`** / versionCode **202**（2026-11-10），数据库 **33**。
-上一版 `3.1.1-work.2`（201）于 2026-11-03 发布。
+**Scheduled after that:** a fourth section, **Characters** — role-play as a first-class entity, separate from
+assistants, with its own conversations, SillyTavern card import, and a shared workspace selected by checkbox
+rather than owned by one mode.
 
-阶段 0~4（合并 / 数据 / 功能回归 / 入口与群组 / 收尾）已全部完成，**脉搏模式（F015）已收尾**。
-
----
-
-## 2. 这一版做了什么
-
-### 2.1 合并上游 3.1.2
-
-| 变化 | 说明 |
-|---|---|
-| 文本渲染换库 | 上游删掉 `highlight` 模块，改用 `bettertext`；代码块高亮、表格、公式的入口都跟着变 |
-| 消息队列重写 | `MessageQueue` → `ConversationInbox`，新增 `UIMessagePart.Notice` 类型 |
-| 聊天列表拆分 | `ChatList.kt` 拆成 5 个文件，加入左滑概览 |
-| 顶栏浮动胶囊 | 顶栏按钮改成浮动胶囊，与输入框共用玻璃背景 |
-| 工作区后台命令 | 新增 `run_in_background` 与两个配套工具，长命令不再阻塞一轮 |
-
-冲突处理：22 个真冲突逐个手改；`generatePdf` 等被上游删掉的调用点同步清理；语言仍只保留三份。
-
-### 2.2 脉搏模式收尾（六批）
-
-| 批次 | 内容 |
-|---|---|
-| 感知层 | 阅读通知、短信（轮询、白名单号码、验证码先屏蔽再截断） |
-| 心跳 | 指令位置修正（从 system 中间挪到消息末尾）；只有本轮真的读过通知 / 短信时才把摘要脱敏 |
-| 抽屉 | 状态卡改成两行 + 待执行列表；通知白名单加全选 / 反选；主界面只保留用量一行 |
-| 工具 | 闹钟 `set_alarm`（只创建）；脉搏独立开关；禁止用 `sleep` 等将来的时间点 |
-| 记忆 | 顶栏记忆入口 + 记忆页（记忆 / 做梦两页签）+ 自动整理开关 |
-| 多模态 | 会话内工作区图片可解析；视频输入按模型能力开放 |
-
-### 2.3 其他修复
-
-- **顶栏液态玻璃概率性偏移** —— 原来在 applyChanges 阶段读 `getLocationInWindow()`，拿到的是上一帧的位置，与本帧的 bounds 跨帧比较。改成 `positionInRoot()` + 只扣宿主 padding，彻底不依赖窗口坐标。
-- **会话内图片不显示** —— `LocalWorkspaceId` 这个 CompositionLocal 全项目从没 provide 过，工作区路径永远解析不出来；`UIMessagePart.Image` 也没走解析。两处一起补。
-- **峰谷计价跨天算错** —— 抽屉的「今日」会把跨天的日志也算进去，改成只统计当天。
-
----
-
-## 3. 脉搏模式：能力与边界
-
-**它是什么**：第三个模式。不等你开口，按时间自己运转，有事才来找你。
-
-**三层机制**：
-
-- **心跳** —— 固定间隔（默认 30 分钟）自检。没有新情况就安静返回，不产生消息。
-- **计划任务** —— 到点执行。支持一次性、循环（五字段 cron）、随心跳三种；**任务由 AI 创建**，用户只说话。
-- **监视器** —— 本地定时轮询（电池 / 网址 / 命令），**本地 diff，没变化不叫模型**。
-
-**它有什么**：独立会话与记忆桶（`__pulse__`）、独立工作区（可装 Linux 跑脚本）、自己的工具开关、通知与短信感知、成本显示、保活四层。
-
-**边界**：不能写别人的记忆桶；群聊和聊天也写不了它的。豆包这类第三方网页通道不开放记忆写入（F009 的既有约束）。
-
----
-
-## 4. 缺陷与修复（值得记下来的）
-
-### 4.1 心跳提示词「不生效」
-
-现象：改了心跳提示词，脉搏仍然只做一半的事。
-
-原因：指令被拼进 system 的**第二段**，后面压着约 4000 字记忆。`deepseek-flash` 读到的是后半段，只执行了「任务 2」。
-
-修法：自动轮的指令**始终**作为合成用户消息放在 messages 末尾，`systemInstruction` 置空。
-
-### 4.2 感知摘要误判敏感
-
-现象：只要启用过通知 / 短信，所有轮次的报告都被当成敏感内容，固定写成一句话、不写报告文件。
-
-原因：判据是「开关开没开」，不是「本轮真读没读」。
-
-修法：看本轮是否出现 `read_notifications` / `read_sms` / `send_sms` 的工具调用，或者事件类型是 `sms`。
-
-### 4.3 模态模型用 `sleep` 等任务
-
-现象：16:58 建了 17:00 的任务，模型写 `sleep 150` 去等，整轮被占住，还会和那个任务本身撞车。
-
-原因：它没有「等待」这个原语，唯一能耗时的是 shell。
-
-修法：每轮在 system 里注入一条框架约束 —— 要稍后确认就再记一条任务，不要用 shell 等将来的时间点。
-
-### 4.4 顶栏玻璃概率性偏移（详见 §2.3）
-
-重启后恢复正常、不是每次都偏 —— 典型的跨帧读坐标。三条说明：尺寸一直是对的，所以不是布局问题；只在宿主发生位移的那一帧出错；错完没有重组来纠正，就一直错到页面重建。
-
----
-
-## 5. 已知限制（有意保留，不是缺陷）
-
-- **视频走内联 base64** —— 几 MB 的短视频没问题，十几 MB 大概率被服务端拒。这是协议限制，不是能绕的。
-- **脉搏不做历史截断** —— 用户明确要求保留完整历史，用来区分「新老主播」这类状态。心跳密集时单轮上下文会涨。
-- **厂商后台管理引导未做** —— 部分 ROM 需要用户自己去设置里开白名单，应用只给电池优化和自启动引导。
-- **邮件感知未做** —— 三个账号实测 44 天没成功过一次，暂时不做。
-- **记忆跨模式可读不可写** —— 有意为之，避免互相污染。
-
----
-
-## 6. 下一步
-
-暂无排期。可选方向：
-
-- 脉搏的上下文压缩（心跳密集场景）
-- 监视器的更多数据源
-- 群组模式的语音（目前明确关闭）
-
----
-
-## 7. 发布节奏
-
-- 版本号 `{上游版本}-work.{n}`，跟进新上游时 `n` 归 1。
-- 不跟进就不动版本号。
-- 每次发版 versionCode +1，**不复用**。
-- tag 与 versionName 逐字相同，**不带 `v`**；Release **绝不勾 Pre-release**（勾了应用内更新检查会 404 静默失效）。
-
----
-
-## 8. 历史里程碑
-
-| 版本 | versionCode | 内容 |
-|---|---|---|
-| `3.1.2-work.1` | 202 | 合并上游 3.1.2（bettertext / ConversationInbox / 聊天列表拆分 / 浮动胶囊 / 后台命令）；**脉搏模式完成**（心跳、计划任务、监视器、通知与短信感知、独立记忆与做梦、闹钟、保活）；顶栏玻璃坐标修正、会话内图片修复、视频输入 |
-| `3.1.1-work.2` | 201 | 工作区 Linux 环境改造：12 个发行版 × 3 档、SHA-256 校验、镜像回退、装失败恢复原环境 |
-| `3.1.1-work.1` | 200 | 合并上游 3.1.1（SSH 远程工作区、终端、双渠道构建、包体 47→16 MB）；阶段三收尾；DeepSeek 网页版粘贴登录；数据库 33 |
+**A note on on-device models:** this area is **on indefinite hold**, with no timeline for larger updates.
+llama.cpp support was built and does work on CPU, but the GPU backend is not stable on phones
+(`ErrorDeviceLost` before the first token), and CPU-only speed is well short of usable. This version therefore
+ships **no entry point** for it; downloaded model files are kept and the code stays in the repository for a later
+attempt. It is hidden rather than deleted because it is a provider type in the settings data — removing the type
+would break deserialization for existing users and lose API keys, conversations and memories.
