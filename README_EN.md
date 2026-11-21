@@ -8,6 +8,8 @@ English | [简体中文](README.md)
 </div>
 
 > ✅ **Current release: [`3.3.0-work.2`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 208, 2026-11-20) — upstream 3.3.0 merged, DeepSeek server-side tools and client metadata, workspace file preview, and on-device AI models removed.
+> 🔧 **In development: `3.3.0-work.3` (versionCode 209)** — menu entries are now shown or hidden per mode (Work / Groups / Pulse):
+> no more "image generation" in the drawer; Groups keeps only members and group settings; Pulse hides favourites, providers and the quick-message / prompt entries. Committed, not yet released.
 > ⚠️ **Back up before upgrading.** The database is **34** and only moves forward. See "Install & Upgrade" below.
 
 <div align="center">

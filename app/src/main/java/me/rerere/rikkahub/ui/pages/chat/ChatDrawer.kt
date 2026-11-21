@@ -583,7 +583,7 @@ fun ChatDrawerContent(
                     },
                 )
 
-                if (!pulseMode) Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
 
                 DrawerAction(
                     icon = {
