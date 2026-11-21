@@ -13,3 +13,5 @@ local.properties
 .history
 .kotlin
 .gradle-user/
+/tools/package-local-release.mjs
+/tools/summarize-jvm-tests.mjs
