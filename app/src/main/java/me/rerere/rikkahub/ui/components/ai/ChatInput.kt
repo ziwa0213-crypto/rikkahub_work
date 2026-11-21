@@ -309,6 +309,8 @@ fun ChatInput(
                         state = state,
                         assistant = assistant,
                         completionProviders = completionProviders,
+                        groupMode = groupMode,
+                        pulseMode = pulseMode,
                         onSendMessage = { sendMessage() },
                     )
 
@@ -521,6 +523,8 @@ private fun TextInputRow(
     state: ChatInputState,
     assistant: Assistant,
     completionProviders: List<ChatCompletionProvider>,
+    groupMode: Boolean,
+    pulseMode: Boolean,
     onSendMessage: () -> Unit,
 ) {
     val settings = LocalSettings.current
@@ -695,7 +699,7 @@ private fun TextInputRow(
                     }
                 }
             },
-            leadingIcon = if (quickMessages.isNotEmpty()) {
+            leadingIcon = if (quickMessages.isNotEmpty() && !groupMode && !pulseMode) {
                 {
                     QuickMessageButton(quickMessages = quickMessages, state = state)
                 }

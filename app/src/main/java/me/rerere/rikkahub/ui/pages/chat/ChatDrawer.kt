@@ -64,7 +64,6 @@ import me.rerere.hugeicons.stroke.ChartColumn
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.FolderAdd
-import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.ImageToVideo
 import me.rerere.hugeicons.stroke.InLove
 import me.rerere.hugeicons.stroke.HeartPulse
@@ -74,9 +73,10 @@ import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Sorting01
-import me.rerere.hugeicons.stroke.Sparkles
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.TransactionHistory
+import me.rerere.hugeicons.stroke.UserGroup03
+import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -204,9 +204,6 @@ fun ChatDrawerContent(
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var folderToDelete by remember { mutableStateOf<Folder?>(null) }
     var groupConversationToRename by remember { mutableStateOf<Conversation?>(null) }
-
-    // Menu popup 状态
-    var showMenuPopup by remember { mutableStateOf(false) }
 
     val updateCheckDisabledUntil = settings.displaySetting.updateCheckDisabledUntilEpochMillis
     var updateChecksEnabled by remember(updateCheckDisabledUntil) {
@@ -348,7 +345,7 @@ fun ChatDrawerContent(
                 )
             }
 
-            if (!pulseMode) DrawerActions(navController = navController)
+            if (!groupMode && !pulseMode) DrawerActions(navController = navController)
 
             if (!groupMode && !pulseMode) {
                 Row(
@@ -540,59 +537,39 @@ fun ChatDrawerContent(
                         onClick = { navController.navigate(Screen.PulseSettings(logs = true)) },
                     )
                 }
-                if (!pulseMode) DrawerAction(
-                    icon = {
-                        Icon(
-                            imageVector = HugeIcons.LookTop,
-                            contentDescription = stringResource(R.string.assistant_page_title)
+                when {
+                    pulseMode -> Unit
+                    groupMode -> {
+                        DrawerAction(
+                            icon = { Icon(HugeIcons.UserGroup03, stringResource(R.string.group_members_title)) },
+                            label = { Text(stringResource(R.string.group_members_title)) },
+                            onClick = { navController.navigate(Screen.GroupMembers) },
                         )
-                    },
-                    label = {
-                        Text(stringResource(R.string.assistant_page_title))
-                    },
-                    onClick = {
-                        navController.navigate(Screen.Assistant)
-                    },
-                )
-
-                if (!pulseMode) Box {
-                    DrawerAction(
-                        icon = {
-                            Icon(HugeIcons.Sparkles, "Menu")
-                        },
-                        label = {
-                            Text(stringResource(R.string.menu))
-                        },
-                        onClick = {
-                            showMenuPopup = true
-                        },
-                    )
-                    DropdownMenu(
-                        expanded = showMenuPopup,
-                        onDismissRequest = { showMenuPopup = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.chat_page_menu_image_generation)) },
-                            leadingIcon = { Icon(HugeIcons.Image02, null) },
-                            onClick = {
-                                showMenuPopup = false
-                                navController.navigate(Screen.ImageGen)
-                            }
+                        DrawerAction(
+                            icon = { Icon(HugeIcons.UserMultiple, stringResource(R.string.group_settings_title)) },
+                            label = { Text(stringResource(R.string.group_settings_title)) },
+                            onClick = { navController.navigate(Screen.Groups) },
                         )
                     }
+                    else -> DrawerAction(
+                        icon = {
+                            Icon(
+                                imageVector = HugeIcons.LookTop,
+                                contentDescription = stringResource(R.string.assistant_page_title)
+                            )
+                        },
+                        label = { Text(stringResource(R.string.assistant_page_title)) },
+                        onClick = { navController.navigate(Screen.Assistant) },
+                    )
                 }
 
-                DrawerAction(
-                    icon = {
-                        Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
-                    },
-                    label = {
-                        Text(stringResource(R.string.favorite_page_title))
-                    },
-                    onClick = {
-                        navController.navigate(Screen.Favorite)
-                    },
-                )
+                if (!pulseMode) {
+                    DrawerAction(
+                        icon = { Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title)) },
+                        label = { Text(stringResource(R.string.favorite_page_title)) },
+                        onClick = { navController.navigate(Screen.Favorite) },
+                    )
+                }
 
                 DrawerAction(
                     icon = {

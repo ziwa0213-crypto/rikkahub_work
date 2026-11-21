@@ -1,3 +1,62 @@
+# 2026-11-21 N27：三模式界面显隐
+
+交付版本为 **3.3.0-work.3 / versionCode 209 / DB34**。N27 基于 **3.3.0-work.2 / 208**，按工作、群组和脉搏模式调整界面入口的显隐。
+
+## 已完成
+
+- `ChatDrawer.kt`：移除三种模式共有的图像生成菜单；群组模式隐藏历史记录/媒体创作/AI 翻译，并将底部入口改为“组员”和“群组设置”；脉搏模式隐藏收藏；工作模式保留助手入口。
+- `SettingPage.kt`：按 `settings.uiMode` 控制助手、组员、群组、提供商、内置浏览器、语音服务、媒体和 Web 服务器的显隐。工作模式保留完整模型/服务入口；群组和脉搏按矩阵隐藏对应入口；权限警告区既有 `Screen.SettingProvider` 未改。
+- `ExtensionsPage.kt`：快捷消息和提示词仅工作模式显示；工作区在脉搏模式隐藏；技能三种模式均保留。
+- `ChatInput.kt`：快捷消息图标仅在工作模式且存在快捷消息时显示，群组/脉搏模式隐藏。
+- 保持 `UiMode.CHAT`、`UiMode.GROUP`、`UiMode.PULSE` 原名，未修改路由、数据模型、数据库和业务服务。
+
+## 源码归档
+
+- 本批 ZIP 收录 N27、209 版号，以及 GitHub `master` 提交 `b86c6048` 的 `README.md`、`README_EN.md` 和 `DEVELOPMENT.md`。
+- ZIP 根目录收录本说明，保留项目的 Gradle、CI 和原有 JNI 依赖。归档规则排除个人构建工具、APK、构建缓存和签名材料。
+
+## 检查结果
+
+- `git diff --check`：通过。
+- `./gradlew :app:compileGithubDebugKotlin --no-daemon --no-parallel --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process --console=plain`：**BUILD SUCCESSFUL**，138 个 actionable tasks 中 2 个执行、136 个为 `UP-TO-DATE`。
+- 编译仅有既有 Navigation 3 opt-in 标记 unresolved 警告；没有 Kotlin 编译错误。
+- 静态检索确认 `ChatDrawer.kt` 已无 `showMenuPopup`、`HugeIcons.Sparkles`、`Screen.ImageGen` 残留。
+- 维护者此前构建的 209 版 Release 中，JVM 单元测试 1817 项通过、2 项跳过。APK 签名、应用 ID、版本和 ABI 校验通过。Android Lint 未通过，诊断见对应构建的 `lint.log`。
+
+## 待维护者验收
+
+- N27 要求的工作/群组/脉搏三模式设置页和侧边栏共六张截图未执行；本机没有运行 ADB、模拟器或真机 UI 验收。
+- 安装测试时核对三种模式切换、各入口显隐，以及群组“组员”和“群组设置”的跳转。
+
+---
+
+# 2026-11-21 本机构建菜单：显示上次产物目录
+
+按维护者要求修改桌面 `/home/li/桌面/构建/RikkaHub Work/` 的个人构建入口。
+应用版本保持 **3.3.0-work.2 / 208**、DB34；本轮只修改本机脚本、快捷方式、工具检查及说明，
+不改应用功能，不执行真实 Android 构建，不生成新的交付 APK / 源码 ZIP，不 commit / push / tag。
+下方11月20日源码ZIP仍为此前快照，不包含本次DELIVERY记录；个人构建工具仍不进入源码包。
+
+## 完成内容
+
+- 构建类型选择第一页分开显示 **Release（正式版）**、**Debug（调试版）**最近一次构建的完整产物文件夹路径；APK、源码、测试报告与日志沿用同一目录。
+- 显示目录状态：构建完成（Lint未通过单独标注）、构建失败、尚未完成或已中断、目录已不存在；没有记录时明确显示。失败目录只表示日志和可能的中间产物，不标作完整交付。
+- 新构建创建产物目录后原子写入 `.gradle/delivery-last-release-output.txt` 或 `.gradle/delivery-last-debug-output.txt`；两种类型分别保存，重开仍可查看，取消类型/版本选择不覆盖旧记录。状态目录沿用源码归档排除规则。
+- 首次升级会按目录名中的构建时间扫描现有 `artifacts/<版本>/manual-release-*` / `manual-debug-*`，跨版本找到各自最近一次；不使用目录mtime，不把source-for-github归档当作APK构建。
+- 首版加入 `--scrolltext` 后，whiptail 把初始焦点放在路径说明上，方向键和回车无法直接选择构建类型。去掉该参数后，首页打开即可用方向键选择并按 Enter 进入版本页。终端不足 80 列或 24 行时使用数字菜单，首页同样显示两类产物目录。
+- 修复桌面 `.desktop` 中已失效的旧Exec路径，改为当前 `/home/li/桌面/构建/RikkaHub Work/构建 RikkaHub Work.sh`。原 `.sh` 的构建调用保持。
+
+## 检查与文件范围
+
+- `bash -n tools/build-delivery.sh`、`node --check tools/test-build-delivery.mjs` 通过。
+- `node tools/test-build-delivery.mjs` **19 组离线流程通过**，覆盖构建矩阵、版本记忆、取消和失败、历史路径，以及焦点回归和小窗口数字菜单。Gradle 和 SDK 使用临时工程模拟。
+- 用实际 whiptail 通过桌面 `.sh` 入口验证。在 **120×32** 和 **80×24** 的终端中直接按 Enter 可进入 Release 版本页，按下键再按 Enter 可进入 Debug 版本页。在 **55×15** 的终端中输入 `2` 可进入 Debug 版本页。各组都在版本页取消，核对了两类目录的显示及版本预填。
+- 实际自动识别的Release为 `artifacts/3.3.0-work.2/manual-release-20261120-183629-WaJ05T/`，Debug为 `artifacts/3.3.0-work.1/manual-debug-20261120-163130-u78gmd/`；这是已有产物，不是本轮重新构建。
+- 修改文件：本机 `tools/build-delivery.sh`、`tools/test-build-delivery.mjs`、`tools/BUILDING.md`、桌面目录内 `构建 RikkaHub Work.desktop` 及本DELIVERY。前三个继续被本机忽略并排除源码包；快捷方式在仓库外，DELIVERY随下次源码归档收录。
+- 应用编译/单测、真机及真实API不因本机菜单变动重新执行；此前F023的1423通过/1缺语料跳过、完整Lint未通过和设备待验结论仍按原记录。
+
+---
+
 # 2026-11-20 源码交付：3.3.0-work.2 / 208
 
 维护者本轮明确要求“打包源码，推送命令，我推送”。本次仅归档当前源码并提供手动命令，

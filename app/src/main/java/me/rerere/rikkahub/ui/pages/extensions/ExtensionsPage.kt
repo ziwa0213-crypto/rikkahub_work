@@ -38,6 +38,7 @@ fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navController = LocalNavController.current
     val settings = LocalSettings.current
+    val uiMode = settings.uiMode
     val workspaceScope = if (settings.uiMode == UiMode.GROUP) {
         WorkspaceOwnerScope.GROUP.value
     } else {
@@ -67,30 +68,34 @@ fun ExtensionsPage() {
                 CardGroup(
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
-                    item(
-                        onClick = { navController.navigate(Screen.QuickMessages) },
-                        leadingContent = { CardGroupIcon(HugeIcons.Zap, containerColor = containerColor, contentColor = contentColor) },
-                        headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) },
-                        supportingContent = { Text(stringResource(R.string.extensions_page_quick_messages_desc)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.Prompts) },
-                        leadingContent = { CardGroupIcon(HugeIcons.Book03, containerColor = containerColor, contentColor = contentColor) },
-                        headlineContent = { Text(stringResource(R.string.extensions_page_prompts)) },
-                        supportingContent = { Text(stringResource(R.string.extensions_page_prompts_desc)) },
-                    )
+                    if (uiMode == UiMode.CHAT) {
+                        item(
+                            onClick = { navController.navigate(Screen.QuickMessages) },
+                            leadingContent = { CardGroupIcon(HugeIcons.Zap, containerColor = containerColor, contentColor = contentColor) },
+                            headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) },
+                            supportingContent = { Text(stringResource(R.string.extensions_page_quick_messages_desc)) },
+                        )
+                        item(
+                            onClick = { navController.navigate(Screen.Prompts) },
+                            leadingContent = { CardGroupIcon(HugeIcons.Book03, containerColor = containerColor, contentColor = contentColor) },
+                            headlineContent = { Text(stringResource(R.string.extensions_page_prompts)) },
+                            supportingContent = { Text(stringResource(R.string.extensions_page_prompts_desc)) },
+                        )
+                    }
                     item(
                         onClick = { navController.navigate(Screen.Skills) },
                         leadingContent = { CardGroupIcon(HugeIcons.Puzzle, containerColor = containerColor, contentColor = contentColor) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_agent_skills)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
                     )
-                    item(
-                        onClick = { navController.navigate(Screen.Workspaces(workspaceScope)) },
-                        leadingContent = { Icon(HugeIcons.Folder01, null) },
-                        headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
-                        supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },
-                    )
+                    if (uiMode != UiMode.PULSE) {
+                        item(
+                            onClick = { navController.navigate(Screen.Workspaces(workspaceScope)) },
+                            leadingContent = { Icon(HugeIcons.Folder01, null) },
+                            headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
+                            supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },
+                        )
+                    }
                 }
             }
         }
