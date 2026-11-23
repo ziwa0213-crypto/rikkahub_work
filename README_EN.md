@@ -2,14 +2,13 @@
   <img src="docs/icon.png" alt="App icon" width="100" />
   <h1>RikkaHub Work</h1>
 
-An AI platform built on RikkaHub: work, characters, groups and pulse — four modes, one job each.
+An AI platform built on RikkaHub: work, characters, groups and pulse — four modes, one job each. The Characters mode ships as an experimental feature and is off by default.
 
 English | [简体中文](README.md)
 </div>
 
-> ✅ **Current release: [`3.3.0-work.2`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 208, 2026-11-20) — upstream 3.3.0 merged, DeepSeek server-side tools and client metadata, workspace file preview, and on-device AI models removed.
-> 🔧 **In development: `3.3.0-work.3` (versionCode 209)** — menu entries are now shown or hidden per mode (Work / Groups / Pulse):
-> no more "image generation" in the drawer; Groups keeps only members and group settings; Pulse hides favourites, providers and the quick-message / prompt entries. Committed, not yet released.
+> ✅ **Current release: [`3.3.0-work.3`](https://github.com/ziwa0213-crypto/rikkahub_work/releases/latest)** (versionCode 209, 2026-11-21) — settings, drawer and extension entries now follow the current mode, the group drawer points at members and group settings, and the image-generation entry was removed.
+> 🧪 **Characters is experimental, off by default.** Turn it on in *Settings → Experimental*; "Chat" then reads as "Work".
 > ⚠️ **Back up before upgrading.** The database is **34** and only moves forward. See "Install & Upgrade" below.
 
 <div align="center">
@@ -19,22 +18,23 @@ English | [简体中文](README.md)
 
 ## 📌 What this is
 
-Upstream RikkaHub is a carefully built chat client. This fork arranges it differently: work with AI is split into four modes, each with its own lists, settings, memory and workspace.
+Upstream RikkaHub is a carefully built chat client. This fork arranges it differently: work with AI is split into four modes, each with its own lists, settings, memory and workspace. Characters is an experimental feature and is off by default.
 
 | Mode | In one line |
 |---|---|
-| **Work** | Get things done with AI: tools, files, workspaces, search |
-| **Characters** | Spend time with AI characters: cards, personas, long-term memory (planned) |
+| **Work** (labelled "Chat" by default) | Get things done with AI: tools, files, workspaces, search |
+| **Characters** | Spend time with AI characters: cards, personas, file-based memory (**experimental, off by default**) |
 | **Groups** | Several AIs working together: members, speaking order, a deputy |
 | **Pulse** | AI running on its own: heartbeats, scheduled tasks, watchers |
 
-"Chat" became "Work" because it stopped being just chat a while ago: it reads and writes files, runs commands, browses the web, calls tools, talks to MCP servers, and opens workspaces. Keeping the name "chat" understates what it does.
+With the experimental switch on, "Chat" is labelled "Work", because it stopped being just chat a while ago: it reads and writes files, runs commands, browses the web, calls tools, talks to MCP servers, and opens workspaces. Keeping the name "chat" understates what it does. With the switch off it is still called "Chat" and behaves exactly like the three-mode build.
 
 **Nothing from upstream was removed.** Multi-provider support and MCP are still there, and so are skills and workspaces; the full list is below. All of it is available inside the four modes, just placed where it belongs. Each upstream release is merged in rather than reimplemented.
 
 **This is not an official RikkaHub build.** Everything here rests on upstream work; please file issues about this fork on this repository, not upstream.
 
-- **Versioning**: `{upstream}-work.{n}`, e.g. `3.3.0-work.2`; `n` resets to 1 whenever a new upstream is merged
+- **Versioning**: `{upstream}-work.{n}`, e.g. `3.3.0-work.3`; `n` resets to 1 whenever a new upstream is merged
+- **Release cadence**: new features stay behind the experimental switch, so releases are small and frequent instead of one big drop
 - **Languages**: English, Simplified Chinese, Traditional Chinese only
 - **Distribution**: builds ship through this repository's GitHub Releases
 
@@ -57,15 +57,14 @@ One-to-one. Call tools, read and write files, run commands, search the web — o
 - **Client metadata** — tells the model today's date, weekday, interface language and platform. DeepSeek gets it attached to each user message with that message's own date; other protocols get it in the system prompt. New assistants and Pulse configurations start with it on; existing configurations keep their choice.
 - **DeepSeek web (free)** — drives conversations with a browser login instead of an API key, using a read-only tool whitelist and request pacing by default; the restricted capabilities (file writes, shell, code execution, skills and MCP) can be opened one by one, each behind a risk confirmation. Login credentials can be imported by pasting a cURL, so you no longer have to separate token from cookie.
 
-### 02 Characters — spending time with AI characters (planned)
-
-This mode is not implemented yet; below is the direction.
+### 02 Characters — spending time with AI characters (experimental, in development)
 
 Role-play currently means building characters as assistants and mixing them into the work list alongside assistants that do actual work. This mode separates the two.
 
 - **Characters are their own entity** — they do not occupy the assistant list and do not reuse assistant settings; the two can call the same tools, but configuration, memory and conversations stay apart
 - **Their own conversation list**; existing assistant conversations can be migrated by ticking them, choosing copy or move per item
 - **SillyTavern card import** — PNG / JSON with field mapping, example dialogue, lorebooks, regex scripts and a macro engine
+- **Lorebooks belong to Characters** — they appear only inside this mode; the group side loses them entirely (whether the switch is on or off), and the work side keeps them only while the switch is off
 - **Memory becomes file-based**, with optional read-only reference to selected memory from Work
 - Against the usual "assistant voice" in role-play — lines like *"I've got you"* or *"Let me be clear first"* that perform a helpful assistant instead of a character, along with web-novel phrasing such as *"a low, husky voice"* or *"deep, dark eyes"* — several layers are applied: prompt, example dialogue, depth injection, and regex cleanup
 
@@ -147,7 +146,12 @@ Not tied to one mode, but used by all of them:
 
 ## 🛣 What's next
 
-The next release builds the fourth mode, **Characters**: characters as their own entity with their own list and conversations, SillyTavern card compatibility, file-based memory, and a multi-layer pass against role-play "assistant voice". The design is closed; no code yet, and the first step is a UI preview.
+The fourth mode, **Characters**, is in development and ships **behind an experimental switch** (off by default):
+
+- characters as their own entity with their own list and conversations, SillyTavern card compatibility, file-based memory, and a multi-layer pass against role-play "assistant voice";
+- with the switch off there are three modes (Chat / Groups / Pulse); with it on there are four (Work / Characters / Groups / Pulse);
+- lorebooks move to Characters, and the group side loses them entirely;
+- because features stay hidden behind switches, releases are small and frequent instead of one big drop.
 
 ## ⚠️ Known Limitations
 
@@ -156,7 +160,7 @@ The next release builds the fourth mode, **Characters**: characters as their own
 | DeepSeek web login may show a blank page | The in-app WebView can come up empty (UA / fingerprint level, not diagnosed). The screen offers a diagnostic hint: sign in with a system browser or Via, then import via "paste cURL" |
 | Desktop mode is display only | Same engine underneath; `navigator.platform` and similar are still detectable, and a page that already redirected to its mobile site cannot be pulled back |
 | Liquid glass needs Android 13+ | Older devices get blurred glass silently; the minimum SDK is not raised |
-| Characters mode is not implemented | Design only, no code, no date |
+| Characters mode is experimental | Off by default and still in development; turning it on adds the mode, turning it off leaves the three-mode behaviour unchanged |
 | Workspace HTML preview does not map sibling assets | HTML and SVG render, but images, CSS and JS next to the file are not picked up; run a local server in the workspace for a full page |
 | The database only moves forward | It is 34 now; installing any older build cannot read it — clearing data is the only way back |
 
@@ -180,7 +184,7 @@ Download the APK from **Releases**.
 | Release package | `me.rerere.rikkahub.plus` |
 | Debug package | `me.rerere.rikkahub.debug` |
 | Version scheme | `{upstream}-work.{n}` |
-| Current release | `3.3.0-work.2` (versionCode 208, 2026-11-20) |
+| Current release | `3.3.0-work.3` (versionCode 209, 2026-11-21) |
 | Database | 34 (forward only) |
 | License | AGPL-3.0 |
 

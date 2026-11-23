@@ -1,34 +1,29 @@
 # 开发进度 / Development Status
 
-> 最后更新：**2026-11-21**
-> 当前发布：**`3.3.0-work.2`**（versionCode **208**，2026-11-20）。开发中：**`3.3.0-work.3`**（versionCode **209**，已提交，待发布）。
+> 最后更新：**2026-11-23**
+> 当前发布：**`3.3.0-work.3`**（versionCode **209**，2026-11-21）。
+> 正在开发：角色板块（**实验性功能，默认关闭**）+ 一批通用修正；合并上游 3.3.1 后目标 `3.3.1-work.1` / **210**。
 > 功能说明见 [README.md](./README.md)，版本变更见 GitHub Releases。本文件不把编译与 JVM 测试当成真机通过。
 
 ---
 
 ## 0. 一句话状态
 
-**`3.3.0-work.1`（207）与 `3.3.0-work.2`（208）都已发布。** 这一轮做完了四件事：合并上游 3.3.0、DeepSeek 官方工具与客户端元信息、工作区文件预览（HTML 部分回退）、移除本地 AI 模型。
+**`3.3.0-work.3`（209）已发布**：把设置、侧边栏与扩展页的入口按当前板块做了显隐收尾，同时补了仓库与开发文档。
 
-- 版本号：`3.3.0-work.2` / versionCode **208**
+- 版本号：`3.3.0-work.3` / versionCode **209**
 - 数据库：**34**（只升不降）
 - 包名：`me.rerere.rikkahub.plus`
-- 下一阶段：第四板块「角色」，先出界面预览
+- 正在开发：角色板块（实验性功能，默认关闭）、DeepSeek 思考模式与工具修复、记忆文件正文排版、DeepSeek 网页版实验开关
+- 下一版：合并上游 3.3.1 后发 `3.3.1-work.1` / **210**
 
-### 0.1 开发中：`3.3.0-work.3` / 209（已提交，待发布）
-
-按「工作 / 群组 / 脉搏」三种模式调整界面入口，把与当前模式无关的项目藏起来：
-
-- **侧边栏**：三种模式都不再出现「图像生成」；群组模式隐藏历史记录、媒体创作与 AI 翻译，底部入口换成「组员」与「群组设置」；脉搏模式隐藏「收藏」
-- **设置页**：助手只在工作模式显示；组员与群组只在群组模式显示；提供商在脉搏模式隐藏；内置浏览器、语音服务、媒体、Web 服务器只在工作模式显示
-- **扩展管理**：快捷消息与提示词只在工作模式显示；工作区在脉搏模式隐藏；技能三种模式都保留
-- **输入框**：快捷消息图标只在工作模式且存在快捷消息时显示
-
-没有改路由、数据模型和数据库（仍为 34），也没有新增三语文案。
+**发版方式变了**：从这一轮起，新功能默认藏在「设置 → 实验性功能」开关后面，所以改为**小步发版**，不再攒一个大版本。开关关掉就等于功能没上线，出问题时用户自己关一下即可。
 
 ---
 
 ## 1. 这一版做了什么
+
+> §1.1~§1.6 属于 `3.3.0-work.1` / `3.3.0-work.2`（上游 3.3.0 那一轮）；§1.7 属于 `3.3.0-work.3`。
 
 ### 1.1 合并上游 3.3.0 ｜ 已完成
 
@@ -102,22 +97,43 @@ DeepSeek 的 Chat Completions 支持在请求里声明服务端工具：
 
 **已下载的 GGUF 文件不自动删除，也不提供清理入口**，但新版不再加载。
 
+### 1.7 三板块界面显隐收尾 ｜ 已完成（`3.3.0-work.3`）
+
+按「工作 / 群组 / 脉搏」三种模式调整界面入口，把与当前模式无关的项目藏起来：
+
+- **侧边栏**：三种模式都不再出现「图像生成」；群组模式隐藏历史记录、媒体创作与 AI 翻译，底部入口换成「组员」与「群组设置」；脉搏模式隐藏「收藏」，底部按钮恢复贴右对齐
+- **设置页**：助手只在工作模式显示；组员与群组只在群组模式显示；提供商在脉搏模式隐藏；内置浏览器、语音服务、媒体、Web 服务器只在工作模式显示
+- **扩展管理**：快捷消息与提示词只在工作模式显示；工作区在脉搏模式隐藏；技能三种模式都保留
+- **输入框**：快捷消息图标只在工作模式且存在快捷消息时显示
+- **仓库侧**：补 `CHANGES.md`、`README` / `README_EN` / `DEVELOPMENT` 更新、`.gitignore` 清理
+
+没有改路由、数据模型和数据库（仍为 34）。
+
 ---
 
-## 2. 已排期：第四板块「角色」
+## 2. 开发中：第四板块「角色」（实验性功能）
 
-现在应用里有三个板块：**工作**（原「聊天」）、**群组**、**脉搏**。计划新增第四个 **角色**，专门承载娱乐向的角色扮演，包括酒馆（SillyTavern）那类玩法。
+应用默认是三个板块：**聊天**（打开实验开关后显示为**工作**）、**群组**、**脉搏**。第四个 **角色** 正在开发，并且**整体挂在一个默认关闭的实验开关后面**。
 
-顺序调整为：工作 → 角色 → 群组 → 脉搏。
+| 开关状态 | 模式 | 世界书 |
+|---|---|---|
+| 关（默认） | 聊天 / 群组 / 脉搏 | 工作侧照旧保留并使用；**群组侧将无条件移除** |
+| 开 | 工作 / 角色 / 群组 / 脉搏 | 只在角色板块；工作与群组都不再显示、不再注入 |
+
+要点：
 
 - **角色是独立实体**，不占用助手列表，也不复用助手的设置；助手列表里不会出现角色
 - 角色有自己的会话列表；已有助手的会话可以按用户勾选迁移过来，逐个选「复制」还是「移动」
-- **工作区从「归属一个模式」改成「勾选」**：同一个工作区可以同时被工作、角色、群组选中；脉搏的工作区固定，不参与
-- 角色**不保留按条记忆**，改用文件形式的记忆，另外可以只读引用工作侧的指定记忆
+- 角色改用文件形式的记忆，另外可以只读引用工作侧的指定记忆
 - **兼容酒馆角色卡**：导入 PNG / JSON，字段映射、示例对话、世界书、正则、宏引擎
+- **世界书归属角色**；**群组侧的世界书无条件移除**（不管开关开不开都不再显示、不再注入），数据字段保留
+- **不改底层模式枚举名**：「工作」只是开关打开后的显示文案，因此没有数据迁移
 - 针对角色扮演里常见的「AI 味」——「我接住了」「我得先明说」这类在演助理不在演角色，以及网文腔的「低沉沙哑的嗓音」「深邃的眼眸」——从提示词、示例对话、深度注入、正则清洗几层一起压
+- **关闭开关时数据全部保留**：角色、角色会话、世界书、各处的世界书绑定都不删，只是不可见、不注入
 
-设计已闭合，代码一行没动。开工第一步是先出界面预览确认样子。
+第一阶段（地基与迁移）已在实现中：角色实体、会话解析链、工作区归属、世界书归属与入口迁移、提示词模块化。
+
+---
 
 ---
 
@@ -125,30 +141,34 @@ DeepSeek 的 Chat Completions 支持在请求里声明服务端工具：
 
 | 项 | 状态 |
 |---|---|
-| 编译 / JVM 单测 | 通过（Codex 本机执行，1423 项通过、1 项跳过） |
+| 编译 / JVM 单测 | `3.3.0-work.3` 通过（Codex 本机执行） |
 | APK 构建 | 通过，ARM64 签名 Release |
-| 三语 key 一致性 | 通过，English / 简中 / 繁中各 2,616 条（本地模型专用文案各删 103 条） |
+| 三语 key 一致性 | 通过，English / 简中 / 繁中各 2,616 条 |
 | 旧配置兼容 | 5 项专项通过（旧供应商解码、真实 DataStore 读写重开、云端凭据保留、失效引用清理、旧开关键忽略） |
 | 完整 Lint | 未通过，不计入通过项 |
-| 真机 / 真实接口 | `3.3.0-work.1` / `3.3.0-work.2` 的覆盖安装、界面交互、DeepSeek 服务端工具真实调用与签名回传仍待验证 |
+| 真机 / 真实接口 | `3.3.0-work.3` 覆盖安装与三板块界面显隐待实机确认；DeepSeek 服务端工具的真实调用与签名回传仍待验证 |
 
 ---
 
 ## 4. 下一步
 
-1. 角色板块：先出界面预览，确认后再写任务书
-2. 角色板块开工前，把工作区归属改成勾选制
-3. 继续跟进上游版本
+1. **角色板块第一阶段**：角色实体、会话解析链、工作区归属、世界书归属与入口迁移、提示词模块化 —— 全部藏在实验开关后面（默认关）
+2. **通用修正**：DeepSeek 思考模式 + 客户端工具的 400 修复；记忆文件正文按 Markdown 排版；DeepSeek 网页版改为实验性功能（默认隐藏，会话改用快速模型，登录数据保留）
+3. **合并上游 3.3.1**，之后发 `3.3.1-work.1` / 210
+4. 因为功能默认藏在开关后，后续按批次小步发版：每完成一批 +1 发一版
 
 ---
 
 ## English Summary
 
-**`3.3.0-work.2` (versionCode 208, 2026-11-20) is the current release; `3.3.0-work.1` (207) shipped the same day.**
-The database is now **34** and cannot be rolled back.
+**`3.3.0-work.3` (versionCode 209, 2026-11-21) is the current release.**
+The database is **34** and cannot be rolled back.
+
+Since this round, new features ship behind an **experimental switch** (off by default), so releases are small and frequent instead of one big drop — turning the switch off is the rollback.
 
 **What this round delivered**
 
+- **Mode-aware entries (`3.3.0-work.3`)** — settings, drawer and extension pages now show only what belongs to the current mode; the group drawer points at members and group settings, and the image-generation entry was removed.
 - **Upstream 3.3.0 merged** — DeepSeek speech, DeepSeek history import, paragraph-split bubbles, shared-storage workspaces, Vertex Interactions, a safe mode that trims oversized settings, a connection-test dialog, and the upstream Phone Use changes. Every existing fork feature is preserved.
 - **DeepSeek server-side tools** — declare web search and URL reading on the request and the API runs them, returning results, sources and citations in the same turn. Tool calls and signatures are stored and replayed. Under the same switch, thinking mode searches while it reasons.
 - **Client metadata** — date, weekday, interface language and platform. DeepSeek gets it per user message with that message's own date; other protocols get it in the system prompt. New assistants and Pulse start with it on.
@@ -158,4 +178,4 @@ The database is now **34** and cannot be rolled back.
 
 **On-device AI models have been removed.** llama.cpp ran end to end: CPU produced tokens but only at single-digit tokens/s, and the Vulkan backend hit `ErrorDeviceLost` before the first token on affected devices; small quantized models also fell well short of cloud quality. `3.3.0-work.2` removes the local provider, the inference module, both backends and all related UI. Existing settings are read through a compatibility filter so other providers and API keys survive; downloaded GGUF files are left on disk but are no longer loaded.
 
-**Scheduled next:** the fourth mode, **Characters** — role-play as a first-class entity, separate from assistants, with its own conversations, SillyTavern card import, file-based memory, a workspace selected by checkbox rather than owned by one mode, and a multi-layer pass against role-play "assistant voice". Design is closed; the first step is a UI preview.
+**In development:** the fourth mode, **Characters**, behind an experimental switch that is off by default. With it off the app is exactly the three-mode build (Chat / Groups / Pulse); with it on there are four modes (Work / Characters / Groups / Pulse). Lorebooks move to Characters, and the group side loses them entirely. Closing the switch hides everything and keeps all data. Alongside it: the DeepSeek thinking-mode tool fix, Markdown formatting for memory files, and the DeepSeek web provider moving behind its own experimental switch (hidden by default, sessions fall back to the fast model, credentials kept). Next release after merging upstream 3.3.1: `3.3.1-work.1` / 210.
