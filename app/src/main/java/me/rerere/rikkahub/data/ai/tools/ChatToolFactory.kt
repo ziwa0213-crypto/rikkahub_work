@@ -16,6 +16,7 @@ import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.AssistantMode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
@@ -57,7 +58,7 @@ class ChatToolFactory(
     private val backgroundShellManager: BackgroundShellManager,
     private val settingsStore: me.rerere.rikkahub.data.datastore.SettingsStore,
 ) {
-    suspend fun createTools(
+    internal suspend fun createTools(
         settings: Settings,
         assistant: Assistant,
         model: Model,
@@ -66,14 +67,16 @@ class ChatToolFactory(
         conversationScopeAssistantId: Uuid? = assistant.id,
         conversationId: Uuid? = null,
         allowPhoneUse: Boolean = true,
+        mode: AssistantMode = AssistantMode.WORK,
     ): List<Tool> {
         val workspaceTools = createWorkspaceToolsIfReady(
             assistant.workspaceId?.toString(),
             workspaceCwd,
-            allowedOwners = when {
-                assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID -> setOf("pulse")
-                memoryScope != null -> setOf(null, "group")
-                else -> setOf(null, "chat")
+            allowedOwners = when (mode) {
+                AssistantMode.PULSE -> setOf("pulse")
+                AssistantMode.GROUP -> setOf(null, "group")
+                AssistantMode.ROLE -> setOf(null, "character")
+                AssistantMode.WORK -> setOf(null, "chat")
             },
             conversationId = conversationId,
         )
@@ -90,14 +93,14 @@ class ChatToolFactory(
             if (assistant.enableMemory) {
                 addAll(buildMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
                 // Register even for an empty store, so the first explicit request can be saved.
-                addAll(buildRowMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
+                if (mode != AssistantMode.ROLE) addAll(buildRowMemoryTools(memoryRepository, memoryScope ?: assistant.memoryId))
             }
             if (shouldUseExternalWebSearch(assistant, model)) {
                 addAll(createSearchTools(settings))
             }
             addAll(localTools.getTools(assistant.localTools, conversationId,
-                allowPhoneUse = shouldOfferPhoneUse(allowPhoneUse && memoryScope == null &&
-                    assistant.id != me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID, model, settings.providers)))
+                allowPhoneUse = shouldOfferPhoneUse(allowPhoneUse &&
+                    (mode == AssistantMode.WORK || mode == AssistantMode.ROLE), model, settings.providers)))
             if (assistant.enableRecentChatsReference) {
                 addAll(createConversationTools(conversationRepository, conversationScopeAssistantId,
                     pulse = assistant.id == me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID))
@@ -133,7 +136,7 @@ class ChatToolFactory(
             }
         }
         // 过长的输出存成文件让模型用 shell 按需读取；没有 shell 时模型读不到文件，只能原样返回
-        val scoped = if (memoryScope == null) tools else tools.filterNot { it.name.startsWith("browser_") }
+        val scoped = if (mode == AssistantMode.GROUP) tools.filterNot { it.name.startsWith("browser_") } else tools
         val deepSeekWeb = model.findProvider(settings.providers, checkOverwrite = false) as? ProviderSetting.DeepSeekWeb
         val allowed = if (deepSeekWeb != null) {
             val unlock = deepSeekWeb.unlock

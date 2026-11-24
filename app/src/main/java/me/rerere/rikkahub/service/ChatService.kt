@@ -106,6 +106,14 @@ import me.rerere.rikkahub.data.model.replaceUserRegexes
 import me.rerere.rikkahub.data.model.selectBranch
 import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.model.withAssistantUpdate
+import me.rerere.rikkahub.data.model.AssistantMode
+import me.rerere.rikkahub.data.model.assistantMode
+import me.rerere.rikkahub.data.model.isCharacterChat
+import me.rerere.rikkahub.data.model.isDeletedCharacterChat
+import me.rerere.rikkahub.data.model.initialChatConversation
+import me.rerere.rikkahub.data.model.newChatConversation
+import me.rerere.rikkahub.data.model.workAssistantSelection
+import me.rerere.rikkahub.data.model.withAssistantSettings
 import me.rerere.rikkahub.data.model.withNodeFavorite
 import me.rerere.rikkahub.data.model.withToolApproval
 import me.rerere.rikkahub.data.model.withTranslation
@@ -269,7 +277,7 @@ class ChatService(
         scope = appScope,
         store = conversationStore,
         createInitialConversation = { id ->
-            Conversation.ofId(id, assistantId = settingsStore.settingsFlow.value.getCurrentAssistant().id)
+            settingsStore.settingsFlow.value.initialChatConversation(id)
         },
         onGenerationFinished = ::onSessionGenerationFinished,
         onSessionRemoved = memoryConsolidationScheduler::onConversationLeft,
@@ -450,6 +458,7 @@ class ChatService(
                     val turn = requestFactory.createContext(
                         pulseSettings, conversation,
                         pulseInstruction = input.systemInstruction,
+                        mode = AssistantMode.PULSE,
                     )
                     if (turn.providerSetting is ProviderSetting.DeepSeekWeb) throw me.rerere.rikkahub.data.datastore.PulseWebProviderBlockedException()
                     onStarted()
@@ -534,9 +543,9 @@ class ChatService(
 
     suspend fun initializeConversation(conversationId: Uuid) {
         withLoadedSession(conversationId) { session ->
-            if (!session.state.value.isGroupChat() && !session.state.value.isPulseChat()) {
-                settingsStore.selectAssistant(session.state.value.assistantId)
-            }
+            val conversation = session.state.value
+            val settings = settingsStore.awaitLoaded()
+            conversation.workAssistantSelection(settings)?.let { settingsStore.selectAssistant(it) }
         }
     }
 
@@ -565,12 +574,8 @@ class ChatService(
 
     // 新建对话, 并添加预设消息
     private suspend fun newConversation(conversationId: Uuid): Conversation {
-        val assistant = settingsStore.awaitLoaded().getCurrentAssistant()
-        return Conversation.ofId(
-            id = conversationId,
-            assistantId = assistant.id,
-            newConversation = true
-        ).updateCurrentMessages(assistant.presetMessages)
+        return settingsStore.awaitLoaded().newChatConversation(conversationId)
+            ?: error(context.getString(R.string.character_no_selection))
     }
 
     // 引入会话配置之前创建的会话没有固定配置，加载时按助手当前的值补上，之后不再随助手变化。
@@ -734,7 +739,9 @@ class ChatService(
 
                 val conversation = session.state.value
                 if (conversation.isGroupChat()) groupRounds.remove(conversationId)
-                val assistant = settingsStore.awaitLoaded().getStoredAssistantOf(conversation)
+                val settings = settingsStore.awaitLoaded()
+                check(!conversation.isDeletedCharacterChat(settings)) { context.getString(R.string.character_deleted) }
+                val assistant = settings.getStoredAssistantOf(conversation)
                 val processedContent = if (conversation.isGroupChat()) queued.parts else queued.parts.replaceUserRegexes(assistant)
 
                 // 添加消息到列表
@@ -935,6 +942,7 @@ class ChatService(
         var senderName = ""
         try {
             val settings = settingsStore.awaitLoaded()
+            check(!session.state.value.isDeletedCharacterChat(settings)) { context.getString(R.string.character_deleted) }
             // 清掉上一轮的建议；没法继续执行的工具调用发给模型会被拒绝，先去掉。
             // 重新生成时只清理要发给模型的节点，被重新生成的节点保持原样，旧回复留作分支
             val conversation = session.update { latest ->
@@ -952,7 +960,7 @@ class ChatService(
             // 中途压缩把检查点插在回复之后；重新生成较早的消息时后面还有别的节点，不压缩
             val canCompress = regenerateNodeId == null || conversation.messageNodes.lastOrNull()?.id == regenerateNodeId
 
-            val turn = requestFactory.createContext(settings, conversation)
+            val turn = requestFactory.createContext(settings, conversation, mode = conversation.assistantMode(settings))
             senderName = if (turn.assistant.useAssistantAvatar) {
                 turn.assistant.name.ifEmpty { context.getString(R.string.assistant_page_default_assistant) }
             } else {
@@ -1177,6 +1185,7 @@ class ChatService(
                     conversation = conversation,
                     assistantOverride = assistant,
                     memoryScope = "grp:" + round.group.id + ":" + conversationId,
+                    mode = AssistantMode.GROUP,
                 )
                 val firstResponseIndex = if (resuming) conversation.currentMessages.lastIndex else conversation.currentMessages.size
                 val turnResponseIndex = round.responseStart(round.index) {
@@ -1590,7 +1599,8 @@ class ChatService(
         } ?: g.members.firstOrNull { it.enabled }?.let { ref -> settings.groupMembers.find { it.id == ref.memberId } } }
         val turn = requestFactory.createContext(settings, conversation,
             assistantOverride = member?.toAssistant(checkNotNull(group)),
-            memoryScope = group?.let { "grp:" + it.id + ":" + conversation.id })
+            memoryScope = group?.let { "grp:" + it.id + ":" + conversation.id },
+            mode = conversation.assistantMode(settings))
         val prompt = buildCompressPrompt(additionalPrompt, Locale.getDefault().displayName, midTurn)
         val summary = requestFactory.generateCompressionSummary(
             turn = turn,
@@ -1622,6 +1632,7 @@ class ChatService(
         withLoadedSession(conversationId) { session ->
             val settings = settingsStore.awaitLoaded()
             val conversation = session.state.value
+            if (conversation.isDeletedCharacterChat(settings)) return@withLoadedSession
             val stored = settings.getStoredAssistantOf(conversation)
             if (conversation.isPulseChat()) {
                 settingsStore.update { latest ->
@@ -1631,6 +1642,22 @@ class ChatService(
                 return@withLoadedSession
             }
             val updated = update(settings.getAssistantOf(conversation))
+            if (conversation.isCharacterChat(settings)) {
+                // Bind a draft before writing: editor changes in Role belong to this conversation.
+                session.updateMetadata(
+                    transform = { it.bindConfig(settings).withAssistantUpdate(updated, settings) },
+                    persist = conversationRepo::updateConversationConfig,
+                )
+                // Non-snapshot fields retain the same editing behavior as in Work.
+                val globals = updated.withoutConversationFields(conversation.bindConfig(settings), stored)
+                    .copy(quickMessageIds = stored.quickMessageIds)
+                if (globals != stored) settingsStore.update { latest ->
+                    latest.copy(characters = latest.characters.map {
+                        if (it.id == globals.id) it.withAssistantSettings(globals) else it
+                    })
+                }
+                return@withLoadedSession
+            }
             val assistant = updated.withoutConversationFields(conversation, stored)
             session.updateMetadata(
                 transform = { it.withAssistantUpdate(updated, settings) },
@@ -1654,7 +1681,10 @@ class ChatService(
         builtInSearch: Boolean? = null,
     ) {
         withLoadedSession(conversationId) { session ->
-            val conversation = session.state.value
+            val settings = settingsStore.awaitLoaded()
+            val original = session.state.value
+            if (original.isDeletedCharacterChat(settings)) return@withLoadedSession
+            val conversation = if (original.isCharacterChat(settings)) original.bindConfig(settings) else original
             if (conversation.isPulseChat()) {
                 settingsStore.update { current -> current.copy(pulse = current.pulse.copy(
                     enableWebSearch = enableWebSearch ?: current.pulse.enableWebSearch,
@@ -1664,8 +1694,9 @@ class ChatService(
             if (conversation.config != null) {
                 session.updateMetadata(
                     transform = {
-                        it.copy(
-                            config = it.config?.let { config ->
+                        val current = if (it.config == null && original.isCharacterChat(settings)) it.bindConfig(settings) else it
+                        current.copy(
+                            config = current.config?.let { config ->
                                 config.copy(
                                     enableWebSearch = enableWebSearch ?: config.enableWebSearch,
                                     builtInSearch = builtInSearch ?: config.builtInSearch,
@@ -1769,6 +1800,19 @@ class ChatService(
         )
     }
 
+    internal suspend fun moveConversationToCharacter(conversationId: Uuid, source: Uuid, owner: Uuid) {
+        withLoadedSession(conversationId, createIfMissing = false) { session ->
+            check(session.getJob()?.isActive != true && session.activity.value == null) { "Conversation is busy" }
+            session.updateMetadata(
+                transform = {
+                    check(it.assistantId == source)
+                    it.copy(assistantId = owner, folderId = null, workspaceCwd = null, config = it.config?.copy(workspaceId = null))
+                },
+                persist = conversationRepo::updateCharacterConversationOwner,
+            )
+        }
+    }
+
     suspend fun moveConversationToAssistant(conversationId: Uuid, assistantId: Uuid) {
         updateConversationMetadata(
             conversationId = conversationId,
@@ -1844,7 +1888,11 @@ class ChatService(
         groupRounds.remove(conversationId)
         val session = sessionManager.getOrCreate(conversationId)
         discardQueuedMessages(session)
-        session.replace(newConversation(conversationId), existsInDatabase = false) { previous ->
+        val settings = settingsStore.awaitLoaded()
+        // Deleting the last role's history must work even when a new role chat cannot be created.
+        val replacement = settings.newChatConversation(conversationId)
+            ?: Conversation.ofId(conversationId, assistantId = session.state.value.assistantId, newConversation = true)
+        session.replace(replacement, existsInDatabase = false) { previous ->
             conversationRepo.getConversationById(conversationId)?.let { conversationRepo.deleteConversation(it) }
             // 数据库那份不知道只在内存里出现过的附件
             previous?.let { filesManager.deleteChatFiles(it.files) }
@@ -1928,6 +1976,10 @@ class ChatService(
         val settings = settingsStore.awaitLoaded()
 
         mutate(conversationId) { conversation ->
+            if (conversation.isDeletedCharacterChat(settings)) {
+                addError(IllegalStateException(context.getString(R.string.character_deleted)), conversationId)
+                return@mutate conversation
+            }
             conversation.editMessage(messageId, parts.replaceUserRegexes(settings.getStoredAssistantOf(conversation)))
         }
     }

@@ -163,7 +163,7 @@ class WorkspaceRepository private constructor(
     suspend fun create(name: String, owner: String? = null): WorkspaceEntity =
         withContext(Dispatchers.IO) {
             lifecycleMutex.withLock {
-                require(owner == null || owner == "chat" || owner == "group" || owner == "pulse") { "Invalid workspace owner" }
+                require(owner == null || me.rerere.rikkahub.data.model.WorkspaceOwnerScope.entries.any { it.value == owner }) { "Invalid workspace owner" }
                 val finalName = name.trim().ifBlank { "Workspace" }
                 require(!isNameTaken(finalName, excludeId = null)) {
                     "Workspace name already exists: $finalName"
@@ -248,7 +248,7 @@ class WorkspaceRepository private constructor(
     }
 
     suspend fun setOwner(id: String, owner: String?): Boolean = lifecycleMutex.withLock {
-        require(owner == null || owner == "chat" || owner == "group" || owner == "pulse") { "Invalid workspace owner" }
+        require(owner == null || me.rerere.rikkahub.data.model.WorkspaceOwnerScope.entries.any { it.value == owner }) { "Invalid workspace owner" }
         val workspace = dao.getById(id) ?: return@withLock false
         dao.upsert(workspace.copy(owner = owner, updatedAt = System.currentTimeMillis()))
         true
@@ -504,6 +504,9 @@ class WorkspaceRepository private constructor(
                 ),
                 assistants = settings.assistants.map { assistant ->
                     if (assistant.workspaceId?.toString() == workspaceId) assistant.copy(workspaceId = null) else assistant
+                },
+                characters = settings.characters.map { character ->
+                    if (character.workspaceId?.toString() == workspaceId) character.copy(workspaceId = null, workspaceInitialized = false) else character
                 },
                 groups = settings.groups.map { group ->
                     if (group.workspaceId?.toString() == workspaceId) group.copy(workspaceId = null) else group

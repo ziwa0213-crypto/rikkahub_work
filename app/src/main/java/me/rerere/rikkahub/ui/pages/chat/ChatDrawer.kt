@@ -88,6 +88,8 @@ import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Folder
 import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.isGroupChat
+import me.rerere.rikkahub.data.model.selectedCharacter
+import me.rerere.rikkahub.data.model.newConversationOwnerId
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.ui.components.ai.AssistantPicker
 import me.rerere.rikkahub.ui.components.group.ModeSwitcher
@@ -109,6 +111,7 @@ import me.rerere.rikkahub.ui.pages.group.selectedGroup
 import me.rerere.rikkahub.ui.pages.group.components.GroupConversationList
 import me.rerere.rikkahub.ui.pages.group.components.GroupPicker
 import me.rerere.rikkahub.utils.navigateToChatPage
+import me.rerere.rikkahub.utils.navigateToNewChatPage
 import me.rerere.rikkahub.utils.toDp
 import me.rerere.ui.components.Tooltip
 import org.koin.androidx.compose.koinViewModel
@@ -167,6 +170,9 @@ fun ChatDrawerContent(
     val drawerMode = settings.uiMode
     val groupMode = drawerMode == UiMode.GROUP
     val pulseMode = drawerMode == UiMode.PULSE
+    val roleMode = drawerMode == UiMode.ROLE
+    val selectedCharacter = settings.selectedCharacter()
+    var characterPicker by remember { mutableStateOf(false) }
     val selectedGroupConversation = if (current.isGroupChat()) {
         groupRouteConversation ?: current
     } else {
@@ -241,29 +247,22 @@ fun ChatDrawerContent(
 
     fun switchMode(mode: UiMode) {
         if (mode == drawerMode) return
-        vm.updateSettings { it.copy(uiMode = mode) }
-        if (mode == UiMode.PULSE) {
-            scope.launch {
-                navigateToChatPage(navController, pulseRepository.ensurePulseConversation())
-            }
-        } else if (mode == UiMode.GROUP) {
-            val group = selectedGroup
-            if (group == null) {
-                navController.navigate(Screen.Groups)
-            } else {
-                openGroupConversation(group, createNew = false)
-            }
-        } else {
-            scope.launch {
-                val id = if (context.readBooleanPreference("create_new_conversation_on_start", true)) {
-                    Uuid.random()
-                } else {
-                    repo.getConversationsOfAssistant(settings.assistantId)
-                        .first()
-                        .firstOrNull()
-                        ?.id ?: Uuid.random()
+        scope.launch {
+            val target = settings.copy(uiMode = mode, characterId = selectedCharacter?.id)
+            vm.updateSettings { it.copy(uiMode = mode, characterId = target.characterId) }.join()
+            when (mode) {
+                UiMode.PULSE -> navigateToChatPage(navController, pulseRepository.ensurePulseConversation())
+                UiMode.GROUP -> selectedGroup?.let { openGroupConversation(it, createNew = false) }
+                    ?: navController.clearAndNavigate(Screen.Groups)
+                UiMode.ROLE, UiMode.WORK -> {
+                    val owner = target.newConversationOwnerId()
+                    if (owner == null) navController.clearAndNavigate(Screen.CharacterList)
+                    else {
+                        val last = if (context.readBooleanPreference("create_new_conversation_on_start", true)) null
+                            else repo.getConversationsOfAssistant(owner).first().firstOrNull()?.id
+                        navigateToChatPage(navController, last ?: Uuid.random())
+                    }
                 }
-                navigateToChatPage(navController, id)
             }
         }
     }
@@ -347,7 +346,7 @@ fun ChatDrawerContent(
 
             if (!groupMode && !pulseMode) DrawerActions(navController = navController)
 
-            if (!groupMode && !pulseMode) {
+            if (!groupMode && !pulseMode && (!roleMode || selectedCharacter != null)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -469,15 +468,15 @@ fun ChatDrawerContent(
                             vm.deleteConversation(it).join()
                             conversations.refresh()
                             if (it.id == current.id) {
-                                navigateToChatPage(navController)
+                                navigateToNewChatPage(navController, vm.settings.value)
                             }
                         }
                     },
                     onPin = {
                         vm.updatePinnedStatus(it)
                     },
-                    onMoveToAssistant = {
-                        conversationToMove = it
+                    onMoveToAssistant = if (roleMode) null else { item ->
+                        conversationToMove = item
                         showMoveToAssistantSheet = true
                     },
                     onMoveToFolder = {
@@ -492,8 +491,30 @@ fun ChatDrawerContent(
                     )
                 }
 
-                // 助手选择器
-                AssistantPicker(
+                if (roleMode) {
+                    Box {
+                        TextButton(onClick = { characterPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selectedCharacter?.name?.ifBlank { stringResource(R.string.group_mode_role) }
+                                ?: stringResource(R.string.character_no_selection))
+                        }
+                        DropdownMenu(characterPicker, onDismissRequest = { characterPicker = false }) {
+                            settings.characters.forEach { character ->
+                                DropdownMenuItem(text = { Text(character.name.ifBlank { stringResource(R.string.group_mode_role) }) }, onClick = {
+                                    characterPicker = false
+                                    scope.launch {
+                                        vm.updateSettings { it.copy(uiMode = UiMode.ROLE, characterId = character.id) }.join()
+                                        val last = repo.getConversationsOfAssistant(character.id).first().firstOrNull()?.id
+                                        navigateToChatPage(navController, last ?: Uuid.random())
+                                    }
+                                })
+                            }
+                            DropdownMenuItem(text = { Text(stringResource(R.string.character_list_title)) }, onClick = {
+                                characterPicker = false
+                                navController.navigate(Screen.CharacterList)
+                            })
+                        }
+                    }
+                } else AssistantPicker(
                     settings = settings,
                     onSelectAssistant = { assistant ->
                         val updateJob = vm.updateSettings { it.copy(assistantId = assistant.id) }
@@ -551,6 +572,11 @@ fun ChatDrawerContent(
                             onClick = { navController.navigate(Screen.Groups) },
                         )
                     }
+                    roleMode -> DrawerAction(
+                        icon = { Icon(HugeIcons.LookTop, null) },
+                        label = { Text(stringResource(R.string.character_list_title)) },
+                        onClick = { navController.navigate(Screen.CharacterList) },
+                    )
                     else -> DrawerAction(
                         icon = {
                             Icon(

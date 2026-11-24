@@ -87,7 +87,7 @@ fun ColumnScope.ConversationList(
     onDelete: (Conversation) -> Unit = {},
     onRegenerateTitle: (Conversation) -> Unit = {},
     onPin: (Conversation) -> Unit = {},
-    onMoveToAssistant: (Conversation) -> Unit = {},
+    onMoveToAssistant: ((Conversation) -> Unit)? = null,
     onMoveToFolder: (Conversation) -> Unit = {}
 ) {
     var hasScrolledToCurrent by remember(current.id) { mutableStateOf(false) }
@@ -245,7 +245,7 @@ private fun ConversationItem(
     onDelete: (Conversation) -> Unit = {},
     onRegenerateTitle: (Conversation) -> Unit = {},
     onPin: (Conversation) -> Unit = {},
-    onMoveToAssistant: (Conversation) -> Unit = {},
+    onMoveToAssistant: ((Conversation) -> Unit)? = null,
     onMoveToFolder: (Conversation) -> Unit = {},
     onClick: (Conversation) -> Unit
 ) {
@@ -342,7 +342,7 @@ private fun ConversationItem(
                     }
                 )
 
-                DropdownMenuItem(
+                if (onMoveToAssistant != null) DropdownMenuItem(
                     text = {
                         Text(stringResource(R.string.chat_page_move_to_assistant))
                     },

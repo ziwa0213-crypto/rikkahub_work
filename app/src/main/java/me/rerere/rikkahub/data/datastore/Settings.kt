@@ -3,6 +3,15 @@ package me.rerere.rikkahub.data.datastore
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import me.rerere.rikkahub.data.model.Character
+import me.rerere.rikkahub.data.model.CharacterPersona
+import me.rerere.rikkahub.data.model.StylePack
+import me.rerere.rikkahub.data.model.DEFAULT_STYLE_PACKS
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.asr.ASRProviderSetting
@@ -105,7 +114,15 @@ data class Settings(
     val browserTaskTimeoutMs: Long = 300_000L,
     val browserVisitedHosts: List<String> = emptyList(),
     val launchCount: Int = 0,
-    val uiMode: UiMode = UiMode.CHAT,
+    val uiMode: UiMode = UiMode.WORK,
+    val characterId: Uuid? = null,
+    val characters: List<Character> = emptyList(),
+    val deletedCharacterIds: Set<Uuid> = emptySet(),
+    val characterPersonas: List<CharacterPersona> = emptyList(),
+    val stylePacks: List<StylePack> = DEFAULT_STYLE_PACKS,
+    val characterMigrationState: CharacterMigrationState = CharacterMigrationState.NOT_ASKED,
+    val characterMigrationPrompted: Boolean = false,
+    val lastRunVersionCode: Int = 0,
     val groupMembers: List<GroupMember> = emptyList(),
     val groups: List<Group> = emptyList(),
     val groupTags: List<Tag> = emptyList(),
@@ -117,8 +134,22 @@ data class Settings(
     }
 }
 
+@Serializable(with = UiModeSerializer::class)
+enum class UiMode { WORK, ROLE, GROUP, PULSE }
+
+internal fun uiModeOf(raw: String?): UiMode = when (raw) {
+    "CHAT", null, "" -> UiMode.WORK
+    else -> UiMode.entries.firstOrNull { it.name == raw } ?: UiMode.WORK
+}
+
+object UiModeSerializer : KSerializer<UiMode> {
+    override val descriptor = PrimitiveSerialDescriptor("UiMode", PrimitiveKind.STRING)
+    override fun deserialize(decoder: Decoder): UiMode = uiModeOf(decoder.decodeString())
+    override fun serialize(encoder: Encoder, value: UiMode) = encoder.encodeString(value.name)
+}
+
 @Serializable
-enum class UiMode { CHAT, GROUP, PULSE }
+enum class CharacterMigrationState { NOT_ASKED, DECLINED, DONE }
 
 @Serializable
 data class NetworkSetting(

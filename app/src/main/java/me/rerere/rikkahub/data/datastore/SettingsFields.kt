@@ -200,7 +200,17 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         json(GROUP_TAGS, Settings::groupTags) { copy(groupTags = it) },
         json(PULSE, Settings::pulse) { copy(pulse = it) },
         SettingsField(UI_MODE, Settings::uiMode, { copy(uiMode = it) },
-            encode = { it.name }, decode = { value -> UiMode.entries.find { it.name == value } ?: UiMode.CHAT }),
+            encode = { it.name }, decode = ::uiModeOf),
+        SettingsField(CHARACTER_ID, Settings::characterId, { copy(characterId = it) },
+            encode = { it?.toString() }, decode = { Uuid.parseOrNull(it) }),
+        json(CHARACTERS, Settings::characters) { copy(characters = it) },
+        json(DELETED_CHARACTER_IDS, Settings::deletedCharacterIds) { copy(deletedCharacterIds = it) },
+        json(CHARACTER_PERSONAS, Settings::characterPersonas) { copy(characterPersonas = it) },
+        json(STYLE_PACKS, Settings::stylePacks) { copy(stylePacks = it) },
+        SettingsField(CHARACTER_MIGRATION_STATE, Settings::characterMigrationState, { copy(characterMigrationState = it) },
+            encode = { it.name }, decode = { raw -> CharacterMigrationState.entries.find { it.name == raw } ?: CharacterMigrationState.NOT_ASKED }),
+        plain(CHARACTER_MIGRATION_PROMPTED, Settings::characterMigrationPrompted) { copy(characterMigrationPrompted = it) },
+        plain(LAST_RUN_VERSION_CODE, Settings::lastRunVersionCode) { copy(lastRunVersionCode = it) },
 
         // 赞助提醒
         plain(SPONSOR_ALERT_DISMISSED_AT, Settings::sponsorAlertDismissedAt) { copy(sponsorAlertDismissedAt = it) },

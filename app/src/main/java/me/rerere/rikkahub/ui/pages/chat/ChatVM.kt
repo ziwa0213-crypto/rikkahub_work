@@ -41,7 +41,9 @@ import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.NodeFavoriteTarget
 import me.rerere.rikkahub.data.model.getAssistantOf
+import me.rerere.rikkahub.data.model.isDeletedCharacterChat
 import me.rerere.rikkahub.data.model.getChatModelOf
+import me.rerere.rikkahub.data.model.workAssistantSelection
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.service.BackgroundShellManager
 import me.rerere.rikkahub.service.BackgroundShellTask
@@ -110,13 +112,15 @@ class ChatVM(
         viewModelScope.launch {
             try {
                 chatService.initializeConversation(_conversationId)
+                // The shared preference is only used by the WORK cold-start route.
+                if (conversation.value.workAssistantSelection(settingsStore.awaitLoaded()) != null) {
+                    context.writeStringPreference("lastConversationId", _conversationId.toString())
+                }
             } finally {
                 _conversationLoaded.value = true
             }
         }
 
-        // 记住对话ID, 方便下次启动恢复
-        context.writeStringPreference("lastConversationId", _conversationId.toString())
     }
 
     override fun onCleared() {
@@ -254,6 +258,10 @@ class ChatVM(
      */
     fun handleMessageSend(content: List<UIMessagePart>,answer: Boolean = true) {
         if (content.isEmptyInputMessage()) return
+        if (conversation.value.isDeletedCharacterChat(settings.value)) {
+            chatService.addError(IllegalStateException(context.getString(R.string.character_deleted)), _conversationId)
+            return
+        }
         analytics.logEvent("ai_send_message", null)
 
         chatService.sendMessage(_conversationId, content, answer)

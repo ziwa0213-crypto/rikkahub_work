@@ -26,6 +26,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Message02
+import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.UserGroup03
 import me.rerere.hugeicons.stroke.HeartPulse
 import me.rerere.rikkahub.R
@@ -67,13 +68,15 @@ fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
 }
 
 private fun UiMode.label() = when (this) {
-    UiMode.CHAT -> R.string.group_mode_chat
+    UiMode.WORK -> R.string.group_mode_chat
+    UiMode.ROLE -> R.string.group_mode_role
     UiMode.GROUP -> R.string.group_mode_group
     UiMode.PULSE -> R.string.group_mode_pulse
 }
 
 private fun UiMode.icon() = when (this) {
-    UiMode.CHAT -> HugeIcons.Message02
+    UiMode.WORK -> HugeIcons.Message02
+    UiMode.ROLE -> HugeIcons.LookTop
     UiMode.GROUP -> HugeIcons.UserGroup03
     UiMode.PULSE -> HugeIcons.HeartPulse
 }

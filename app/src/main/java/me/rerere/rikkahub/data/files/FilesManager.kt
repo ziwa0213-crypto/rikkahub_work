@@ -104,9 +104,17 @@ class FilesManager(
     fun getFile(entity: ManagedFileEntity): File =
         File(context.filesDir, entity.relativePath)
 
-    fun createChatFilesByContents(uris: List<Uri>, guardInput: (InputStream) -> InputStream = { it }): List<Uri> {
+    fun createChatFilesByContents(uris: List<Uri>, guardInput: (InputStream) -> InputStream = { it }): List<Uri> =
+        copyChatFiles(uris, FileFolders.UPLOAD, guardInput)
+
+    internal fun copyCharacterChatAttachment(uri: Uri, conversationId: kotlin.uuid.Uuid): Uri =
+        checkNotNull(copyChatFiles(listOf(uri), "${FileFolders.UPLOAD}/$conversationId") { it }.singleOrNull()) {
+            "Could not copy conversation attachment"
+        }
+
+    private fun copyChatFiles(uris: List<Uri>, folder: String, guardInput: (InputStream) -> InputStream): List<Uri> {
         val newUris = mutableListOf<Uri>()
-        val dir = context.filesDir.resolve(FileFolders.UPLOAD)
+        val dir = context.filesDir.resolve(folder)
         if (!dir.exists()) {
             dir.mkdirs()
         }
@@ -235,7 +243,7 @@ class FilesManager(
         if (!dir.exists()) {
             return@withContext Pair(0, 0)
         }
-        val files = dir.listFiles() ?: return@withContext Pair(0, 0)
+        val files = dir.walkTopDown().filter { it.isFile }.toList()
         val count = files.size
         val size = files.sumOf { it.length() }
         Pair(count, size)
@@ -337,7 +345,8 @@ class FilesManager(
     suspend fun syncFolder(folder: String = FileFolders.UPLOAD): SyncResult = withContext(Dispatchers.IO) {
         val dir = File(context.filesDir, folder)
         val diskFiles = if (dir.exists()) {
-            dir.listFiles()?.filter { it.isFile }
+            (if (folder == FileFolders.UPLOAD) dir.walkTopDown().filter { it.isFile }.toList()
+            else dir.listFiles()?.filter { it.isFile })
                 ?: return@withContext SyncResult(inserted = 0, removed = 0)
         } else {
             emptyList()
@@ -347,7 +356,7 @@ class FilesManager(
         var inserted = 0
         val diskRelativePaths = HashSet<String>()
         diskFiles.forEach { file ->
-            val relativePath = "${folder}/${file.name}"
+            val relativePath = file.relativeTo(context.filesDir).invariantSeparatorsPath
             diskRelativePaths.add(relativePath)
             val existing = repository.getByPath(relativePath)
             if (existing == null) {

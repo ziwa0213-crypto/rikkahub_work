@@ -1525,7 +1525,11 @@
   <string name="memory_picker_mode_move_desc">Remove from the original location</string>
   <string name="memory_picker_empty">No memories to migrate</string>
   <string name="memory_picker_warn_move_shared">These memories are currently shared with %1$d other assistant(s). Moving them will remove them from the shared memory. This cannot be undone.</string>
-  <string name="group_mode_chat">Chat</string>
+  <string name="group_mode_chat">Work</string>
+  <string name="group_mode_role">Roleplay</string>
+  <string name="character_deleted">This character was deleted.</string>
+  <string name="character_no_selection">Select or create a character first.</string>
+  <string name="character_deleted_suffix">(Character deleted)</string>
   <string name="group_mode_group">Groups</string>
   <string name="group_generation_notice">The original conversation is still generating. Please check it.</string>
   <string name="group_members_title">Group Members</string>
@@ -2616,4 +2620,113 @@
     <string name="workspace_preview_too_large">File is too large to preview. Showing source.</string>
     <string name="workspace_preview_source">Source</string>
     <string name="workspace_preview_preview">Preview</string>
+  <string name="about_page_website">Website</string>
+  <string name="donate_page_afdian_desc">For 🇨🇳 users</string>
+  <string name="donate_page_donation_methods">Donation Methods</string>
+  <string name="donate_page_kofi_desc">For Global Users</string>
+  <string name="donate_page_sponsor_list">Sponsor List</string>
+  <string name="donate_page_title">Donate</string>
+  <string name="setting_page_donate">Donate</string>
+  <string name="setting_page_donate_desc">If you like it, sponsor the author\'s work</string>
+  <string name="setting_page_sponsor_alert_confirm">Donate</string>
+  <string name="setting_page_sponsor_alert_desc">You have launched the app over 100 times! If you enjoy using it, please consider supporting the developer.</string>
+  <string name="setting_page_sponsor_alert_dismiss">Not Now</string>
+  <string name="setting_page_sponsor_alert_title">Support the Developer</string>
+  <string name="assistant_page_local_tools_phone_use_service_stopped">The system has stopped the accessibility service, although the system settings still show it as on (some phones do this after the app is swiped away from recent apps). Turn this switch off and on again to open the settings, then turn \"RikkaHub Phone Use\" off and on there. Locking RikkaHub in recent apps and allowing auto-start keeps it from happening again.</string>
+  <string name="assistant_page_local_tools_phone_use_restart_service">Turn \"RikkaHub Phone Use\" off and on again in the accessibility settings</string>
+  <string name="quick_start_page_title">Quick Start</string>
+  <string name="quick_start_page_tab_general">General</string>
+  <string name="quick_start_page_tab_deepseek">Migrate from DeepSeek</string>
+  <string name="quick_start_page_step_done">Done</string>
+  <string name="quick_start_page_step_todo">To do</string>
+  <string name="quick_start_page_step_optional">Optional</string>
+  <string name="quick_start_page_ready_title">All set</string>
+  <string name="quick_start_page_ready_desc">You can start chatting now. The optional features below can be set up any time.</string>
+  <string name="quick_start_page_setup_title">Set up in a few minutes</string>
+  <string name="quick_start_page_setup_desc">RikkaHub doesn\'t provide models itself, so you need to connect a model provider. Finish the two required steps below to start chatting.</string>
+  <string name="quick_start_page_start_chat">Start chatting</string>
+  <string name="quick_start_page_required_steps">Required steps</string>
+  <string name="quick_start_page_provider_title">Set up a provider</string>
+  <string name="quick_start_page_provider_desc">A provider is where models come from. Pick a service from the provider list (such as DeepSeek, SiliconFlow or OpenRouter), enter the API key from its website, then add the models you want on the Models page. You can also scan a QR code to import a shared configuration.</string>
+  <string name="quick_start_page_provider_summary">Available providers: %1$d, models: %2$d</string>
+  <string name="quick_start_page_provider_manage">Manage providers</string>
+  <string name="quick_start_page_provider_go">Set up</string>
+  <string name="quick_start_page_model_title">Choose a default model</string>
+  <string name="quick_start_page_model_desc">The chat model used by new conversations. If the fast model and translation model are not set yet, they will use it too. You can change them separately on the Default Model page later.</string>
+  <string name="quick_start_page_model_more">More default model settings</string>
+  <string name="quick_start_page_model_locked">Available here after you finish the previous step and add models.</string>
+  <string name="quick_start_page_optional_features">Optional features</string>
+  <string name="quick_start_page_search_title">Web search</string>
+  <string name="quick_start_page_search_desc">Let the model search the web before answering to get up-to-date information. Bing is used by default and needs no API key. For more reliable results, switch to services such as Exa, Tavily or Zhipu.</string>
+  <string name="quick_start_page_tts_title">Text-to-speech (TTS)</string>
+  <string name="quick_start_page_tts_desc">Read AI replies aloud. The system TTS is used by default. You can also set up online voices such as OpenAI, Gemini or MiniMax for more natural speech.</string>
+  <string name="quick_start_page_current_service">Current: %1$s</string>
+  <string name="quick_start_page_service_settings">Settings</string>
+  <string name="quick_start_page_not_selected">Not selected</string>
+  <string name="quick_start_page_unnamed">Unnamed</string>
+  <string name="quick_start_page_deepseek_title">Move from DeepSeek</string>
+  <string name="quick_start_page_deepseek_desc">Import your chat history from the DeepSeek website or app into RikkaHub, then connect the DeepSeek API to keep chatting.</string>
+  <string name="quick_start_page_deepseek_migrate_chats">Migrate chat history</string>
+  <string name="quick_start_page_deepseek_export_title">Export data from DeepSeek</string>
+  <string name="quick_start_page_deepseek_export_desc">Open the DeepSeek website in a browser and sign in, go to Settings → Data management, choose to export all chats, and save the downloaded ZIP file. No need to unzip it.</string>
+  <string name="quick_start_page_deepseek_open_web">Open DeepSeek website</string>
+  <string name="quick_start_page_deepseek_import_title">Import into RikkaHub</string>
+  <string name="quick_start_page_deepseek_import_desc">Choose the ZIP from the previous step. For each chat, the currently shown branch is imported, including reasoning and attachments, into the current assistant \"%1$s\". Chats that were already imported are skipped, so importing again is safe.</string>
+  <string name="quick_start_page_deepseek_importing">Importing…</string>
+  <string name="quick_start_page_deepseek_import_another">Import another ZIP</string>
+  <string name="quick_start_page_deepseek_pick_zip">Choose ZIP file</string>
+  <string name="quick_start_page_deepseek_keep_using">Keep using DeepSeek models</string>
+  <string name="quick_start_page_deepseek_api_title">Connect the DeepSeek API</string>
+  <string name="quick_start_page_deepseek_api_desc">Your website account and the API are billed separately: create an API key and top up on the DeepSeek Platform, enter it in the built-in DeepSeek provider and add models, then set it as the default model on the General tab.</string>
+  <string name="quick_start_page_deepseek_get_key">Get API Key</string>
+  <string name="quick_start_page_deepseek_configure">Set up DeepSeek</string>
+  <string name="quick_start_card_title">No models available yet</string>
+  <string name="quick_start_card_desc">RikkaHub needs a model provider to chat. Follow the quick start to set up a provider and default model, or migrate your chat history from DeepSeek.</string>
+  <string name="setting_page_quick_start">Quick Start</string>
+  <string name="setting_page_quick_start_desc">Set up providers and models step by step, or migrate from DeepSeek</string>
+  <string name="character_list_title">Characters</string>
+  <string name="character_lorebook_page_title">Lorebooks</string>
+  <string name="character_create">Create</string>
+  <string name="character_card">Character card</string>
+  <string name="character_nickname">Nickname</string>
+  <string name="character_description">Description</string>
+  <string name="character_personality">Personality</string>
+  <string name="character_scenario">Scenario</string>
+  <string name="character_greeting">Opening message</string>
+  <string name="character_example">Example dialogue</string>
+  <string name="character_phi">Post-history instructions</string>
+  <string name="character_reference_memory">Reference work memories (read-only)</string>
+  <string name="character_delete_explanation">Chat history will remain available for viewing, export, and deletion.</string>
+  <string name="character_style">Style pack</string>
+  <string name="character_style_none">No style pack</string>
+  <string name="character_style_rules">One rule per line (up to 12)</string>
+  <string name="character_style_heading">Writing constraints</string>
+  <string name="character_workspace_dependencies">Install required dependencies</string>
+  <string name="character_workspace_readme"># Character workspace
+
+Story files and tool outputs go here. Existing files will not be overwritten.</string>
+  <string name="character_workspace_notes"># Story notes
+
+Record relationships, events, and clues.</string>
+  <string name="character_workspace_world"># Worldbuilding
+
+Record maps, factions, and setting details.</string>
+  <string name="character_workspace_archive"># Archive index
+
+List chapter dates and summaries.</string>
+  <string name="character_workspace_tools"># Tools
+
+Use only allowed workspace files and commands. Report success only after execution succeeds.</string>
+  <string name="character_migration_title">Work and roleplay are now separate</string>
+  <string name="character_migration_question">Do you have assistants you use for roleplay?</string>
+  <string name="character_migration_decline">No</string>
+  <string name="character_transfer">Transfer assistants</string>
+  <string name="character_transfer_next">Continue</string>
+  <string name="character_transfer_finish">Finish</string>
+  <string name="character_transfer_assistant">Transfer assistant and conversations</string>
+  <string name="character_transfer_memory">Transfer memories too?</string>
+  <string name="character_copy">Copy</string>
+  <string name="character_move">Move</string>
+  <string name="character_memory_merge_info">Selected individual memories are merged into a profile file without AI rewriting. Memory organization can process them later if enabled.</string>
+  <string name="character_memory_auto_organize">Automatically organize memories</string>
 </resources>

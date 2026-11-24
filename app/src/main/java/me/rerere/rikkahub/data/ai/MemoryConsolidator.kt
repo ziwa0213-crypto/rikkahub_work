@@ -40,6 +40,7 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MemoryFile
 import me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID
+import me.rerere.rikkahub.data.model.findCharacter
 import me.rerere.rikkahub.data.model.getChatModelOf
 import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.toAssistant
@@ -172,7 +173,8 @@ class MemoryConsolidator(
             .withinTranscriptBudget()
         val files = memoryRepository.getFiles(memoryId)
         // Read-only context for deduplication; the organizer still has file-store tools only.
-        val rowMemories = memoryRepository.getRowMemories(memoryId)
+        val rowMemories = if (assistants.any { settings.findCharacter(it.id) != null }) emptyList()
+            else memoryRepository.getRowMemories(memoryId)
         // 没有新的轮次时，只有手动清理且记忆库里有东西才值得调用模型
         if (batches.isEmpty() && (!fullReview || files.isEmpty())) return null
 
@@ -277,9 +279,10 @@ class MemoryConsolidator(
     }.isSuccess
 }
 
-/** Pulse is a facade, never a record in the assistant library; its memory bucket stays isolated. */
+/** Role and Pulse remain outside the assistant library and use their own file buckets. */
 internal fun Settings.memoryConsolidationAssistants(): List<Assistant> =
     assistants.filter { it.enableMemory && it.id != PULSE_ASSISTANT_ID } +
+        characters.filter { it.enableMemory }.map { it.toAssistant(this) } +
         listOfNotNull(pulse.toAssistant(this).takeIf { it.enableMemory })
 
 private class Batch(val conversation: Conversation, val pending: PendingMemoryTurns) {

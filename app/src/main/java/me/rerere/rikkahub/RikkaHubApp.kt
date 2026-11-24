@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -61,6 +62,7 @@ const val MEDIA_CREATION_NOTIFICATION_CHANNEL_ID = "media_creation"
 const val MEMORY_DREAM_NOTIFICATION_CHANNEL_ID = "memory_dream"
 
 class RikkaHubApp : Application() {
+    internal val launchCountUpdated = CompletableDeferred<Boolean>()
     override fun onCreate() {
         super.onCreate()
         registerActivityLifecycleCallbacks(me.rerere.rikkahub.utils.AlarmForegroundActivity)
@@ -152,12 +154,13 @@ class RikkaHubApp : Application() {
 
     private fun incrementLaunchCount() {
         get<AppScope>().launch {
-            runCatching {
+            val result = runCatching {
                 val count = get<SettingsStore>().incrementLaunchCount()
                 Log.i(TAG, "incrementLaunchCount: $count")
             }.onFailure {
                 Log.e(TAG, "incrementLaunchCount failed", it)
             }
+            launchCountUpdated.complete(result.isSuccess)
         }
     }
 

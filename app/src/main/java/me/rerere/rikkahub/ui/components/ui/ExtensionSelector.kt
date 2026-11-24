@@ -51,6 +51,9 @@ internal enum class ExtensionTab(
 
 /** Pulse exposes only quick messages and skills; other modes keep their existing tabs. */
 internal val PulseExtensionTabs = setOf(ExtensionTab.QUICK_MESSAGES, ExtensionTab.SKILLS)
+internal val WorkExtensionTabs = ExtensionTab.entries.toSet() - ExtensionTab.LOREBOOKS
+internal val GroupExtensionTabs = WorkExtensionTabs - ExtensionTab.QUICK_MESSAGES
+internal val CharacterExtensionTabs = ExtensionTab.entries.toSet()
 
 internal fun extensionTabs(includeQuickMessages: Boolean, allowedTabs: Set<ExtensionTab>?): List<ExtensionTab> =
     ExtensionTab.entries
@@ -72,6 +75,7 @@ internal fun ExtensionSelector(
     onNavigateToQuickMessages: () -> Unit = {},
     onNavigateToPrompts: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
+    onNavigateToLorebooks: () -> Unit = onNavigateToPrompts,
 ) {
     val skillManager: SkillManager = koinInject()
     var skills by remember { mutableStateOf<List<SkillMetadata>>(emptyList()) }
@@ -163,16 +167,16 @@ internal fun ExtensionSelector(
                                 } else {
                                     assistant.lorebookIds - id
                                 }
-                                if (groupMode) onUpdateLorebookIds?.invoke(newIds)
+                                if (onUpdateLorebookIds != null) onUpdateLorebookIds(newIds)
                                 else onUpdate(assistant.copy(lorebookIds = newIds))
                             },
-                            onManage = onNavigateToPrompts,
+                            onManage = onNavigateToLorebooks,
                         )
                     } else {
                         ExtensionEmptyState(
                             message = stringResource(R.string.extension_selector_lorebooks_empty),
                             buttonText = stringResource(R.string.extension_selector_go_to_extensions),
-                            onAction = onNavigateToPrompts,
+                            onAction = onNavigateToLorebooks,
                             icon = tab.icon,
                         )
                     }

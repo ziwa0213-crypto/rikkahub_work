@@ -322,6 +322,9 @@ class ConversationRepository(
         return conversationDAO.existsById(uuid.toString())
     }
 
+    internal suspend fun getConversationSummaryById(id: Uuid): Conversation? =
+        conversationDAO.getConversationById(id.toString())?.let { conversationEntityToConversation(it, emptyList()) }
+
     suspend fun countConversations(): Int {
         return conversationDAO.countByAssistant().filter { it.assistantId != GROUP_CHAT_ASSISTANT_ID.toString() }.sumOf { it.count }
     }
@@ -340,6 +343,22 @@ class ConversationRepository(
             saveMessageNodes(conversation.id.toString(), conversation.messageNodes)
         }
         messageFtsManager.indexConversation(conversation)
+    }
+
+    internal suspend fun insertCharacterCopies(copies: List<Conversation>) {
+        database.withTransaction {
+            for (copy in copies) {
+                check(!conversationDAO.existsById(copy.id.toString()))
+                conversationDAO.insert(conversationToConversationEntity(copy))
+                saveMessageNodes(copy.id.toString(), copy.messageNodes)
+                messageFtsManager.indexConversation(copy)
+            }
+        }
+    }
+
+    internal suspend fun updateCharacterConversationOwner(conversation: Conversation) = database.withTransaction {
+        updateConversationAssistant(conversation.id, conversation.assistantId)
+        updateConversationConfig(conversation)
     }
 
     suspend fun updateConversation(conversation: Conversation) {

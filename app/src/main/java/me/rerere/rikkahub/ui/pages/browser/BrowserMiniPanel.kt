@@ -45,6 +45,8 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.browser.BrowserController
 import me.rerere.rikkahub.data.ai.tools.local.filterBrowserContent
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.getStoredAssistantOf
+import me.rerere.rikkahub.data.model.isDeletedCharacterChat
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.ui.components.message.ChatMessageReasoningStep
 import me.rerere.rikkahub.ui.components.message.ChatMessageToolStep
@@ -71,7 +73,7 @@ internal fun BrowserMiniPanel(
     val errors by service.errors.collectAsStateWithLifecycle()
     val filteredCount by controller.filteredCount.collectAsStateWithLifecycle()
     val settings by settingsStore.settingsFlow.collectAsStateWithLifecycle()
-    val assistant = settings.assistants.find { it.id == conversation.assistantId }
+    val assistant = settings.getStoredAssistantOf(conversation).takeUnless { conversation.isDeletedCharacterChat(settings) }
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val context = LocalContext.current

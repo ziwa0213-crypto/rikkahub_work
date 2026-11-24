@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Log
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.ui.context.Navigator
 import kotlin.uuid.Uuid
 
@@ -26,6 +28,14 @@ fun navigateToChatPage(
             nodeId = nodeId?.toString(),
         )
     )
+}
+
+internal fun navigateToNewChatPage(navigator: Navigator, settings: Settings) {
+    if (settings.uiMode == UiMode.ROLE && settings.characters.isEmpty()) {
+        navigator.clearAndNavigate(Screen.CharacterList)
+    } else {
+        navigateToChatPage(navigator)
+    }
 }
 
 fun Context.copyMessageToClipboard(message: UIMessage) {

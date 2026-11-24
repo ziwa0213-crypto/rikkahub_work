@@ -135,7 +135,7 @@ fun GroupMember.toAssistant(group: Group, framePrompt: String = ""): Assistant =
     toolApprovalMode = group.toolApprovalMode,
     enableMemory = group.enableMemory, localTools = group.localTools,
     mcpServers = group.mcpServers, enabledSkills = group.enabledSkills,
-    modeInjectionIds = group.modeInjectionIds, lorebookIds = group.lorebookIds,
+    modeInjectionIds = group.modeInjectionIds, lorebookIds = emptySet(),
     customHeaders = group.customHeaders, customBodies = group.customBodies,
     background = group.background, backgroundOpacity = group.backgroundOpacity,
     useGradientBackground = group.useGradientBackground,

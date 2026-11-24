@@ -39,11 +39,12 @@ fun ExtensionsPage() {
     val navController = LocalNavController.current
     val settings = LocalSettings.current
     val uiMode = settings.uiMode
-    val workspaceScope = if (settings.uiMode == UiMode.GROUP) {
-        WorkspaceOwnerScope.GROUP.value
-    } else {
-        WorkspaceOwnerScope.CHAT.value
-    }
+    val workspaceScope = when (uiMode) {
+        UiMode.WORK -> WorkspaceOwnerScope.CHAT
+        UiMode.ROLE -> WorkspaceOwnerScope.CHARACTER
+        UiMode.GROUP -> WorkspaceOwnerScope.GROUP
+        UiMode.PULSE -> WorkspaceOwnerScope.PULSE
+    }.value
 
     Scaffold(
         topBar = {
@@ -68,7 +69,7 @@ fun ExtensionsPage() {
                 CardGroup(
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
-                    if (uiMode == UiMode.CHAT) {
+                    if (uiMode == UiMode.WORK || uiMode == UiMode.ROLE) {
                         item(
                             onClick = { navController.navigate(Screen.QuickMessages) },
                             leadingContent = { CardGroupIcon(HugeIcons.Zap, containerColor = containerColor, contentColor = contentColor) },

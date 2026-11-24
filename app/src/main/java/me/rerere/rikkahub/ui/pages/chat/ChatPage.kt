@@ -104,6 +104,8 @@ import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.enabledMembers
 import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.isPulseChat
+import me.rerere.rikkahub.data.model.isCharacterChat
+import me.rerere.rikkahub.data.model.isDeletedCharacterChat
 import me.rerere.rikkahub.data.model.toInputAssistant
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.BackgroundShellStatus
@@ -136,6 +138,7 @@ import me.rerere.rikkahub.ui.pages.group.rememberGroupVM
 import me.rerere.rikkahub.ui.pages.pulse.rememberPulseWorkspaceSetup
 import me.rerere.rikkahub.utils.base64Decode
 import me.rerere.rikkahub.utils.navigateToChatPage
+import me.rerere.rikkahub.utils.navigateToNewChatPage
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -231,16 +234,18 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 
     // 模式跟随当前会话类型：打开群聊即群组模式，打开聊天即聊天模式。
     // 只在类型不一致时写一次，避免恢复阶段三⑥之前的无条件常量写回。
-    LaunchedEffect(conversation.id, conversation.isGroupChat(), setting.uiMode, conversationLoaded) {
+    val roleMode = conversation.isCharacterChat(setting)
+    LaunchedEffect(conversation.id, conversation.isGroupChat(), roleMode, setting.uiMode, conversationLoaded) {
         if (!conversationLoaded || setting.init) return@LaunchedEffect
         val target = when {
             conversation.isGroupChat() -> UiMode.GROUP
             conversation.isPulseChat() -> UiMode.PULSE
-            else -> UiMode.CHAT
+            roleMode -> UiMode.ROLE
+            else -> UiMode.WORK
         }
-        if (setting.uiMode != target) {
+        if (setting.uiMode != target || (roleMode && !conversation.isDeletedCharacterChat(setting) && setting.characterId != conversation.assistantId)) {
             vm.updateSettings { current ->
-                if (current.uiMode == target) current else current.copy(uiMode = target)
+                current.copy(uiMode = target, characterId = if (roleMode && !conversation.isDeletedCharacterChat(current)) conversation.assistantId else current.characterId)
             }
         }
     }
@@ -717,6 +722,8 @@ private fun ChatPageContent(
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val workspaceRepository: WorkspaceRepository = koinInject()
+    val roleMode = conversation.isCharacterChat(setting)
+    val deletedRole = conversation.isDeletedCharacterChat(setting)
     val pulseWorkspaceSetup = if (conversation.isPulseChat()) rememberPulseWorkspaceSetup(setting.pulse) else null
     val sessionActivity by vm.sessionActivity.collectAsStateWithLifecycle()
 
@@ -732,9 +739,13 @@ private fun ChatPageContent(
         workspaceId = assistant.workspaceId?.toString(),
         provider = currentChatModel?.findProvider(setting.providers), model = currentChatModel,
         onBindWorkspace = {
-            navController.navigate(if (conversation.isPulseChat()) Screen.PulseSettings() else Screen.AssistantBasic(assistant.id.toString()))
+            navController.navigate(when {
+                conversation.isPulseChat() -> Screen.PulseSettings()
+                roleMode -> Screen.CharacterDetail(assistant.id.toString())
+                else -> Screen.AssistantBasic(assistant.id.toString())
+            })
         },
-        initialUris = initialFiles, onInitialUrisConsumed = onInitialFilesConsumed,
+        initialUris = if (deletedRole) emptyList() else initialFiles, onInitialUrisConsumed = onInitialFilesConsumed,
     )
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -788,7 +799,11 @@ private fun ChatPageContent(
     val inputContent: @Composable (Boolean) -> Unit = { drawLiquidGlass ->
         val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
         val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
-        ChatInput(
+        if (deletedRole) {
+            Surface(Modifier.fillMaxWidth().onSizeChanged { inputHeightPx = it.height }) {
+                Text(stringResource(R.string.character_deleted), Modifier.padding(16.dp))
+            }
+        } else ChatInput(
             onStartVoiceMode = onStartVoiceMode,
             voiceState = voiceState,
             onStopVoiceMode = vm.voiceSession::stop,
@@ -881,9 +896,7 @@ private fun ChatPageContent(
                         if (topEndBounds != bounds) topEndBounds = bounds
                         if (topEndAlpha != alpha) topEndAlpha = alpha
                     },
-                    onNewChat = {
-                        navigateToChatPage(navController)
-                    },
+                    onNewChat = { navigateToNewChatPage(navController, setting) },
                     onShowOverview = {
                         selectionState.selecting = false
                         previewMode = true
@@ -909,7 +922,7 @@ private fun ChatPageContent(
     }
     val body: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
+        AssistantBackground(assistant = assistant, modifier = Modifier.hazeSource(hazeState))
         Scaffold(
             topBar = {
                 if (useLiquidHost) {
@@ -1054,7 +1067,7 @@ private fun ChatPageContent(
                     showDeleteConfirm = false
                     scope.launch {
                         vm.deleteConversation(conversation).join()
-                        navigateToChatPage(navController)
+                        navigateToNewChatPage(navController, vm.settings.value)
                     }
                 },
                 onDismiss = { showDeleteConfirm = false },
@@ -1219,7 +1232,8 @@ private fun TopBar(
                     val provider = chatModel?.findProvider(providers = settings.providers, checkOverwrite = false)
                     Text(
                         text = if (conversation.isPulseChat()) stringResource(R.string.group_mode_pulse)
-                            else conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
+                            else conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) } +
+                                if (conversation.isDeletedCharacterChat(settings)) " " + stringResource(R.string.character_deleted_suffix) else "",
                         maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium,
                         overflow = TextOverflow.Ellipsis,

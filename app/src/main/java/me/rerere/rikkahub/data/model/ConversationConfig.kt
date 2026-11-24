@@ -26,6 +26,8 @@ data class ConversationConfig(
     val mcpServers: Set<Uuid> = emptySet(),
     val workspaceId: Uuid? = null,
     val enabledSkills: Set<String> = emptySet(),
+    // Role can override quick messages without editing the character's default bindings.
+    val quickMessageIds: Set<Uuid>? = null,
 )
 
 // 内置搜索是模型的开关，不在助手上，由调用方另行填入
@@ -53,6 +55,7 @@ fun Assistant.withConversation(conversation: Conversation): Assistant {
     return withConversationConfig(config).copy(
         modeInjectionIds = conversation.modeInjectionIds,
         lorebookIds = conversation.lorebookIds,
+        quickMessageIds = config.quickMessageIds ?: quickMessageIds,
     )
 }
 
@@ -65,6 +68,9 @@ fun Conversation.withAssistantUpdate(updated: Assistant, settings: Settings): Co
     } else {
         copy(
             config = updated.toConversationConfig().copy(
+                quickMessageIds = if (isCharacterChat(settings) && updated.quickMessageIds != previous.quickMessageIds) {
+                    updated.quickMessageIds
+                } else config.quickMessageIds,
                 builtInSearch = if (updated.chatModelId == config.chatModelId) {
                     config.builtInSearch
                 } else {
@@ -92,9 +98,12 @@ fun Assistant.withoutConversationFields(conversation: Conversation, stored: Assi
     }
 
 /** 会话所属助手自身的设置，不含会话上固定的配置；助手被删除后退回当前助手。 */
-fun Settings.getStoredAssistantOf(conversation: Conversation): Assistant =
-    if (conversation.isPulseChat()) pulse.toAssistant(this)
-    else getAssistantById(conversation.assistantId) ?: getCurrentAssistant()
+fun Settings.getStoredAssistantOf(conversation: Conversation): Assistant = when {
+    conversation.isPulseChat() -> pulse.toAssistant(this)
+    conversation.isDeletedCharacterChat(this) -> Assistant(id = conversation.assistantId)
+    conversation.isCharacterChat(this) -> checkNotNull(findCharacter(conversation.assistantId)).toAssistant(this)
+    else -> getAssistantById(conversation.assistantId) ?: getCurrentAssistant()
+}
 
 /** 会话所属的助手（会话视角）。 */
 fun Settings.getAssistantOf(conversation: Conversation): Assistant {
@@ -112,6 +121,7 @@ fun Settings.getAssistantOf(conversation: Conversation): Assistant {
 
 /** 会话使用的聊天模型；会话开始后内置搜索以会话上固定的开关为准。 */
 fun Settings.getChatModelOf(conversation: Conversation): Model? {
+    if (conversation.isDeletedCharacterChat(this)) return null
     if (conversation.isGroupChat()) {
         val lastReply = conversation.currentMessages.lastOrNull { it.role == me.rerere.ai.core.MessageRole.ASSISTANT }
         findModelById(lastReply?.modelId)?.let { return it }
@@ -136,7 +146,7 @@ fun Settings.getChatModelOf(conversation: Conversation): Model? {
  */
 fun Conversation.bindConfig(settings: Settings): Conversation {
     // Group turns resolve each member and the group's own resources, never the current chat assistant.
-    if (isGroupChat() || isPulseChat()) return this
+    if (isGroupChat() || isPulseChat() || isDeletedCharacterChat(settings)) return this
     val model = settings.getChatModelOf(this)
     val builtInSearch = model != null && BuiltInTools.Search in model.tools
     val config = config

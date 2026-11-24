@@ -29,6 +29,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
+import me.rerere.rikkahub.data.ai.prompts.buildReferenceMemoryPrompt
 import me.rerere.rikkahub.data.ai.prompts.buildRowMemoryPrompt
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
@@ -44,6 +45,8 @@ import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
+import me.rerere.rikkahub.data.ai.transformers.applyCharacterInjections
+import me.rerere.rikkahub.data.model.Character
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transformThinkTags
@@ -53,6 +56,11 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.AssistantMode
+import me.rerere.rikkahub.data.model.assistantMode
+import me.rerere.rikkahub.data.model.characterMemoryScope
+import me.rerere.rikkahub.data.model.findCharacter
+import me.rerere.rikkahub.data.model.isDeletedCharacterChat
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MemoryFile
 import me.rerere.rikkahub.data.model.RowMemory
@@ -87,7 +95,39 @@ class ChatTurnContext(
     val isGroupChat: Boolean = false,
     val rowMemories: List<RowMemory> = emptyList(),
     val pulseInstruction: String? = null,
+    val referencedMemories: List<MemoryFile> = emptyList(),
+    val character: Character? = null,
 )
+
+internal data class ChatTurnRoute(
+    val assistant: Assistant,
+    val model: Model?,
+    val character: Character?,
+    val memoryScope: String,
+    val allowPhoneUse: Boolean,
+)
+
+/** Determine request-only identity and permissions without touching the persisted conversation. */
+internal fun resolveChatTurnRoute(
+    settings: Settings, conversation: Conversation, assistantOverride: Assistant? = null,
+    mode: AssistantMode = conversation.assistantMode(settings), memoryScope: String? = null,
+): ChatTurnRoute {
+    check(!conversation.isDeletedCharacterChat(settings)) { "Character was deleted" }
+    val base = assistantOverride ?: settings.getAssistantOf(conversation)
+    val character = settings.findCharacter(conversation.assistantId).takeIf { mode == AssistantMode.ROLE }
+    if (mode == AssistantMode.ROLE) check(character != null && base.id == conversation.assistantId) {
+        "Invalid character conversation owner"
+    }
+    val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
+        else settings.findModelById(base.chatModelId ?: settings.chatModelId)
+    return ChatTurnRoute(
+        assistant = if (character == null) base.copy(lorebookIds = emptySet()) else base,
+        model = model,
+        character = character,
+        memoryScope = if (character != null) characterMemoryScope(character.id) else memoryScope ?: base.memoryId,
+        allowPhoneUse = assistantOverride == null && (mode == AssistantMode.WORK || character != null),
+    )
+}
 
 /** 把会话变成发给模型的请求：系统提示词、上下文裁剪、输入输出转换都在这里 */
 class ChatRequestFactory(
@@ -116,18 +156,21 @@ class ChatRequestFactory(
     )
 
     /** 解析本轮的助手、模型、记忆和工具；MCP 服务名不合法时抛出 InvalidMcpServerNamesException */
-    suspend fun createContext(
+    internal suspend fun createContext(
         settings: Settings,
         conversation: Conversation,
         assistantOverride: Assistant? = null,
         memoryScope: String? = null,
         pulseInstruction: String? = null,
+        mode: AssistantMode = conversation.assistantMode(settings),
     ): ChatTurnContext {
         // 模型、思考级别、搜索、工具等以会话上固定的配置为准
-        val assistant = assistantOverride ?: settings.getAssistantOf(conversation)
-        val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
-            else settings.findModelById(assistant.chatModelId ?: settings.chatModelId)
-        val resolvedModel = model
+        check(!conversation.isDeletedCharacterChat(settings)) { context.getString(R.string.character_deleted) }
+        val route = resolveChatTurnRoute(settings, conversation, assistantOverride, mode, memoryScope)
+        val assistant = route.assistant
+        val roleOwned = route.character != null
+        val resolvedMemoryScope = route.memoryScope
+        val resolvedModel = route.model
             ?: throw IllegalStateException(context.getString(R.string.error_no_model_selected))
         val provider = resolvedModel.findProvider(settings.providers) ?: error(context.getString(R.string.error_provider_not_found))
         DeepSeekWebGuard.refusal(provider,
@@ -142,20 +185,28 @@ class ChatRequestFactory(
                 "## Context\nCurrent local time: ${java.time.ZonedDateTime.now()} (${java.time.ZoneId.systemDefault().id})"
             } else conversation.customSystemPrompt.takeIf { assistantOverride == null },
             workspaceCwd = conversation.workspaceCwd,
-            memories = if (assistant.enableMemory) memoryRepository.getFiles(memoryScope ?: assistant.memoryId) else emptyList(),
-            rowMemories = if (assistant.enableMemory) memoryRepository.getRowMemories(memoryScope ?: assistant.memoryId) else emptyList(),
+            memories = if (assistant.enableMemory) memoryRepository.getFiles(resolvedMemoryScope) else emptyList(),
+            rowMemories = if (assistant.enableMemory && !roleOwned) memoryRepository.getRowMemories(resolvedMemoryScope) else emptyList(),
+            referencedMemories = if (roleOwned && assistant.enableMemory) {
+                val valid = settings.assistants.map { it.memoryId }.toSet() +
+                    MemoryRepository.GLOBAL_MEMORY_ID + settings.memoryGroups.map { MemoryRepository.GROUP_MEMORY_PREFIX + it.id }
+                settings.findCharacter(conversation.assistantId)?.referencedMemoryScopes.orEmpty()
+                    .filter { it in valid && it != resolvedMemoryScope }.flatMap { memoryRepository.getFiles(it) }
+            } else emptyList(),
             tools = chatToolFactory.createTools(
                 settings = settings,
                 assistant = assistant,
                 model = resolvedModel,
                 workspaceCwd = conversation.workspaceCwd,
-                memoryScope = memoryScope,
+                memoryScope = resolvedMemoryScope,
                 conversationScopeAssistantId = if (assistantOverride == null && !conversation.isPulseChat()) assistant.id else null,
                 conversationId = conversation.id,
-                allowPhoneUse = assistantOverride == null && !conversation.isPulseChat() && !conversation.isGroupChat(),
+                mode = mode,
+                allowPhoneUse = route.allowPhoneUse,
             ),
-            isGroupChat = assistantOverride != null,
+            isGroupChat = mode == AssistantMode.GROUP,
             pulseInstruction = resolvePulseInstruction(conversation, pulseInstruction),
+            character = route.character,
         )
     }
 
@@ -297,7 +348,7 @@ class ChatRequestFactory(
             }
             val effectiveMessages = messages.forProviderVideoInput(turn.providerSetting)
             addAll((if (turn.isGroupChat) effectiveMessages else effectiveMessages.limitContext(contextMessageLimit)).withContinuationHint())
-        }.transforms(
+        }.let { applyCharacterInjections(it, turn.character, turn.settings.stylePacks, context.getString(R.string.character_style_heading)) }.transforms(
             transformers = if (turn.isGroupChat) listOf(GroupSpeakerTransformer(
                 contextMessageLimit, context.getString(R.string.group_quote_reply_prefix)
             )) + inputTransformers else inputTransformers,
@@ -344,6 +395,7 @@ internal fun buildSystemPrompt(turn: ChatTurnContext, messages: List<UIMessage>)
         appendLine()
         append(buildRowMemoryPrompt(turn.rowMemories))
         append(buildMemoryPrompt(turn.memories))
+        append(buildReferenceMemoryPrompt(turn.referencedMemories))
     }
     turn.tools.forEach { tool ->
         appendLine()

@@ -73,7 +73,8 @@ fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
     val effectiveScope = scope ?: when (settings.uiMode) {
         UiMode.GROUP -> WorkspaceOwnerScope.GROUP.value
         UiMode.PULSE -> WorkspaceOwnerScope.PULSE.value
-        UiMode.CHAT -> WorkspaceOwnerScope.CHAT.value
+        UiMode.WORK -> WorkspaceOwnerScope.CHAT.value
+        UiMode.ROLE -> WorkspaceOwnerScope.CHARACTER.value
     }
     val workspaces = remember(allWorkspaces, effectiveScope) {
         val ownerScope = WorkspaceOwnerScope.entries.firstOrNull { it.value == effectiveScope }
@@ -196,7 +197,8 @@ fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
         WorkspaceOwnerDialog(
             workspace = workspace,
             bound = settings.assistants.any { it.workspaceId?.toString() == workspace.id } ||
-                settings.groups.any { it.workspaceId?.toString() == workspace.id },
+                settings.groups.any { it.workspaceId?.toString() == workspace.id } ||
+                settings.characters.any { it.workspaceId?.toString() == workspace.id },
             saving = saving,
             error = saveError,
             onDismiss = { ownerTarget = null; vm.dismissSaveError() },
@@ -264,6 +266,7 @@ private fun WorkspaceItem(
                         "chat" -> R.string.workspace_owner_chat
                         "group" -> R.string.workspace_owner_group
                         "pulse" -> R.string.workspace_owner_pulse
+                        "character" -> R.string.group_mode_role
                         else -> R.string.workspace_owner_unassigned
                     }),
                     style = MaterialTheme.typography.labelSmall,
@@ -363,14 +366,15 @@ private fun EditWorkspaceDialog(
 private fun WorkspaceOwnerSelect(owner: String?, onSelect: (String?) -> Unit) {
     Text(stringResource(R.string.workspace_page_owner))
     Select(
-        options = listOf(null, "chat", "group"),
+        options = listOf(null, "chat", "character", "group"),
         selectedOption = owner,
         onOptionSelected = onSelect,
         modifier = Modifier.fillMaxWidth(),
         optionToString = { value -> stringResource(when (value) {
             "chat" -> R.string.workspace_owner_chat
             "group" -> R.string.workspace_owner_group
-        "pulse" -> R.string.workspace_owner_pulse
+            "pulse" -> R.string.workspace_owner_pulse
+            "character" -> R.string.group_mode_role
             else -> R.string.workspace_owner_unassigned
         }) },
     )

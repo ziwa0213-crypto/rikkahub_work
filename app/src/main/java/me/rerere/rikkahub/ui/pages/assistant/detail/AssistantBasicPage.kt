@@ -112,7 +112,8 @@ internal fun AssistantBasicContent(
     tags: List<DataTag>,
     workspaces: List<WorkspaceEntity>,
     onUpdate: (Assistant) -> Unit,
-    vm: AssistantDetailVM
+    vm: AssistantDetailVM? = null,
+    ownerScope: WorkspaceOwnerScope = WorkspaceOwnerScope.CHAT,
 ) {
     val modelListState = rememberModelListState(
         modelId = assistant.chatModelId,
@@ -173,7 +174,7 @@ internal fun AssistantBasicContent(
                     singleLine = true,
                 )
             }
-            formItem(
+            if (vm != null) formItem(
                 headlineContent = { Text(stringResource(R.string.assistant_page_tags)) },
             ) {
                 TagsInput(
@@ -193,7 +194,7 @@ internal fun AssistantBasicContent(
             ) {
                 val selectedWorkspace = workspaces.find { it.id == assistant.workspaceId?.toString() }
                 Select(
-                    options = listOf<WorkspaceEntity?>(null) + workspaces.filter(WorkspaceOwnerScope.CHAT::includes),
+                    options = listOf<WorkspaceEntity?>(null) + workspaces.filter(ownerScope::includes),
                     selectedOption = selectedWorkspace,
                     onOptionSelected = { workspace ->
                         onUpdate(
@@ -207,7 +208,7 @@ internal fun AssistantBasicContent(
                         workspace?.name ?: stringResource(R.string.workspace_no_binding)
                     },
                 )
-                WorkspaceCreateButton(WorkspaceOwnerScope.CHAT, workspaces) {
+                WorkspaceCreateButton(ownerScope, workspaces) {
                     onUpdate(assistant.copy(workspaceId = Uuid.parse(it)))
                 }
             }

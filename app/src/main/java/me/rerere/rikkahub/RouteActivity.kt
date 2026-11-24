@@ -32,6 +32,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
@@ -59,14 +61,25 @@ import coil3.svg.SvgDecoder
 import me.rerere.ui.toast.Toaster
 import me.rerere.ui.toast.rememberToasterState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.saveable.rememberSaveable
+import me.rerere.rikkahub.ui.pages.character.CharacterMigrationDialog
+import me.rerere.rikkahub.data.datastore.CharacterMigrationState
+import me.rerere.rikkahub.data.datastore.shouldOfferCharacterMigration
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.UiMode
+import me.rerere.rikkahub.ui.pages.character.CharacterPage
+import me.rerere.rikkahub.ui.pages.character.CharacterDetailPage
+import me.rerere.rikkahub.ui.pages.character.CharacterLorebookPage
+import me.rerere.rikkahub.ui.pages.character.CharacterTransferPage
 import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
 import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.repository.MediaCreationRepository
+import me.rerere.rikkahub.data.repository.ConversationRepository
+import me.rerere.rikkahub.data.model.workAssistantSelection
 import me.rerere.rikkahub.service.MediaCreationForegroundService
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.ui.components.ui.TTSController
@@ -134,6 +147,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingThemePage
 import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
+import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
 import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
@@ -146,6 +160,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingMediaPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMediaProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSpeechPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
+import me.rerere.rikkahub.ui.pages.quickstart.QuickStartPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
@@ -200,6 +215,7 @@ fun pulseIntent(context: Context): Intent = Intent(context, RouteActivity::class
 class RouteActivity : ComponentActivity() {
     private val okHttpClient by inject<OkHttpClient>()
     private val settingsStore by inject<SettingsStore>()
+    private val conversationRepository by inject<ConversationRepository>()
     private val mediaCreationRepository by inject<MediaCreationRepository>()
     private var navStack: MutableList<NavKey>? = null
     private val pendingIntents = ArrayDeque<Intent>()
@@ -350,31 +366,43 @@ class RouteActivity : ComponentActivity() {
             return
         }
 
-        val startScreen = if (settings.uiMode == UiMode.PULSE) {
-            Screen.Pulse
-        } else if (settings.uiMode == UiMode.GROUP) {
-            // 群组模式：复用该组最后一个群聊会话；没有组或组内没有会话时进入群组列表。
-            // 不新建会话，避免每次冷启动都产生空群聊。
-            val groupConversationId = settings.selectedGroup(null)?.conversationIds?.lastOrNull()
-            if (groupConversationId != null) {
-                Screen.Chat(groupConversationId.toString())
-            } else {
-                Screen.Groups
-            }
-        } else {
-            Screen.Chat(
-                id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
-                    Uuid.random().toString()
-                } else {
-                    readStringPreference(
-                        "lastConversationId",
-                        Uuid.random().toString()
-                    ) ?: Uuid.random().toString()
+        var startScreen by remember { mutableStateOf<Screen?>(null) }
+        LaunchedEffect(Unit) {
+            val loaded = settingsStore.awaitLoaded()
+            startScreen = when (loaded.uiMode) {
+                UiMode.PULSE -> Screen.Pulse
+                UiMode.ROLE -> Screen.CharacterList
+                UiMode.GROUP -> {
+                    // 不新建会话，避免每次冷启动都产生空群聊。
+                    val id = loaded.selectedGroup(null)?.conversationIds?.lastOrNull()
+                    if (id != null) Screen.Chat(id.toString()) else Screen.Groups
                 }
-            )
+                UiMode.WORK -> {
+                    val recentId = if (readBooleanPreference("create_new_conversation_on_start", true)) null
+                    else readStringPreference("lastConversationId")?.let { Uuid.parseOrNull(it) }
+                    // An old saved ID can have changed owners during migration.
+                    val recent = recentId?.let { conversationRepository.getConversationSummaryById(it) }
+                    Screen.Chat((recent?.takeIf { it.workAssistantSelection(loaded) != null }?.id ?: Uuid.random()).toString())
+                }
+            }
         }
 
-        val backStack = rememberNavBackStack(startScreen)
+        val initialScreen = startScreen ?: run {
+            Box(modifier = Modifier.fillMaxSize())
+            return
+        }
+        val backStack = rememberNavBackStack(initialScreen)
+        var offerCharacterMigration by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            if (!(application as RikkaHubApp).launchCountUpdated.await()) return@LaunchedEffect
+            val launches = settingsStore.launchCountFlow.first()
+            val latest = settingsStore.awaitLoaded()
+            if (latest.shouldOfferCharacterMigration(launches)) offerCharacterMigration = true
+            else if (latest.lastRunVersionCode == 0) settingsStore.update {
+                if (it.shouldOfferCharacterMigration(launches)) it
+                else it.copy(lastRunVersionCode = BuildConfig.VERSION_CODE.toInt(), characterMigrationPrompted = true)
+            }
+        }
         LaunchedEffect(Unit) {
             eventBus.events.collect { event ->
                 if (event is AppEvent.OpenBrowser) {
@@ -407,6 +435,20 @@ class RouteActivity : ComponentActivity() {
                 LocalASRState provides asr,
             ) {
                 TTSController()
+                val nav = LocalNavController.current
+                val migrationScope = androidx.compose.runtime.rememberCoroutineScope()
+                if (offerCharacterMigration && !settings.characterMigrationPrompted && backStack.lastOrNull() != Screen.CharacterTransfer) {
+                    CharacterMigrationDialog(
+                        onDecline = {
+                            migrationScope.launch {
+                                settingsStore.update { it.copy(characterMigrationState = CharacterMigrationState.DECLINED,
+                                    characterMigrationPrompted = true, lastRunVersionCode = BuildConfig.VERSION_CODE.toInt()) }
+                                offerCharacterMigration = false
+                            }
+                        },
+                        onTransfer = { nav.navigate(Screen.CharacterTransfer) },
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -474,6 +516,10 @@ class RouteActivity : ComponentActivity() {
                                 FavoritePage()
                             }
 
+                            entry<Screen.CharacterList> { CharacterPage() }
+                            entry<Screen.CharacterDetail> { key -> CharacterDetailPage(key.id) }
+                            entry<Screen.CharacterLorebooks> { CharacterLorebookPage() }
+                            entry<Screen.CharacterTransfer> { CharacterTransferPage() }
                             entry<Screen.Assistant> {
                                 AssistantPage()
                             }
@@ -672,6 +718,13 @@ class RouteActivity : ComponentActivity() {
                                 SettingMcpDetailPage(id = Uuid.parse(key.serverId))
                             }
 
+                            entry<Screen.SettingDonate> {
+                                SettingDonatePage()
+                            }
+
+                            entry<Screen.QuickStart> {
+                                QuickStartPage()
+                            }
                             entry<Screen.SettingFiles> {
                                 SettingFilesPage()
                             }
@@ -713,7 +766,7 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             entry<Screen.WorkspaceTerminal> { key ->
-                                WorkspaceTerminalPage(key.id)
+                                WorkspaceTerminalPage(key.id, initialCommand = key.runCommand)
                             }
 
                             entry<Screen.WorkspaceSshEditor> { key ->
@@ -822,6 +875,11 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Assistant : Screen
+
+    @Serializable data object CharacterList : Screen
+    @Serializable data class CharacterDetail(val id: String) : Screen
+    @Serializable data object CharacterLorebooks : Screen
+    @Serializable data object CharacterTransfer : Screen
 
     @Serializable
     data object GroupMembers : Screen
@@ -964,6 +1022,12 @@ sealed interface Screen : NavKey {
     data class SettingMcpDetail(val serverId: String) : Screen
 
     @Serializable
+    data object SettingDonate : Screen
+
+    @Serializable
+    data object QuickStart : Screen
+
+    @Serializable
     data object SettingFiles : Screen
 
     @Serializable
@@ -994,7 +1058,7 @@ sealed interface Screen : NavKey {
     data class WorkspaceDetail(val id: String) : Screen
 
     @Serializable
-    data class WorkspaceTerminal(val id: String) : Screen
+    data class WorkspaceTerminal(val id: String, val runCommand: String? = null) : Screen
 
     /** [id] 为 null 时新建 */
     @Serializable

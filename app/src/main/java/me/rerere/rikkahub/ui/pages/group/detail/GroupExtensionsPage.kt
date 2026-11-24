@@ -35,10 +35,10 @@ fun GroupExtensionsPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 3 }
+    val pagerState = rememberPagerState { 2 }
     val titles = listOf(
         R.string.extension_selector_tab_mode_injections,
-        R.string.extension_selector_tab_lorebooks,
+
         R.string.extension_selector_tab_skills,
     )
     Scaffold(
@@ -62,17 +62,17 @@ fun GroupExtensionsPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
                 val empty = when (page) {
                     0 -> settings.modeInjections.isEmpty()
-                    1 -> settings.lorebooks.isEmpty()
+
                     else -> skills.isEmpty()
                 }
-                val destination = if (page == 2) Screen.Skills else Screen.Prompts
-                val manageLabel = stringResource(if (page == 2)
+                val destination = if (page == 1) Screen.Skills else Screen.Prompts
+                val manageLabel = stringResource(if (page == 1)
                     R.string.assistant_extensions_page_goto_extensions else R.string.assistant_extensions_page_goto_prompts)
                 if (empty) {
                     ExtensionEmptyState(
                         message = stringResource(when (page) {
                             0 -> R.string.assistant_extensions_page_empty_mode_injections
-                            1 -> R.string.assistant_extensions_page_empty_lorebooks
+
                             else -> R.string.assistant_extensions_page_empty_skills
                         }), buttonText = manageLabel, onAction = { navController.navigate(destination) },
                     )
@@ -85,14 +85,7 @@ fun GroupExtensionsPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
                                     if (checked) latest.modeInjectionIds + id else latest.modeInjectionIds - id) }
                             },
                         )
-                        1 -> LorebooksContent(
-                            lorebooks = settings.lorebooks, selectedIds = group.lorebookIds,
-                            modifier = Modifier.weight(1f), onToggle = { id, checked ->
-                                vm.updateGroup(group.id) { latest -> latest.copy(lorebookIds =
-                                    if (checked) latest.lorebookIds + id else latest.lorebookIds - id) }
-                            },
-                        )
-                        2 -> SkillsContent(
+                        1 -> SkillsContent(
                             skills = skills, enabledSkills = group.enabledSkills,
                             modifier = Modifier.weight(1f), onToggle = { name, checked ->
                                 vm.updateGroup(group.id) { latest -> latest.copy(enabledSkills =

@@ -10,6 +10,9 @@ import me.rerere.asr.ASRProviderSetting
 import me.rerere.mediagen.provider.MediaGenerationProviderSetting
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.Character
+import me.rerere.rikkahub.data.model.CharacterPersona
+import me.rerere.rikkahub.data.model.StylePack
 import me.rerere.rikkahub.data.model.MemoryGroup
 import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.GroupMember
@@ -202,6 +205,14 @@ private val SAMPLE = Settings(
     browserTaskTimeoutMs = 60_000L,
     browserVisitedHosts = listOf("example.test"),
     uiMode = UiMode.GROUP,
+    characterId = id(40),
+    characters = listOf(Character(id = id(40), name = "Character")),
+    deletedCharacterIds = setOf(id(41)),
+    characterPersonas = listOf(CharacterPersona(id = id(42))),
+    stylePacks = listOf(StylePack(id = id(43))),
+    characterMigrationState = CharacterMigrationState.DONE,
+    characterMigrationPrompted = true,
+    lastRunVersionCode = 209,
     groupMembers = listOf(GroupMember(id = id(34), name = "member")),
     groups = listOf(Group(id = id(35), name = "group")),
     groupTags = listOf(Tag(id = id(36), name = "group tag")),
@@ -274,6 +285,14 @@ private val STORED_KEYS = setOf(
     "browser_task_timeout_ms",
     "browser_visited_hosts",
     "ui_mode",
+    "character_id",
+    "characters",
+    "deleted_character_ids",
+    "character_personas",
+    "character_style_packs",
+    "character_migration_state",
+    "character_migration_prompted",
+    "last_run_version_code",
     "group_members",
     "groups",
     "group_tags",

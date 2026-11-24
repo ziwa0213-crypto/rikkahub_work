@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.sync
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -15,11 +16,12 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.rerere.rikkahub.data.datastore.withRestoredCharacterMigration
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
-import me.rerere.rikkahub.data.db.AppDatabaseFactory
 import me.rerere.rikkahub.data.db.AppDatabase
+import me.rerere.rikkahub.data.db.AppDatabaseFactory
 import me.rerere.rikkahub.data.db.SQLiteConfiguration
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.MediaCreationFiles
@@ -54,20 +56,25 @@ class BackupManager(
                 zip.closeEntry()
                 if (includeDatabase) {
                     val snapshot = File(staging, SQLiteConfiguration.DATABASE_NAME)
-                    DatabaseBackup.createSnapshot(database.openHelper.writableDatabase, snapshot)
+                    createDatabaseSnapshot(snapshot)
                     addFile(zip, snapshot, DatabaseBackup.ARCHIVE_DATABASE)
                 }
                 if (includeFiles) {
                     for (folder in ATTACHMENT_FOLDERS) {
                         val directory = File(context.filesDir, folder)
-                        val files = if (folder in NESTED_ATTACHMENT_FOLDERS) directory.walkTopDown().asSequence()
-                        else directory.listFiles().orEmpty().asSequence()
+                        val files = if (folder in NESTED_ATTACHMENT_FOLDERS) {
+                            directory.walkTopDown().asSequence()
+                        } else {
+                            directory.listFiles().orEmpty().asSequence()
+                        }
                         for (file in files.filter { it.isFile }) {
                             currentCoroutineContext().ensureActive()
                             // A media result still being downloaded is incomplete and gets renamed when it finishes.
                             if (folder == FileFolders.MEDIA_CREATION &&
                                 file.name.endsWith(MediaCreationFiles.PARTIAL_SUFFIX)
-                            ) continue
+                            ) {
+                                continue
+                            }
                             val relative = file.relativeTo(directory).invariantSeparatorsPath
                             PendingRestore.resolveInside(directory, relative)
                             addFile(zip, file, "$folder/$relative")
@@ -106,7 +113,9 @@ class BackupManager(
                                 DatabaseBackup.SHM -> null // Rebuilt by SQLite; never restore shared-memory state.
                                 else -> if (includeFiles && isAttachment(entry.name)) {
                                     PendingRestore.resolveInside(File(payload, "files"), entry.name)
-                                } else null
+                                } else {
+                                    null
+                                }
                             } ?: continue
                             require(seen.add(entry.name)) { "Duplicate backup entry: ${entry.name}" }
                             check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs()) {
@@ -141,7 +150,10 @@ class BackupManager(
                         val settings = json.decodeFromString<Settings>(migrated)
                         require(!settings.init) { "Backup contains uninitialized settings" }
                         // Persist the migrated value once, including generated IDs, for restart/retry consistency.
-                        PendingRestore.writeDurably(settingsFile, json.encodeSettings(settings, json.launchCountOf(migrated)))
+                        PendingRestore.writeDurably(
+                            settingsFile,
+                            json.encodeSettings(settings.withRestoredCharacterMigration(), json.launchCountOf(migrated))
+                        )
                     }
                     currentCoroutineContext().ensureActive()
                     restore.publish(staging)
@@ -150,6 +162,27 @@ class BackupManager(
                 }
             }
         }
+
+    private fun createDatabaseSnapshot(destination: File) {
+        try {
+            DatabaseBackup.createSnapshot(database.openHelper.writableDatabase, destination)
+        } catch (e: Exception) {
+            // 迁移失败、降级安装时 Room 打不开库，应用一碰数据库就崩，只能进安全模式导出。
+            // 迁移在事务里，失败会回滚，盘上还是迁移前的完整数据，直接从文件拍快照
+            Log.w(TAG, "Room snapshot failed, falling back to the database file", e)
+            check(!destination.exists() || destination.delete()) { "Cannot remove partial snapshot" }
+            try {
+                DatabaseBackup.createFileSnapshot(
+                    context,
+                    context.getDatabasePath(SQLiteConfiguration.DATABASE_NAME),
+                    destination
+                )
+            } catch (fallback: Exception) {
+                e.addSuppressed(fallback)
+                throw e
+            }
+        }
+    }
 
     private fun isAttachment(name: String): Boolean {
         val folder = name.substringBefore('/')
@@ -167,11 +200,13 @@ class BackupManager(
     }
 
     companion object {
+        private const val TAG = "BackupManager"
+
         private val ATTACHMENT_FOLDERS =
             listOf(FileFolders.UPLOAD, FileFolders.SKILLS, FileFolders.FONTS, FileFolders.MEDIA_CREATION)
 
         /** Backed up with their subdirectories; the other folders only contain top-level files. */
-        private val NESTED_ATTACHMENT_FOLDERS = setOf(FileFolders.SKILLS, FileFolders.MEDIA_CREATION)
+        private val NESTED_ATTACHMENT_FOLDERS = setOf(FileFolders.UPLOAD, FileFolders.SKILLS, FileFolders.MEDIA_CREATION)
 
         // 启动次数不在 Settings 里，备份文件里仍放在 settings.json 的这个字段，和旧备份保持一致
         private const val LAUNCH_COUNT_KEY = "launchCount"
@@ -196,7 +231,7 @@ class BackupManager(
             pendingRestore(context).apply { settingsJson ->
                 SettingsStore.restoreBeforeInitialization(
                     context = context,
-                    settings = json.decodeFromString<Settings>(settingsJson),
+                    settings = json.decodeFromString<Settings>(settingsJson).withRestoredCharacterMigration(),
                     launchCount = json.launchCountOf(settingsJson),
                 )
             }

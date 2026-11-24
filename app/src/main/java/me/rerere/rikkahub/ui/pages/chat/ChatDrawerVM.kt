@@ -27,6 +27,8 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
 import me.rerere.rikkahub.data.datastore.ConversationSortOrder
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.UiMode
+import me.rerere.rikkahub.data.model.newConversationOwnerId
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Folder
@@ -51,7 +53,7 @@ class ChatDrawerVM(
 ) : ViewModel() {
 
     private val assistantIdFlow = settingsStore.settingsFlow
-        .map { it.assistantId }
+        .map { it.newConversationOwnerId() }
         .distinctUntilChanged()
 
     private val sortOrderFlow = settingsStore.settingsFlow
@@ -64,12 +66,12 @@ class ChatDrawerVM(
 
     // 当前助手的文件夹列表（Room Flow，增删改自动刷新）
     val folders: StateFlow<List<Folder>> = assistantIdFlow
-        .flatMapLatest { folderRepo.getFoldersOfAssistant(it) }
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else folderRepo.getFoldersOfAssistant(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // 当前助手的记忆库是否正在后台整理；没开记忆的助手即使共用的全局记忆库在整理也不显示
     val memoryDreaming: StateFlow<Boolean> = settingsStore.settingsFlow
-        .map { settings -> settings.getCurrentAssistant().takeIf { it.enableMemory }?.memoryId }
+        .map { settings -> settings.getCurrentAssistant().takeIf { settings.uiMode == UiMode.WORK && it.enableMemory }?.memoryId }
         .distinctUntilChanged()
         .flatMapLatest { memoryId ->
             if (memoryId == null) flowOf(false) else memoryConsolidationScheduler.statusOf(memoryId).map { it.running }
@@ -81,6 +83,7 @@ class ChatDrawerVM(
             Triple(assistantId, folderId, sortOrder)
         }
             .flatMapLatest { (assistantId, folderId, sortOrder) ->
+                if (assistantId == null) return@flatMapLatest flowOf(PagingData.empty())
                 val paging = if (folderId == null) {
                     conversationRepo.getUnfiledConversationsOfAssistantPaging(assistantId, sortOrder)
                 } else {
@@ -88,7 +91,7 @@ class ChatDrawerVM(
                 }
                 paging.map { pagingData ->
                     pagingData
-                        .filter { !it.isPulseChat() }
+                        .filter { !it.isPulseChat() && it.assistantId == assistantId }
                         .map { ConversationListItem.Item(it) }
                         .insertSeparators<ConversationListItem.Item, ConversationListItem> { before, after ->
                             when {
@@ -145,7 +148,7 @@ class ChatDrawerVM(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            val assistantId = assistantIdFlow.first()
+            val assistantId = assistantIdFlow.first() ?: return@launch
             folderRepo.createFolder(assistantId, trimmed)
         }
     }

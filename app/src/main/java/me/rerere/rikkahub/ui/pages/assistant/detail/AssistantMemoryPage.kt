@@ -795,7 +795,7 @@ internal fun ItemizedMemoryTab(
 }
 
 @Composable
-private fun MemoryFilesTab(
+internal fun MemoryFilesTab(
     memories: List<MemoryFile>,
     // 为 null 时不显示整理入口
     consolidation: MemoryConsolidationStatus?,

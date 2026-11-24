@@ -5,10 +5,17 @@ import me.rerere.ai.provider.providers.deepseekweb.DeepSeekWebModels
 import me.rerere.rikkahub.browser.BrowserController
 import me.rerere.rikkahub.browser.normalizeBrowserVisitedHost
 import me.rerere.rikkahub.data.model.normalizeGroupData
+import me.rerere.rikkahub.data.model.DEFAULT_STYLE_PACKS
+import me.rerere.rikkahub.data.model.MAX_STYLE_PACK_RULES
 
 /** 读盘后和每次修改后都要过一遍，保证内存里的设置始终是规整的。 */
 internal fun Settings.normalized(): Settings =
-    withBuiltInDefaults().withoutInvalidReferences().withValuesInRange().normalizeGroupData()
+    withBuiltInDefaults().withoutInvalidReferences().withCharacterModeGate()
+        .withValuesInRange().normalizeGroupData()
+
+/** Keep role data intact while ensuring a hidden mode cannot remain selected. */
+internal fun Settings.withCharacterModeGate(): Settings =
+    if (experimentalCharacterMode || uiMode != UiMode.ROLE) this else copy(uiMode = UiMode.CHAT)
 
 // 补齐缺失的内置提供商/助手/TTS，内置提供商和推荐提供商的描述信息始终以代码里的为准
 internal fun Settings.withBuiltInDefaults(): Settings {
@@ -37,12 +44,8 @@ internal fun Settings.withBuiltInDefaults(): Settings {
             else -> provider
         }
     }.toMutableList()
-    val assistants = this.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
-    DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
-        if (assistants.none { it.id == defaultAssistant.id }) {
-            assistants.add(defaultAssistant.copy())
-        }
-    }
+    // 内置助手可以删除，只在一个都不剩时补回，不按 id 逐个补齐
+    val assistants = this.assistants.ifEmpty { DEFAULT_ASSISTANTS }
     val ttsProviders = this.ttsProviders.ifEmpty { DEFAULT_TTS_PROVIDERS }.toMutableList()
     DEFAULT_TTS_PROVIDERS.forEach { defaultTTSProvider ->
         if (ttsProviders.none { provider -> provider.id == defaultTTSProvider.id }) {
@@ -66,7 +69,32 @@ internal fun Settings.withoutInvalidReferences(): Settings {
     val validQuickMessageIds = settings.quickMessages.map { it.id }.toSet()
     val validModelIds by lazy { settings.providers.flatMap { it.models }.mapTo(HashSet()) { it.id } }
     val asrProviders = settings.asrProviders.distinctBy { it.id }
+    val stylePacks = (DEFAULT_STYLE_PACKS + settings.stylePacks.filterNot { it.builtIn }).distinctBy { it.id }
+        .map { it.copy(rules = it.rules.take(MAX_STYLE_PACK_RULES), injectDepth = it.injectDepth.coerceAtLeast(0)) }
+    val personas = settings.characterPersonas.distinctBy { it.id }
+    val reservedIds = (settings.assistants + DEFAULT_ASSISTANTS).mapTo(mutableSetOf()) { it.id } +
+        setOf(me.rerere.rikkahub.data.model.PULSE_ASSISTANT_ID, me.rerere.rikkahub.data.model.GROUP_CHAT_ASSISTANT_ID)
+    val characters = settings.characters.distinctBy { it.id }.filterNot { it.id in reservedIds }.map { character ->
+        character.copy(
+            chatModelId = character.chatModelId?.takeIf { it in validModelIds },
+            personaId = character.personaId?.takeIf { id -> personas.any { it.id == id } },
+            stylePackId = character.stylePackId?.takeIf { id -> stylePacks.any { it.id == id } },
+            mcpServers = character.mcpServers.intersect(validMcpServerIds),
+            modeInjectionIds = character.modeInjectionIds.intersect(validModeInjectionIds),
+            lorebookIds = character.lorebookIds.intersect(validLorebookIds),
+            quickMessageIds = character.quickMessageIds.intersect(validQuickMessageIds),
+        )
+    }
     return settings.copy(
+        assistantId = settings.assistantId
+            .takeIf { id -> settings.assistants.any { it.id == id } }
+            ?: settings.assistants.firstOrNull()?.id
+            ?: settings.assistantId,
+        characters = characters,
+        characterId = settings.characterId?.takeIf { id -> characters.any { it.id == id } },
+        deletedCharacterIds = settings.deletedCharacterIds - reservedIds - characters.map { it.id }.toSet(),
+        characterPersonas = personas,
+        stylePacks = stylePacks,
         chatModelId = settings.chatModelId.takeIf { it in validModelIds }
             ?: settings.providers.firstNotNullOfOrNull { it.models.firstOrNull()?.id }
             ?: settings.chatModelId,

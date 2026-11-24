@@ -118,21 +118,9 @@ import sh.calvin.reorderable.ReorderableColumn
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-private enum class PromptTab(
-    override val icon: ImageVector,
-    @param:StringRes private val labelRes: Int,
-) : PagerTab {
-    MODE_INJECTIONS(HugeIcons.MagicWand01, R.string.prompt_page_mode_injection_tab),
-    LOREBOOKS(HugeIcons.Book01, R.string.prompt_page_lorebook_tab);
-
-    override val label: String
-        @Composable get() = stringResource(labelRes)
-}
-
 @Composable
 fun PromptPage(vm: PromptVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val pagerState = rememberPagerState { PromptTab.entries.size }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -147,35 +135,9 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor,
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            PagerTabs(
-                pagerState = pagerState,
-                tabs = PromptTab.entries,
-                modifier = Modifier.padding(bottom = 4.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-            )
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            ) { page ->
-                when (PromptTab.entries[page]) {
-                    PromptTab.MODE_INJECTIONS -> ModeInjectionTab(
-                        modeInjections = settings.modeInjections,
-                        onUpdate = { vm.updateSettings { latest -> latest.copy(modeInjections = it) } }
-                    )
-
-                    PromptTab.LOREBOOKS -> LorebookTab(
-                        lorebooks = settings.lorebooks,
-                        onUpdate = { vm.updateSettings { latest -> latest.copy(lorebooks = it) } }
-                    )
-                }
+        Box(Modifier.fillMaxSize().padding(innerPadding)) {
+            ModeInjectionTab(settings.modeInjections) { entries ->
+                vm.updateSettings { it.copy(modeInjections = entries) }
             }
         }
     }
@@ -587,7 +549,7 @@ private fun getRoleLabel(role: MessageRole): String = when (role) {
 // ==================== Lorebook Tab ====================
 
 @Composable
-private fun LorebookTab(
+internal fun LorebookTab(
     lorebooks: List<Lorebook>,
     onUpdate: (List<Lorebook>) -> Unit
 ) {

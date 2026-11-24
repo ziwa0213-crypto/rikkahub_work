@@ -187,7 +187,7 @@ fun GroupConfigPage(groupId: String, vm: GroupVM = rememberGroupVM()) {
                             headlineContent = { Text(stringResource(R.string.assistant_page_tab_extensions)) },
                             supportingContent = { Text(listOf(
                                 stringResource(R.string.extension_selector_tab_mode_injections),
-                                stringResource(R.string.extension_selector_tab_lorebooks),
+
                                 stringResource(R.string.extension_selector_tab_skills),
                             ).joinToString(" / ")) },
                             trailingContent = { Icon(HugeIcons.ArrowRight01, null) })

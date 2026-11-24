@@ -141,7 +141,7 @@ fun AssistantPromptPage(id: String) {
 }
 
 @Composable
-private fun AssistantPromptContent(
+internal fun AssistantPromptContent(
     innerPadding: PaddingValues,
     assistant: Assistant,
     settings: Settings,

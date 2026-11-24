@@ -86,6 +86,10 @@ import me.rerere.rikkahub.data.model.lastContextTokens
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.components.ui.PulseExtensionTabs
+import me.rerere.rikkahub.ui.components.ui.CharacterExtensionTabs
+import me.rerere.rikkahub.ui.components.ui.GroupExtensionTabs
+import me.rerere.rikkahub.ui.components.ui.WorkExtensionTabs
+import me.rerere.rikkahub.data.model.isCharacterChat
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -156,9 +160,11 @@ internal fun FilesPicker(
     val navController = LocalNavController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
+    val roleMode = conversation.isCharacterChat(settings)
     val ownerScope = when {
         pulseMode -> WorkspaceOwnerScope.PULSE
         groupMode -> WorkspaceOwnerScope.GROUP
+        roleMode -> WorkspaceOwnerScope.CHARACTER
         else -> WorkspaceOwnerScope.CHAT
     }
     val selectedWorkspaceId = if (groupMode) groupWorkspaceId else assistant.workspaceId
@@ -208,6 +214,7 @@ internal fun FilesPicker(
                 onDismissAll = onDismiss,
                 groupMode = groupMode,
                 pulseMode = pulseMode,
+                roleMode = roleMode,
                 groupModeInjectionIds = if (groupMode) groupModeInjectionIds.orEmpty() else null,
                 onUpdateGroupModeInjectionIds = onUpdateGroupModeInjectionIds,
                 groupLorebookIds = if (groupMode) groupLorebookIds.orEmpty() else null,
@@ -348,12 +355,12 @@ internal fun FilesPicker(
                     // Extensions (Quick Messages + Prompt Injections + Skills)
                     val activeCount = if (groupMode) {
                         groupModeInjectionIds.orEmpty().size +
-                            groupLorebookIds.orEmpty().size +
+
                             groupEnabledSkills.orEmpty().size
                     } else {
                         assistant.quickMessageIds.size +
                             assistant.modeInjectionIds.size +
-                            assistant.lorebookIds.size +
+                            (if (roleMode) assistant.lorebookIds.size else 0) +
                             assistant.enabledSkills.size
                     }
                     SegmentedListItem(
@@ -550,6 +557,7 @@ private fun ExtensionPickerPage(
     onDismissAll: () -> Unit,
     groupMode: Boolean = false,
     pulseMode: Boolean = false,
+    roleMode: Boolean = false,
     groupModeInjectionIds: Set<Uuid>? = null,
     onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
     groupLorebookIds: Set<Uuid>? = null,
@@ -579,9 +587,18 @@ private fun ExtensionPickerPage(
             onUpdate = onUpdateAssistant,
             includeQuickMessages = !groupMode,
             groupMode = groupMode,
-            allowedTabs = if (pulseMode) PulseExtensionTabs else null,
+            allowedTabs = when {
+                pulseMode -> PulseExtensionTabs
+                roleMode -> CharacterExtensionTabs
+                groupMode -> GroupExtensionTabs
+                else -> WorkExtensionTabs
+            },
             onUpdateModeInjectionIds = onUpdateGroupModeInjectionIds,
-            onUpdateLorebookIds = onUpdateGroupLorebookIds,
+            onUpdateLorebookIds = if (roleMode) { ids -> onUpdateAssistant(assistant.copy(lorebookIds = ids)) } else onUpdateGroupLorebookIds,
+            onNavigateToLorebooks = {
+                onDismissAll()
+                navController.navigate(Screen.CharacterLorebooks)
+            },
             onUpdateEnabledSkills = onUpdateGroupEnabledSkills,
             modifier = Modifier.weight(1f),
             onNavigateToQuickMessages = {

@@ -1526,7 +1526,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="memory_picker_mode_move_desc">从原位置移除</string>
   <string name="memory_picker_empty">没有可迁移的记忆</string>
   <string name="memory_picker_warn_move_shared">所选记忆当前由另外 %1$d 个助手共享。选择「移动」会把这些记忆从共享记忆中移除，影响其他助手，且无法撤销。</string>
-  <string name="group_mode_chat">聊天</string>
+  <string name="group_mode_chat">工作</string>
+  <string name="group_mode_role">角色</string>
+  <string name="character_deleted">该角色已删除。</string>
+  <string name="character_no_selection">请先选择或创建角色。</string>
+  <string name="character_deleted_suffix">（角色已删除）</string>
   <string name="group_mode_group">群组</string>
   <string name="group_generation_notice">原会话正在生成 请注意查看</string>
   <string name="group_members_title">组员</string>
@@ -2618,4 +2622,113 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
     <string name="workspace_preview_too_large">文件过大，仅显示源码。</string>
     <string name="workspace_preview_source">源码</string>
     <string name="workspace_preview_preview">预览</string>
+  <string name="about_page_website">官网</string>
+  <string name="donate_page_afdian_desc">适用于🇨🇳用户</string>
+  <string name="donate_page_donation_methods">赞助方式</string>
+  <string name="donate_page_kofi_desc">面向全球用户</string>
+  <string name="donate_page_sponsor_list">赞助用户列表</string>
+  <string name="donate_page_title">赞助</string>
+  <string name="setting_page_donate">赞助</string>
+  <string name="setting_page_donate_desc">如果你喜欢这个应用，请赞助作者的工作</string>
+  <string name="setting_page_sponsor_alert_confirm">捐赠</string>
+  <string name="setting_page_sponsor_alert_desc">您已启动应用超过100次！如果您喜欢使用它，请考虑支持开发者。</string>
+  <string name="setting_page_sponsor_alert_dismiss">暂不</string>
+  <string name="setting_page_sponsor_alert_title">支持开发者</string>
+  <string name="assistant_page_local_tools_phone_use_service_stopped">无障碍服务已被系统停止，但系统设置里仍显示开启（部分手机在最近任务中划掉应用后会这样）。请将此开关关闭再打开以进入设置，然后把 \"RikkaHub Phone Use\" 关闭再重新打开。在最近任务中锁定 RikkaHub 并允许自启动，可以避免再次发生。</string>
+  <string name="assistant_page_local_tools_phone_use_restart_service">请在无障碍设置中将 \"RikkaHub Phone Use\" 关闭再重新打开</string>
+  <string name="quick_start_page_title">快速入门</string>
+  <string name="quick_start_page_tab_general">通用</string>
+  <string name="quick_start_page_tab_deepseek">从 DeepSeek 迁移</string>
+  <string name="quick_start_page_step_done">已完成</string>
+  <string name="quick_start_page_step_todo">待完成</string>
+  <string name="quick_start_page_step_optional">可选</string>
+  <string name="quick_start_page_ready_title">一切就绪</string>
+  <string name="quick_start_page_ready_desc">已经可以开始聊天了，下面的可选功能可以随时再来配置。</string>
+  <string name="quick_start_page_setup_title">几分钟完成配置</string>
+  <string name="quick_start_page_setup_desc">RikkaHub 本身不提供模型，需要接入一个模型服务商。完成下面两个必要步骤就能开始聊天。</string>
+  <string name="quick_start_page_start_chat">开始聊天</string>
+  <string name="quick_start_page_required_steps">必要步骤</string>
+  <string name="quick_start_page_provider_title">配置提供商</string>
+  <string name="quick_start_page_provider_desc">提供商就是模型的来源。在提供商列表里选一个服务（如 DeepSeek、硅基流动、OpenRouter），填入在它官网申请的 API Key，再在「模型」页添加要用的模型。也可以扫码导入别人分享的配置。</string>
+  <string name="quick_start_page_provider_summary">已有 %1$d 个提供商可用，共 %2$d 个模型</string>
+  <string name="quick_start_page_provider_manage">管理提供商</string>
+  <string name="quick_start_page_provider_go">前往配置</string>
+  <string name="quick_start_page_model_title">选择默认模型</string>
+  <string name="quick_start_page_model_desc">新对话默认使用的聊天模型。快速模型和翻译模型还没设置时会一并使用它，之后可以在默认模型页单独调整。</string>
+  <string name="quick_start_page_model_more">更多默认模型设置</string>
+  <string name="quick_start_page_model_locked">完成上一步、添加了模型之后就能在这里选择。</string>
+  <string name="quick_start_page_optional_features">可选功能</string>
+  <string name="quick_start_page_search_title">联网搜索</string>
+  <string name="quick_start_page_search_desc">让模型在回答前搜索网页，获取最新信息。默认使用无需 API Key 的 Bing，需要更稳定的结果时可以换成 Exa、Tavily、智谱等服务。</string>
+  <string name="quick_start_page_tts_title">语音朗读 (TTS)</string>
+  <string name="quick_start_page_tts_desc">朗读 AI 的回复。默认使用系统自带的 TTS，也可以配置 OpenAI、Gemini、MiniMax 等在线语音，音色更自然。</string>
+  <string name="quick_start_page_current_service">当前：%1$s</string>
+  <string name="quick_start_page_service_settings">设置</string>
+  <string name="quick_start_page_not_selected">未选择</string>
+  <string name="quick_start_page_unnamed">未命名</string>
+  <string name="quick_start_page_deepseek_title">从 DeepSeek 搬家</string>
+  <string name="quick_start_page_deepseek_desc">把 DeepSeek 网页版或 App 里的聊天记录导入 RikkaHub，再接上 DeepSeek API 就能接着聊。</string>
+  <string name="quick_start_page_deepseek_migrate_chats">迁移聊天记录</string>
+  <string name="quick_start_page_deepseek_export_title">从 DeepSeek 导出数据</string>
+  <string name="quick_start_page_deepseek_export_desc">在浏览器打开 DeepSeek 网页版并登录，进入「设置 → 数据管理」，选择导出全部对话，保存下载到的 ZIP 文件，不需要解压。</string>
+  <string name="quick_start_page_deepseek_open_web">打开 DeepSeek 网页版</string>
+  <string name="quick_start_page_deepseek_import_title">导入到 RikkaHub</string>
+  <string name="quick_start_page_deepseek_import_desc">选择刚才的 ZIP。每个会话导入当前显示的那条分支，包括思考过程和附件，会放进当前助手「%1$s」。导入过的会话会自动跳过，可以放心重复导入。</string>
+  <string name="quick_start_page_deepseek_importing">正在导入…</string>
+  <string name="quick_start_page_deepseek_import_another">再导入一个 ZIP</string>
+  <string name="quick_start_page_deepseek_pick_zip">选择 ZIP 文件</string>
+  <string name="quick_start_page_deepseek_keep_using">继续使用 DeepSeek 模型</string>
+  <string name="quick_start_page_deepseek_api_title">接入 DeepSeek API</string>
+  <string name="quick_start_page_deepseek_api_desc">网页版账号和 API 是分开计费的：在 DeepSeek 开放平台创建 API Key 并充值，填进内置的 DeepSeek 提供商并添加模型，再到「通用」页把它设为默认模型。</string>
+  <string name="quick_start_page_deepseek_get_key">获取 API Key</string>
+  <string name="quick_start_page_deepseek_configure">配置 DeepSeek</string>
+  <string name="quick_start_card_title">还没有可用的模型</string>
+  <string name="quick_start_card_desc">RikkaHub 需要接入模型服务商才能聊天。跟着快速入门配置提供商和默认模型，也可以从 DeepSeek 迁移聊天记录。</string>
+  <string name="setting_page_quick_start">快速入门</string>
+  <string name="setting_page_quick_start_desc">一步步配置提供商和模型，或从 DeepSeek 迁移</string>
+  <string name="character_list_title">角色列表</string>
+  <string name="character_lorebook_page_title">世界书</string>
+  <string name="character_create">新建</string>
+  <string name="character_card">角色设定</string>
+  <string name="character_nickname">昵称</string>
+  <string name="character_description">描述</string>
+  <string name="character_personality">性格</string>
+  <string name="character_scenario">场景</string>
+  <string name="character_greeting">开场白</string>
+  <string name="character_example">示例对话</string>
+  <string name="character_phi">历史后指令</string>
+  <string name="character_reference_memory">引用工作记忆（只读）</string>
+  <string name="character_delete_explanation">历史会话仍可查看、导出和删除。</string>
+  <string name="character_style">风格包</string>
+  <string name="character_style_none">不使用风格包</string>
+  <string name="character_style_rules">每行一条规则，最多 12 条</string>
+  <string name="character_style_heading">表达约束</string>
+  <string name="character_workspace_dependencies">补充必要文件</string>
+  <string name="character_workspace_readme"># 角色工作区
+
+这里存放剧情和工具产物。不会覆盖已有文件。</string>
+  <string name="character_workspace_notes"># 剧情笔记
+
+记录关系、事件和伏笔。</string>
+  <string name="character_workspace_world"># 世界观补充
+
+记录地图、势力和设定细节。</string>
+  <string name="character_workspace_archive"># 存档索引
+
+记录章节时间和摘要。</string>
+  <string name="character_workspace_tools"># 工具说明
+
+只访问允许的文件和命令。未执行成功的操作不要报告为完成。</string>
+  <string name="character_migration_title">工作与角色扮演已分区</string>
+  <string name="character_migration_question">你有角色扮演类的助手吗？</string>
+  <string name="character_migration_decline">否</string>
+  <string name="character_transfer">转移助手</string>
+  <string name="character_transfer_next">继续</string>
+  <string name="character_transfer_finish">完成</string>
+  <string name="character_transfer_assistant">转移助手和会话</string>
+  <string name="character_transfer_memory">也要转移记忆吗？</string>
+  <string name="character_copy">复制</string>
+  <string name="character_move">移动</string>
+  <string name="character_memory_merge_info">选中的逐条记忆将合并到 profile 文件，不用 AI 改写。开启记忆整理后可再逐步整理。</string>
+  <string name="character_memory_auto_organize">自动整理记忆</string>
 </resources>

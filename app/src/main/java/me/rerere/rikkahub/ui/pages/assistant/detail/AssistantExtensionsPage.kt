@@ -43,7 +43,8 @@ fun AssistantExtensionsPage(id: String) {
     val skills by vm.skills.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val pagerState = rememberPagerState { ExtensionTab.entries.size }
+    val tabs = ExtensionTab.entries - ExtensionTab.LOREBOOKS
+    val pagerState = rememberPagerState { tabs.size }
     val listPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     // 页面背景比 sheet 深，列表项用更亮的容器色才分得开
     val listColors = ListItemDefaults.segmentedColors(
@@ -69,7 +70,7 @@ fun AssistantExtensionsPage(id: String) {
         ) {
             PagerTabs(
                 pagerState = pagerState,
-                tabs = ExtensionTab.entries,
+                tabs = tabs,
                 modifier = Modifier.padding(bottom = 4.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp),
             )
@@ -129,31 +130,8 @@ fun AssistantExtensionsPage(id: String) {
                         }
                     }
 
-                    2 -> {
-                        if (settings.lorebooks.isEmpty()) {
-                            ExtensionEmptyState(
-                                message = stringResource(R.string.assistant_extensions_page_empty_lorebooks),
-                                buttonText = stringResource(R.string.assistant_extensions_page_goto_prompts),
-                                onAction = { navController.navigate(Screen.Prompts) },
-                                icon = ExtensionTab.LOREBOOKS.icon,
-                            )
-                        } else {
-                            LorebooksContent(
-                                contentPadding = listPadding,
-                                colors = listColors,
-                                lorebooks = settings.lorebooks,
-                                selectedIds = assistant.lorebookIds,
-                                onToggle = { injId, checked ->
-                                    val newIds = if (checked) assistant.lorebookIds + injId
-                                    else assistant.lorebookIds - injId
-                                    vm.update(assistant.copy(lorebookIds = newIds))
-                                },
-                                onManage = { navController.navigate(Screen.Prompts) },
-                            )
-                        }
-                    }
 
-                    3 -> {
+                    2 -> {
                         if (skills.isEmpty()) {
                             ExtensionEmptyState(
                                 message = stringResource(R.string.assistant_extensions_page_empty_skills),

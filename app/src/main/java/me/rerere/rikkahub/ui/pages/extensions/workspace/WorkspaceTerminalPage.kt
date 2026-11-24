@@ -33,6 +33,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import me.rerere.rikkahub.data.repository.CharacterWorkspaceProvisioner
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,7 +67,7 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 @Composable
-fun WorkspaceTerminalPage(id: String) {
+fun WorkspaceTerminalPage(id: String, initialCommand: String? = null) {
     val vm: WorkspaceDetailVM = koinViewModel(parameters = { parametersOf(id) })
     val state by vm.state.collectAsStateWithLifecycle()
     val sessionManager: WorkspaceTerminalSessionManager = koinInject()
@@ -82,6 +84,16 @@ fun WorkspaceTerminalPage(id: String) {
     val shellCompatibilityMode = workspace?.shellCompatibilityMode ?: false
     LaunchedEffect(root, shellCompatibilityMode) {
         workspace?.let(sessionManager::ensureSession)
+    }
+
+    var executed by rememberSaveable(id, initialCommand) { mutableStateOf(false) }
+    val selectedTab = terminalState.tabs.firstOrNull { it.id == terminalState.selectedTabId && !it.finished }
+    LaunchedEffect(id, initialCommand, workspace?.owner, terminalState.readiness, selectedTab?.id) {
+        if (initialCommand != CharacterWorkspaceProvisioner.COMMAND || executed || workspace?.owner != "character") return@LaunchedEffect
+        if (terminalState.readiness != WorkspaceTerminalReadiness.Ready || selectedTab == null) return@LaunchedEffect
+        kotlinx.coroutines.delay(400)
+        executed = true
+        selectedTab.session.writeText(initialCommand + "\r")
     }
 
     RikkahubTheme(colorMode = ColorMode.DARK) {
