@@ -1479,11 +1479,6 @@
   <string name="deepseek_web_custom_title">自訂工具</string>
   <string name="deepseek_web_custom_toggle">啟用自訂工具</string>
   <string name="deepseek_web_custom_toggle_desc">預設關閉。開啟後可以逐項解除原本唯讀的限制。</string>
-  <string name="deepseek_web_custom_warning_title">開啟前請確認</string>
-  <string name="deepseek_web_custom_warning_body">我確認要為這個供應商開啟自訂工具。開啟後，DeepSeek 網頁版將能夠寫入和修改我的工作區檔案、執行命令列、執行程式碼、新增和刪除日曆、修改記憶、載入技能，以及呼叫外部 MCP 服務。這些操作可能刪除或覆蓋我的檔案，執行我沒有預期的命令，或把我本機的內容傳送到第三方。網頁版帳號的風控也可能因此收緊，導致暫時限制甚至封禁。關閉開關不會撤銷已經發生的操作。以上風險與後果由我自行承擔。</string>
-  <string name="deepseek_web_custom_warning_input">請完整輸入上面的文字</string>
-  <string name="deepseek_web_custom_warning_progress">已輸入 %1$d / %2$d 字</string>
-  <string name="deepseek_web_custom_warning_confirm">確認開啟</string>
   <string name="deepseek_web_custom_on">已開啟自訂工具，下述限制會依你的選擇解除。</string>
   <string name="deepseek_web_unlock_calendar_create">新增日曆</string>
   <string name="deepseek_web_unlock_calendar_delete">刪除日曆</string>
@@ -1523,7 +1518,8 @@
   <string name="memory_picker_mode_move_desc">從原位置移除</string>
   <string name="memory_picker_empty">沒有可遷移的記憶</string>
   <string name="memory_picker_warn_move_shared">所選記憶目前由另外 %1$d 個助理共用。選擇「移動」會將這些記憶從共用記憶中移除，影響其他助理，且無法復原。</string>
-  <string name="group_mode_chat">工作</string>
+  <string name="group_mode_chat">聊天</string>
+  <string name="group_mode_work">工作</string>
   <string name="group_mode_role">角色</string>
   <string name="character_deleted">該角色已刪除。</string>
   <string name="character_no_selection">請先選擇或建立角色。</string>
@@ -2601,6 +2597,11 @@
   <string name="assistant_page_local_tools_phone_use_service_stopped">無障礙服務已被系統停止，但系統設定仍顯示為開啟（部分手機在最近任務中滑掉應用程式後會如此）。請將此開關關閉再開啟以進入設定，然後在設定中將「RikkaHub Phone Use」關閉再重新開啟。在最近任務中鎖定 RikkaHub 並允許自動啟動，可避免再次發生。</string>
   <string name="assistant_page_local_tools_phone_use_restart_service">請在無障礙設定中將「RikkaHub Phone Use」關閉再重新開啟</string>
     <string name="setting_page_experimental">實驗性功能</string>
+    <string name="setting_experimental_title">實驗性功能</string>
+    <string name="setting_experimental_character">角色板塊</string>
+    <string name="setting_experimental_character_desc">開啟後出現角色模式，資料保留。</string>
+    <string name="setting_experimental_deepseek_web">DeepSeek 網頁版（免費）</string>
+    <string name="setting_experimental_deepseek_web_desc">關閉後隱藏，登入資料保留。</string>
     <string name="video_not_supported_by_provider">此供應商不接受影片輸入，影片已以文字處理。</string>
     <string name="workspace_upload_no_workspace">此助手或群組尚未綁定工作區，請先在設定中綁定。輸入框內容已保留。</string>
     <string name="workspace_upload_bind">綁定工作區</string>
@@ -2702,6 +2703,14 @@
   <string name="character_style_none">不使用風格包</string>
   <string name="character_style_rules">每行一條規則，最多 12 條</string>
   <string name="character_style_heading">表達約束</string>
+  <string name="character_prompt_section">提示詞</string>
+  <string name="character_prompt_persona">人設</string>
+  <string name="character_prompt_scenario">場景</string>
+  <string name="character_prompt_output_rules">輸出規則</string>
+  <string name="character_prompt_guardrail">邊界</string>
+  <string name="character_prompt_add_module">新增模組</string>
+  <string name="character_prompt_budget">約 %1$d 字（約 %2$d tokens）</string>
+  <string name="character_prompt_too_long">提示詞偏長，會佔用上下文。</string>
   <string name="character_workspace_dependencies">補充必要檔案</string>
   <string name="character_workspace_readme"># 角色工作區
 
@@ -2729,5 +2738,6 @@
   <string name="character_copy">複製</string>
   <string name="character_move">移動</string>
   <string name="character_memory_merge_info">選取的逐條記憶將合併至 profile 檔案，不用 AI 改寫。開啟記憶整理後可再逐步整理。</string>
+  <string name="character_memory_move_shared_unavailable">此記憶正由其他助手或角色共用，只能複製，不能移動。</string>
   <string name="character_memory_auto_organize">自動整理記憶</string>
 </resources>

@@ -49,16 +49,28 @@ internal enum class ExtensionTab(
         @Composable get() = stringResource(labelRes)
 }
 
-/** Pulse exposes only quick messages and skills; other modes keep their existing tabs. */
+/** Pulse exposes only quick messages and skills. Group never exposes lorebooks. */
 internal val PulseExtensionTabs = setOf(ExtensionTab.QUICK_MESSAGES, ExtensionTab.SKILLS)
-internal val WorkExtensionTabs = ExtensionTab.entries.toSet() - ExtensionTab.LOREBOOKS
-internal val GroupExtensionTabs = WorkExtensionTabs - ExtensionTab.QUICK_MESSAGES
+internal val WorkExtensionTabs = ExtensionTab.entries.toSet()
+internal val ExperimentalWorkExtensionTabs = WorkExtensionTabs - ExtensionTab.LOREBOOKS
+internal val GroupExtensionTabs = WorkExtensionTabs - setOf(ExtensionTab.QUICK_MESSAGES, ExtensionTab.LOREBOOKS)
 internal val CharacterExtensionTabs = ExtensionTab.entries.toSet()
+internal val DisabledCharacterExtensionTabs = CharacterExtensionTabs - ExtensionTab.LOREBOOKS
 
-internal fun extensionTabs(includeQuickMessages: Boolean, allowedTabs: Set<ExtensionTab>?): List<ExtensionTab> =
-    ExtensionTab.entries
-        .filter { allowedTabs == null || it in allowedTabs }
-        .filter { allowedTabs != null || includeQuickMessages || it != ExtensionTab.QUICK_MESSAGES }
+internal fun extensionTabs(
+    includeQuickMessages: Boolean,
+    allowedTabs: Set<ExtensionTab>?,
+    groupMode: Boolean = false,
+): List<ExtensionTab> {
+    val effectiveAllowedTabs = if (groupMode) {
+        GroupExtensionTabs.intersect(allowedTabs ?: GroupExtensionTabs)
+    } else {
+        allowedTabs
+    }
+    return ExtensionTab.entries
+        .filter { effectiveAllowedTabs == null || it in effectiveAllowedTabs }
+        .filter { effectiveAllowedTabs != null || includeQuickMessages || it != ExtensionTab.QUICK_MESSAGES }
+}
 
 @Composable
 internal fun ExtensionSelector(
@@ -85,7 +97,9 @@ internal fun ExtensionSelector(
         skills = withContext(Dispatchers.IO) { skillManager.listSkills() }
     }
 
-    val tabs = remember(includeQuickMessages, allowedTabs) { extensionTabs(includeQuickMessages, allowedTabs) }
+    val tabs = remember(includeQuickMessages, groupMode, allowedTabs) {
+        extensionTabs(includeQuickMessages, allowedTabs, groupMode)
+    }
     val pagerState = rememberPagerState { tabs.size }
 
     Column(

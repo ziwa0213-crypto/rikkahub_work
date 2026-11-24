@@ -1482,11 +1482,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="deepseek_web_custom_title">自定义工具</string>
   <string name="deepseek_web_custom_toggle">启用自定义工具</string>
   <string name="deepseek_web_custom_toggle_desc">默认关闭。开启后可以逐项放开原本只读的限制。</string>
-  <string name="deepseek_web_custom_warning_title">开启前请确认</string>
-  <string name="deepseek_web_custom_warning_body">我确认要为这个供应商开启自定义工具。开启后，DeepSeek 网页版将能够写入和修改我的工作区文件、执行命令行、运行代码、新建和删除日历、修改记忆、加载技能，以及调用外部 MCP 服务。这些操作可能删除或覆盖我的文件，执行我没有预期的命令，或把我本地的内容发送到第三方。网页版账号的风控也可能因此收紧，导致临时限制甚至封禁。关闭开关不会撤销已经发生的操作。以上风险与后果由我自行承担。</string>
-  <string name="deepseek_web_custom_warning_input">请完整输入上面的文字</string>
-  <string name="deepseek_web_custom_warning_progress">已输入 %1$d / %2$d 字</string>
-  <string name="deepseek_web_custom_warning_confirm">确认开启</string>
   <string name="deepseek_web_custom_on">已开启自定义工具，下述限制已按你的选择放开。</string>
   <string name="deepseek_web_unlock_calendar_create">新建日程</string>
   <string name="deepseek_web_unlock_calendar_delete">删除日程</string>
@@ -1526,7 +1521,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="memory_picker_mode_move_desc">从原位置移除</string>
   <string name="memory_picker_empty">没有可迁移的记忆</string>
   <string name="memory_picker_warn_move_shared">所选记忆当前由另外 %1$d 个助手共享。选择「移动」会把这些记忆从共享记忆中移除，影响其他助手，且无法撤销。</string>
-  <string name="group_mode_chat">工作</string>
+  <string name="group_mode_chat">聊天</string>
+  <string name="group_mode_work">工作</string>
   <string name="group_mode_role">角色</string>
   <string name="character_deleted">该角色已删除。</string>
   <string name="character_no_selection">请先选择或创建角色。</string>
@@ -2600,6 +2596,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="backup_page_import_deepseek_summary">已导入 %1$d 个会话\n跳过 %2$d 个已存在会话\n跳过 %3$d 个空会话\n%4$d 个附件未包含在导出包中或无法导入，已保留文件名提示。</string>
   <string name="backup_page_import_deepseek_missing_attachment">[附件未包含在导出包中或无法导入：%1$s]</string>
     <string name="setting_page_experimental">实验性功能</string>
+    <string name="setting_experimental_title">实验性功能</string>
+    <string name="setting_experimental_character">角色板块</string>
+    <string name="setting_experimental_character_desc">开启后出现角色模式，数据保留。</string>
+    <string name="setting_experimental_deepseek_web">DeepSeek 网页版（免费）</string>
+    <string name="setting_experimental_deepseek_web_desc">关闭后隐藏，登录数据保留。</string>
     <string name="video_not_supported_by_provider">该供应商不接受视频输入，视频已按文字处理。</string>
     <string name="workspace_upload_no_workspace">这个助手或群组还没有工作区，先在设置里绑定一个。输入框内容已保留。</string>
     <string name="workspace_upload_bind">绑定工作区</string>
@@ -2703,6 +2704,14 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="character_style_none">不使用风格包</string>
   <string name="character_style_rules">每行一条规则，最多 12 条</string>
   <string name="character_style_heading">表达约束</string>
+  <string name="character_prompt_section">提示词</string>
+  <string name="character_prompt_persona">人设</string>
+  <string name="character_prompt_scenario">场景</string>
+  <string name="character_prompt_output_rules">输出规则</string>
+  <string name="character_prompt_guardrail">边界</string>
+  <string name="character_prompt_add_module">添加模块</string>
+  <string name="character_prompt_budget">约 %1$d 字（约 %2$d tokens）</string>
+  <string name="character_prompt_too_long">提示词偏长，会挤占上下文。</string>
   <string name="character_workspace_dependencies">补充必要文件</string>
   <string name="character_workspace_readme"># 角色工作区
 
@@ -2730,5 +2739,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="character_copy">复制</string>
   <string name="character_move">移动</string>
   <string name="character_memory_merge_info">选中的逐条记忆将合并到 profile 文件，不用 AI 改写。开启记忆整理后可再逐步整理。</string>
+  <string name="character_memory_move_shared_unavailable">此记忆正由其他助手或角色共用，只能复制，不能移动。</string>
   <string name="character_memory_auto_organize">自动整理记忆</string>
 </resources>

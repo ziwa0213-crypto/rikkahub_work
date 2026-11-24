@@ -259,6 +259,12 @@ class ResponseAPI(
         deepSeek: Boolean = false,
     ): JsonObject {
         val useFunctionTools = params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
+        val reasoningModel = params.model.abilities.contains(ModelAbility.REASONING)
+        val forceDeepSeekSearch = (deepSeek || isDeepSeekDialect("", params.model.modelId)) &&
+            useFunctionTools && reasoningModel && params.reasoningLevel != ReasoningLevel.OFF
+        val builtInTools = params.model.tools.toMutableList().apply {
+            if (forceDeepSeekSearch && BuiltInTools.Search !in this) add(BuiltInTools.Search)
+        }
         return buildJsonObject {
             put("model", params.model.modelId)
             put("stream", stream)
@@ -290,7 +296,6 @@ class ResponseAPI(
             }
 
             // reasoning
-            val reasoningModel = params.model.abilities.contains(ModelAbility.REASONING)
             if (reasoningModel) {
                 val reasoning = buildJsonObject {
                     if (capabilities.supportsReasoningSummary) {
@@ -312,7 +317,7 @@ class ResponseAPI(
             // tools
             // Response API 的 tools 是扁平数组, 函数工具和内置工具可以共存, 必须写在同一个 key 下,
             // 否则后写入的会覆盖前者
-            if (useFunctionTools || params.model.tools.isNotEmpty()) {
+            if (useFunctionTools || builtInTools.isNotEmpty()) {
                 putJsonArray("tools") {
                     if (useFunctionTools) {
                         params.tools.forEach { tool ->
@@ -333,7 +338,7 @@ class ResponseAPI(
                         }
                     }
                     // built-in tools
-                    params.model.tools.forEach { builtInTool ->
+                    builtInTools.forEach { builtInTool ->
                         when (builtInTool) {
                             BuiltInTools.Search -> {
                                 add(buildJsonObject {

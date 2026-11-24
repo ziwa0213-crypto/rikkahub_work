@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import me.rerere.common.android.appTempFolder
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
+import me.rerere.rikkahub.data.datastore.markNewInstallVersionIfNeeded
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
@@ -155,7 +156,9 @@ class RikkaHubApp : Application() {
     private fun incrementLaunchCount() {
         get<AppScope>().launch {
             val result = runCatching {
-                val count = get<SettingsStore>().incrementLaunchCount()
+                val settingsStore = get<SettingsStore>()
+                val count = settingsStore.incrementLaunchCount()
+                settingsStore.update { it.markNewInstallVersionIfNeeded(count) }
                 Log.i(TAG, "incrementLaunchCount: $count")
             }.onFailure {
                 Log.e(TAG, "incrementLaunchCount failed", it)

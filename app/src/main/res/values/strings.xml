@@ -1481,11 +1481,6 @@
   <string name="deepseek_web_custom_title">Custom tools</string>
   <string name="deepseek_web_custom_toggle">Enable custom tools</string>
   <string name="deepseek_web_custom_toggle_desc">Off by default. Enable selected capabilities that are read-only by default.</string>
-  <string name="deepseek_web_custom_warning_title">Confirm before enabling</string>
-  <string name="deepseek_web_custom_warning_body">I confirm that I am enabling custom tools for this provider. Once enabled, DeepSeek Web will be able to write and modify files in my workspace, run shell commands, execute code, create and delete calendar events, change memories, load skills, and call external MCP services. These actions may delete or overwrite my files, run commands I did not intend, or send my local content to third parties. Account risk controls on the web version may also tighten, leading to temporary limits or even a ban. Turning the switch off will not undo what has already happened. I accept these risks and consequences myself.</string>
-  <string name="deepseek_web_custom_warning_input">Enter the text above in full</string>
-  <string name="deepseek_web_custom_warning_progress">Entered %1$d / %2$d characters</string>
-  <string name="deepseek_web_custom_warning_confirm">Confirm and enable</string>
   <string name="deepseek_web_custom_on">Custom tools are enabled. The limits below follow your selections.</string>
   <string name="deepseek_web_unlock_calendar_create">Create calendar events</string>
   <string name="deepseek_web_unlock_calendar_delete">Delete calendar events</string>
@@ -1525,7 +1520,8 @@
   <string name="memory_picker_mode_move_desc">Remove from the original location</string>
   <string name="memory_picker_empty">No memories to migrate</string>
   <string name="memory_picker_warn_move_shared">These memories are currently shared with %1$d other assistant(s). Moving them will remove them from the shared memory. This cannot be undone.</string>
-  <string name="group_mode_chat">Work</string>
+  <string name="group_mode_chat">Chat</string>
+  <string name="group_mode_work">Work</string>
   <string name="group_mode_role">Roleplay</string>
   <string name="character_deleted">This character was deleted.</string>
   <string name="character_no_selection">Select or create a character first.</string>
@@ -2598,6 +2594,11 @@
   <string name="backup_page_import_deepseek_summary">Conversations imported: %1$d\nExisting conversations skipped: %2$d\nEmpty conversations skipped: %3$d\nAttachments missing from the export or unable to be imported: %4$d. Their file names have been kept as placeholders.</string>
   <string name="backup_page_import_deepseek_missing_attachment">[Attachment missing from the export or unable to be imported: %1$s]</string>
     <string name="setting_page_experimental">Experimental</string>
+    <string name="setting_experimental_title">Experimental features</string>
+    <string name="setting_experimental_character">Characters</string>
+    <string name="setting_experimental_character_desc">Adds the Characters mode; data kept.</string>
+    <string name="setting_experimental_deepseek_web">DeepSeek Web (free)</string>
+    <string name="setting_experimental_deepseek_web_desc">Hidden when off; login kept.</string>
     <string name="video_not_supported_by_provider">This provider does not accept video input. Video has been represented as text.</string>
     <string name="workspace_upload_no_workspace">This assistant or group has no workspace. Bind one in its settings first. Your draft is preserved.</string>
     <string name="workspace_upload_bind">Bind a workspace</string>
@@ -2701,6 +2702,14 @@
   <string name="character_style_none">No style pack</string>
   <string name="character_style_rules">One rule per line (up to 12)</string>
   <string name="character_style_heading">Writing constraints</string>
+  <string name="character_prompt_section">Prompt</string>
+  <string name="character_prompt_persona">Persona</string>
+  <string name="character_prompt_scenario">Scenario</string>
+  <string name="character_prompt_output_rules">Output rules</string>
+  <string name="character_prompt_guardrail">Boundaries</string>
+  <string name="character_prompt_add_module">Add module</string>
+  <string name="character_prompt_budget">About %1$d chars (~%2$d tokens)</string>
+  <string name="character_prompt_too_long">Prompt is long; it will take up context.</string>
   <string name="character_workspace_dependencies">Install required dependencies</string>
   <string name="character_workspace_readme"># Character workspace
 
@@ -2728,5 +2737,6 @@ Use only allowed workspace files and commands. Report success only after executi
   <string name="character_copy">Copy</string>
   <string name="character_move">Move</string>
   <string name="character_memory_merge_info">Selected individual memories are merged into a profile file without AI rewriting. Memory organization can process them later if enabled.</string>
+  <string name="character_memory_move_shared_unavailable">This memory is shared with another assistant or role, so it can only be copied.</string>
   <string name="character_memory_auto_organize">Automatically organize memories</string>
 </resources>

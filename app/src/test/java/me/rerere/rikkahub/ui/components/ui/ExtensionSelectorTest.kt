@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.ui.components.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExtensionSelectorTest {
@@ -10,10 +12,10 @@ class ExtensionSelectorTest {
     }
 
     @Test
-    fun `group keeps all tabs except quick messages`() {
+    fun `group without an explicit allowlist hides quick messages and lorebooks`() {
         assertEquals(
-            listOf(ExtensionTab.MODE_INJECTIONS, ExtensionTab.LOREBOOKS, ExtensionTab.SKILLS),
-            extensionTabs(includeQuickMessages = false, allowedTabs = null),
+            listOf(ExtensionTab.MODE_INJECTIONS, ExtensionTab.SKILLS),
+            extensionTabs(includeQuickMessages = false, allowedTabs = null, groupMode = true),
         )
     }
 
@@ -23,6 +25,35 @@ class ExtensionSelectorTest {
             listOf(ExtensionTab.QUICK_MESSAGES, ExtensionTab.SKILLS),
             extensionTabs(includeQuickMessages = true, allowedTabs = PulseExtensionTabs),
         )
+    }
+
+    @Test
+    fun `group tabs never expose lorebooks regardless of experimental mode`() {
+        assertEquals(
+            listOf(ExtensionTab.MODE_INJECTIONS, ExtensionTab.SKILLS),
+            extensionTabs(includeQuickMessages = false, allowedTabs = GroupExtensionTabs),
+        )
+        assertFalse(ExtensionTab.LOREBOOKS in GroupExtensionTabs)
+    }
+
+    @Test
+    fun `group mode cannot be overridden to expose lorebooks`() {
+        assertEquals(
+            listOf(ExtensionTab.SKILLS),
+            extensionTabs(
+                includeQuickMessages = true,
+                allowedTabs = setOf(ExtensionTab.LOREBOOKS, ExtensionTab.SKILLS),
+                groupMode = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `work and character lorebook tabs follow the character experiment gate`() {
+        assertTrue(ExtensionTab.LOREBOOKS in WorkExtensionTabs)
+        assertFalse(ExtensionTab.LOREBOOKS in ExperimentalWorkExtensionTabs)
+        assertTrue(ExtensionTab.LOREBOOKS in CharacterExtensionTabs)
+        assertFalse(ExtensionTab.LOREBOOKS in DisabledCharacterExtensionTabs)
     }
 
     @Test

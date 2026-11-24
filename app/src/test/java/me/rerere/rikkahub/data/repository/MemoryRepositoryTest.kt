@@ -21,6 +21,33 @@ class MemoryRepositoryTest {
     }
 
     @Test
+    fun transferWritesBypassAiMemorySizeBudgetWhileNormalWritesRemainLimited() = runBlocking {
+        val large = "x".repeat(MemoryFile.MAX_BYTES + 1024)
+
+        val ordinary = repository.writeFile(assistant, "/ordinary.md", large, MemoryRepository.NEW_FILE_VERSION)
+        assertTrue(ordinary is MemoryWriteResult.Rejected)
+
+        val transferred = repository.writeTransferredFile(assistant, "/archive.md", large, MemoryRepository.NEW_FILE_VERSION)
+        assertEquals(large, (transferred as MemoryWriteResult.Success).file?.content)
+    }
+
+    @Test
+    fun largeTransferredAppendPreservesVersionChecksAndIsNotTruncated() = runBlocking {
+        val original = create("/profile.md", "profile")
+        val large = "y".repeat(MemoryFile.MAX_BYTES + 256)
+
+        val result = repository.appendTransferredFile(assistant, original.path, large, original.version)
+
+        assertTrue(result is MemoryWriteResult.Success)
+        val updated = requireNotNull((result as MemoryWriteResult.Success).file)
+        assertTrue(updated.content.endsWith(large + "\n"))
+        assertEquals(
+            MemoryWriteResult.Conflict(updated),
+            repository.appendTransferredFile(assistant, original.path, "stale", original.version),
+        )
+    }
+
+    @Test
     fun `row memories remain scoped and can be copied or moved independently of files`() = runBlocking {
         val row = repository.addRowMemory(assistant, "Avoid cilantro")
 

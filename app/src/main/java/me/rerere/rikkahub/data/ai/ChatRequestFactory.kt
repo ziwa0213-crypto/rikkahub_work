@@ -47,6 +47,7 @@ import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.applyCharacterInjections
 import me.rerere.rikkahub.data.model.Character
+import me.rerere.rikkahub.data.model.buildPromptModules
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transformThinkTags
@@ -58,6 +59,7 @@ import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMode
 import me.rerere.rikkahub.data.model.assistantMode
+import me.rerere.rikkahub.data.model.canUseLorebooks
 import me.rerere.rikkahub.data.model.characterMemoryScope
 import me.rerere.rikkahub.data.model.findCharacter
 import me.rerere.rikkahub.data.model.isDeletedCharacterChat
@@ -118,10 +120,11 @@ internal fun resolveChatTurnRoute(
     if (mode == AssistantMode.ROLE) check(character != null && base.id == conversation.assistantId) {
         "Invalid character conversation owner"
     }
+    if (character != null) check(settings.experimentalCharacterMode) { "Character mode is disabled" }
     val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
         else settings.findModelById(base.chatModelId ?: settings.chatModelId)
     return ChatTurnRoute(
-        assistant = if (character == null) base.copy(lorebookIds = emptySet()) else base,
+        assistant = if (conversation.canUseLorebooks(settings)) base else base.copy(lorebookIds = emptySet()),
         model = model,
         character = character,
         memoryScope = if (character != null) characterMemoryScope(character.id) else memoryScope ?: base.memoryId,
@@ -385,10 +388,13 @@ class ChatRequestFactory(
 /** Shared API prefix: keep persona, memory and every registered tool prompt intact. */
 internal fun buildSystemPrompt(turn: ChatTurnContext, messages: List<UIMessage>): String = buildString {
     val assistant = turn.assistant
-    val effectiveSystemPrompt =
-        if (assistant.allowConversationSystemPrompt && !turn.conversationSystemPrompt.isNullOrBlank()) {
-            turn.conversationSystemPrompt
-        } else assistant.systemPrompt
+    val effectiveSystemPrompt = if (assistant.allowConversationSystemPrompt && !turn.conversationSystemPrompt.isNullOrBlank()) {
+        turn.conversationSystemPrompt
+    } else turn.character?.buildPromptModules(
+        userNickname = turn.settings.displaySetting.userNickname,
+        persona = turn.settings.characterPersonas.firstOrNull { it.id == turn.character.personaId }
+            ?.let { listOf(it.name, it.description).filter(String::isNotBlank).joinToString("\n") }.orEmpty(),
+    ) ?: assistant.systemPrompt
     if (effectiveSystemPrompt.isNotBlank()) append(effectiveSystemPrompt)
     appendPulseInstruction(this, turn.pulseInstruction)
     if (assistant.enableMemory) {

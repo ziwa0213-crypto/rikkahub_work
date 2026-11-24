@@ -7,15 +7,39 @@ import me.rerere.rikkahub.browser.normalizeBrowserVisitedHost
 import me.rerere.rikkahub.data.model.normalizeGroupData
 import me.rerere.rikkahub.data.model.DEFAULT_STYLE_PACKS
 import me.rerere.rikkahub.data.model.MAX_STYLE_PACK_RULES
+import kotlin.uuid.Uuid
 
 /** 读盘后和每次修改后都要过一遍，保证内存里的设置始终是规整的。 */
 internal fun Settings.normalized(): Settings =
-    withBuiltInDefaults().withoutInvalidReferences().withCharacterModeGate()
+    withBuiltInDefaults().withoutInvalidReferences().withoutHiddenDeepSeekWeb().withCharacterModeGate()
         .withValuesInRange().normalizeGroupData()
 
 /** Keep role data intact while ensuring a hidden mode cannot remain selected. */
 internal fun Settings.withCharacterModeGate(): Settings =
     if (experimentalCharacterMode || uiMode != UiMode.ROLE) this else copy(uiMode = UiMode.CHAT)
+
+/** Hide DeepSeek Web without deleting its login state, and keep settings references usable. */
+internal fun Settings.withoutHiddenDeepSeekWeb(): Settings {
+    if (experimentalDeepSeekWeb) return this
+    val hiddenIds = providers.asSequence().filterIsInstance<ProviderSetting.DeepSeekWeb>()
+        .flatMap { it.models.asSequence() }.map { it.id }.toSet()
+    if (hiddenIds.isEmpty()) return this
+    val fallback = visibleChatFallback()
+    fun Uuid?.replaceHidden(): Uuid? = if (this in hiddenIds) fallback ?: this else this
+    return copy(
+        chatModelId = chatModelId.replaceHidden() ?: chatModelId,
+        fastModelId = fastModelId.replaceHidden() ?: fastModelId,
+        memoryModelId = memoryModelId.replaceHidden(),
+        imageGenerationModelId = imageGenerationModelId.replaceHidden() ?: imageGenerationModelId,
+        translateModeId = translateModeId.replaceHidden() ?: translateModeId,
+        ocrModelId = ocrModelId.replaceHidden() ?: ocrModelId,
+        compressModelId = compressModelId.replaceHidden() ?: compressModelId,
+        assistants = assistants.map { it.copy(chatModelId = it.chatModelId.replaceHidden()) },
+        characters = characters.map { it.copy(chatModelId = it.chatModelId.replaceHidden()) },
+        groupMembers = groupMembers.map { it.copy(chatModelId = it.chatModelId.replaceHidden() ?: it.chatModelId) },
+        pulse = pulse.copy(chatModelId = pulse.chatModelId.replaceHidden()),
+    )
+}
 
 // 补齐缺失的内置提供商/助手/TTS，内置提供商和推荐提供商的描述信息始终以代码里的为准
 internal fun Settings.withBuiltInDefaults(): Settings {
@@ -87,7 +111,7 @@ internal fun Settings.withoutInvalidReferences(): Settings {
     }
     return settings.copy(
         assistantId = settings.assistantId
-            .takeIf { id -> settings.assistants.any { it.id == id } }
+            .takeIf { id -> settings.assistants.any { it.id == id } || characters.any { it.id == id } }
             ?: settings.assistants.firstOrNull()?.id
             ?: settings.assistantId,
         characters = characters,

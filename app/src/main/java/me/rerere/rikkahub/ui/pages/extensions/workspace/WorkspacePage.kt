@@ -73,7 +73,7 @@ fun WorkspacePage(scope: String? = null, vm: WorkspaceVM = koinViewModel()) {
     val effectiveScope = scope ?: when (settings.uiMode) {
         UiMode.GROUP -> WorkspaceOwnerScope.GROUP.value
         UiMode.PULSE -> WorkspaceOwnerScope.PULSE.value
-        UiMode.WORK -> WorkspaceOwnerScope.CHAT.value
+        UiMode.CHAT -> WorkspaceOwnerScope.CHAT.value
         UiMode.ROLE -> WorkspaceOwnerScope.CHARACTER.value
     }
     val workspaces = remember(allWorkspaces, effectiveScope) {

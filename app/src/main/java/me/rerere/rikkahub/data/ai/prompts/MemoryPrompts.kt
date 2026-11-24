@@ -22,6 +22,27 @@ private val MEMORY_FORMAT_PROMPT = """
 
     Write the title, description, aliases and entries in the language the user used. The path is only an identifier and can stay a short English slug; the title is what the user reads, so a user who writes in Chinese should see 饮食, not Food.
 
+    ## Body format
+
+    The body is a Markdown document, not a flat list of lines. Make it readable for a
+    human who opens the file.
+
+    - Group facts under `##` headings named for their domain (for example `## Work`,
+      `## Preferences`, `## Ongoing`). Use one heading level only; do not nest.
+    - Every fact stays its own `- [stated] ...` line under the matching heading. The
+      `[stated]` prefix is required on every entry — the app hides it when displaying,
+      and the [stated] test depends on it. Never drop it.
+    - Use a Markdown table when several facts share the same fields (projects with
+      status and deadline, people with relation and context, recurring items with a
+      schedule). Tables carry structured facts only — do not put prose in cells.
+    - Bold the decisive value with `**...**` when a line is long (amounts, dates, names
+      of the thing being decided). Do not bold whole lines.
+    - Use `>` for a direct quote from the user when the wording itself matters.
+    - Use `---` between major sections when the file is long.
+    - Standard Markdown only: no HTML, no inline styles, no colour. Colour is not part
+      of Markdown and the renderer ignores it.
+    - Keep the whole file under 48KB. If a table would push it over, summarise instead.
+
     ## Layout (one topic per file)
 
     - /profile.md: who the user is. Name, occupation, location and other facts that will still hold in three months. Under 300 words.
@@ -155,8 +176,16 @@ private val MEMORY_FULL_REVIEW_PROMPT = """
     - Move lines that sit in the wrong file to the file for their domain.
     - Fix a description or aliases that no longer match the file's content.
     - Call memory_delete only for a file left with no entries after its lines were moved.
+    - Restructure each file's body to follow Body format: add `##` headings, move facts
+      under the right heading, and pull facts that share the same fields into a Markdown
+      table. Reordering is allowed here; editing the text of a `- [stated] ...` line is
+      not.
 
-    Rule 5 of the workflow does not apply to this part. Everything else does: do not drop a fact because it looks unimportant, do not rewrite wording that is already fine, and do not add anything that is not already in the store or in the new turns. Changing nothing is a valid outcome.
+    Rule 5 of the workflow does not apply to this part. Everything else does: do not drop
+    a fact because it looks unimportant, and do not add anything that is not already in
+    the store or in the new turns. Rewording a fact is still forbidden — only its
+    position, its heading and whether it sits in a table may change. Changing nothing is
+    a valid outcome.
 """.trimIndent()
 
 /** 后台记忆整理的 system prompt；[fullReview] 时除了提取新对话，还把整个记忆库清理一遍 */

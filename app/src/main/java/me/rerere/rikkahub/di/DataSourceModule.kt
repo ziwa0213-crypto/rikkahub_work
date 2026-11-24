@@ -38,6 +38,7 @@ import me.rerere.rikkahub.data.remote.RikkaHubAPI
 import me.rerere.rikkahub.data.remote.SettingsProxyAuthenticator
 import me.rerere.rikkahub.data.remote.SettingsProxySelector
 import me.rerere.rikkahub.data.remote.SettingsSocks5Authenticator
+import me.rerere.rikkahub.data.remote.SponsorAPI
 import me.rerere.rikkahub.data.sync.BackupManager
 import me.rerere.rikkahub.data.sync.S3Sync
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
@@ -243,6 +244,10 @@ val dataSourceModule = module {
             })
             .build()
         client.also { SearchService.init(it, get()) }
+    }
+
+    single {
+        SponsorAPI.create(get())
     }
 
     single {

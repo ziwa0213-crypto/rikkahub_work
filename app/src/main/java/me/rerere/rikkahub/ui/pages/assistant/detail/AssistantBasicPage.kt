@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.ai.provider.ModelType
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.datastore.visibleProviders
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.WorkspaceOwnerScope
 import me.rerere.rikkahub.ui.components.ai.WorkspaceCreateButton
@@ -53,6 +54,7 @@ import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.TagsInput
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.ui.components.ui.switchItem
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.hooks.heroAnimation
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.toFixed
@@ -117,7 +119,7 @@ internal fun AssistantBasicContent(
 ) {
     val modelListState = rememberModelListState(
         modelId = assistant.chatModelId,
-        providers = providers,
+        providers = LocalSettings.current.visibleProviders(providers),
         type = ModelType.CHAT,
     )
     ModelListSheet(

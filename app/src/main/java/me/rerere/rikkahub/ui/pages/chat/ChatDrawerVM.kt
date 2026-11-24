@@ -71,7 +71,7 @@ class ChatDrawerVM(
 
     // 当前助手的记忆库是否正在后台整理；没开记忆的助手即使共用的全局记忆库在整理也不显示
     val memoryDreaming: StateFlow<Boolean> = settingsStore.settingsFlow
-        .map { settings -> settings.getCurrentAssistant().takeIf { settings.uiMode == UiMode.WORK && it.enableMemory }?.memoryId }
+        .map { settings -> settings.getCurrentAssistant().takeIf { settings.uiMode == UiMode.CHAT && it.enableMemory }?.memoryId }
         .distinctUntilChanged()
         .flatMapLatest { memoryId ->
             if (memoryId == null) flowOf(false) else memoryConsolidationScheduler.statusOf(memoryId).map { it.running }

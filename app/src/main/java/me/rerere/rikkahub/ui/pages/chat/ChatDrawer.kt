@@ -254,7 +254,7 @@ fun ChatDrawerContent(
                 UiMode.PULSE -> navigateToChatPage(navController, pulseRepository.ensurePulseConversation())
                 UiMode.GROUP -> selectedGroup?.let { openGroupConversation(it, createNew = false) }
                     ?: navController.clearAndNavigate(Screen.Groups)
-                UiMode.ROLE, UiMode.WORK -> {
+                UiMode.ROLE, UiMode.CHAT -> {
                     val owner = target.newConversationOwnerId()
                     if (owner == null) navController.clearAndNavigate(Screen.CharacterList)
                     else {
@@ -340,6 +340,7 @@ fun ChatDrawerContent(
 
                 ModeSwitcher(
                     mode = drawerMode,
+                    experimentalCharacterMode = settings.experimentalCharacterMode,
                     onSelect = ::switchMode,
                 )
             }

@@ -32,7 +32,8 @@ fun Group.toInputAssistant(): Assistant = Assistant(
     backgroundOpacity = backgroundOpacity,
     useGradientBackground = useGradientBackground,
     modeInjectionIds = modeInjectionIds,
-    lorebookIds = lorebookIds,
+    // 世界书仅属于角色板块；保留 Group.lorebookIds 字段用于旧数据兼容，但请求侧永不注入。
+    lorebookIds = emptySet(),
     enabledSkills = enabledSkills,
     enableRecentChatsReference = enableRecentChatsReference,
     enableTimeReminder = enableTimeReminder,

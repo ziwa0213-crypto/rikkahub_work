@@ -108,11 +108,16 @@ class FilesManager(
         copyChatFiles(uris, FileFolders.UPLOAD, guardInput)
 
     internal fun copyCharacterChatAttachment(uri: Uri, conversationId: kotlin.uuid.Uuid): Uri =
-        checkNotNull(copyChatFiles(listOf(uri), "${FileFolders.UPLOAD}/$conversationId") { it }.singleOrNull()) {
-            "Could not copy conversation attachment"
-        }
+        copyChatFiles(
+            listOf(uri), "${FileFolders.UPLOAD}/$conversationId", { it }, throwOnFailure = true,
+        ).single()
 
-    private fun copyChatFiles(uris: List<Uri>, folder: String, guardInput: (InputStream) -> InputStream): List<Uri> {
+    private fun copyChatFiles(
+        uris: List<Uri>,
+        folder: String,
+        guardInput: (InputStream) -> InputStream,
+        throwOnFailure: Boolean = false,
+    ): List<Uri> {
         val newUris = mutableListOf<Uri>()
         val dir = context.filesDir.resolve(folder)
         if (!dir.exists()) {
@@ -141,7 +146,8 @@ class FilesManager(
                     folder = FileFolders.UPLOAD,
                     file = file,
                     displayName = sourceName,
-                    mimeType = guessedMime
+                    mimeType = guessedMime,
+                    relativePath = checkNotNull(getRelativePathInFilesDir(file)),
                 )
                 newUris.add(file.toUri())
                 incomplete = null
@@ -154,6 +160,13 @@ class FilesManager(
                     TAG,
                     "createChatFilesByContents: Failed to save file from $uri ${it.message} | ${it.stackTraceToString()}"
                 )
+                if (throwOnFailure) {
+                    val name = uri.lastPathSegment?.substringAfterLast('/') ?: "unknown"
+                    throw IllegalStateException(
+                        "Failed to copy conversation attachment ($name): ${it.localizedMessage ?: it.javaClass.simpleName}",
+                        it,
+                    )
+                }
             }
         }
         return newUris
@@ -479,8 +492,13 @@ class FilesManager(
         )
     }
 
-    private fun trackManagedFile(folder: String, file: File, displayName: String, mimeType: String) {
-        val relativePath = buildRelativePath(folder, file)
+    private fun trackManagedFile(
+        folder: String,
+        file: File,
+        displayName: String,
+        mimeType: String,
+        relativePath: String = buildRelativePath(folder, file),
+    ) {
         appScope.launch(Dispatchers.IO) {
             runCatching {
                 val existing = repository.getByPath(relativePath)

@@ -106,6 +106,7 @@ import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.isCharacterChat
 import me.rerere.rikkahub.data.model.isDeletedCharacterChat
+import me.rerere.rikkahub.data.model.uiModeForChatPage
 import me.rerere.rikkahub.data.model.toInputAssistant
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.BackgroundShellStatus
@@ -232,17 +233,11 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
         }
     }
 
-    // 模式跟随当前会话类型：打开群聊即群组模式，打开聊天即聊天模式。
-    // 只在类型不一致时写一次，避免恢复阶段三⑥之前的无条件常量写回。
+    // 模式跟随会话身份；不监听 uiMode，避免旧会话覆盖用户刚发起的模式切换。
     val roleMode = conversation.isCharacterChat(setting)
-    LaunchedEffect(conversation.id, conversation.isGroupChat(), roleMode, setting.uiMode, conversationLoaded) {
+    LaunchedEffect(conversation.id, conversation.isGroupChat(), roleMode, conversationLoaded) {
         if (!conversationLoaded || setting.init) return@LaunchedEffect
-        val target = when {
-            conversation.isGroupChat() -> UiMode.GROUP
-            conversation.isPulseChat() -> UiMode.PULSE
-            roleMode -> UiMode.ROLE
-            else -> UiMode.WORK
-        }
+        val target = conversation.uiModeForChatPage(setting)
         if (setting.uiMode != target || (roleMode && !conversation.isDeletedCharacterChat(setting) && setting.characterId != conversation.assistantId)) {
             vm.updateSettings { current ->
                 current.copy(uiMode = target, characterId = if (roleMode && !conversation.isDeletedCharacterChat(current)) conversation.assistantId else current.characterId)
@@ -685,10 +680,6 @@ private fun GroupChatFilesPickerSheet(
             groupModeInjectionIds = group.modeInjectionIds,
             onUpdateGroupModeInjectionIds = { ids ->
                 groupVm.updateGroup(group.id) { it.copy(modeInjectionIds = ids) }
-            },
-            groupLorebookIds = group.lorebookIds,
-            onUpdateGroupLorebookIds = { ids ->
-                groupVm.updateGroup(group.id) { it.copy(lorebookIds = ids) }
             },
             groupEnabledSkills = group.enabledSkills,
             onUpdateGroupEnabledSkills = { skills ->

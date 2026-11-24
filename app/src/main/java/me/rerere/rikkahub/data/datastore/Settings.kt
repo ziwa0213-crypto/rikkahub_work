@@ -3,11 +3,6 @@ package me.rerere.rikkahub.data.datastore
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.descriptors.PrimitiveKind
-import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
 import me.rerere.rikkahub.data.model.Character
 import me.rerere.rikkahub.data.model.CharacterPersona
 import me.rerere.rikkahub.data.model.StylePack
@@ -48,6 +43,10 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
+    /** 实验性：角色板块（第四模式）。关闭时入口隐藏，数据保留。 */
+    val experimentalCharacterMode: Boolean = false,
+    /** 实验性：DeepSeek 网页版登录供应商。关闭时入口隐藏，登录数据保留。 */
+    val experimentalDeepSeekWeb: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val networkSetting: NetworkSetting = NetworkSetting(),
     val favoriteModels: List<Uuid> = emptyList(),
@@ -114,7 +113,7 @@ data class Settings(
     val browserTaskTimeoutMs: Long = 300_000L,
     val browserVisitedHosts: List<String> = emptyList(),
     val launchCount: Int = 0,
-    val uiMode: UiMode = UiMode.WORK,
+    val uiMode: UiMode = UiMode.CHAT,
     val characterId: Uuid? = null,
     val characters: List<Character> = emptyList(),
     val deletedCharacterIds: Set<Uuid> = emptySet(),
@@ -134,18 +133,12 @@ data class Settings(
     }
 }
 
-@Serializable(with = UiModeSerializer::class)
-enum class UiMode { WORK, ROLE, GROUP, PULSE }
+@Serializable
+enum class UiMode { CHAT, ROLE, GROUP, PULSE }
 
 internal fun uiModeOf(raw: String?): UiMode = when (raw) {
-    "CHAT", null, "" -> UiMode.WORK
-    else -> UiMode.entries.firstOrNull { it.name == raw } ?: UiMode.WORK
-}
-
-object UiModeSerializer : KSerializer<UiMode> {
-    override val descriptor = PrimitiveSerialDescriptor("UiMode", PrimitiveKind.STRING)
-    override fun deserialize(decoder: Decoder): UiMode = uiModeOf(decoder.decodeString())
-    override fun serialize(encoder: Encoder, value: UiMode) = encoder.encodeString(value.name)
+    null, "" -> UiMode.CHAT
+    else -> UiMode.entries.firstOrNull { it.name == raw } ?: UiMode.CHAT
 }
 
 @Serializable

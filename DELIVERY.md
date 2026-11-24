@@ -1,3 +1,69 @@
+# 2026-11-24 F024：角色记忆转移与模式切换修正
+
+工程版本保持 **3.3.1-work.1 / versionCode 210 / DB34**。本轮只改源码与文档；APK / 源码 ZIP 仍由维护者自行构建，本轮没有生成交付包。
+
+## 修改内容
+
+- 记忆转移页复制/移动选项的整行均可点击；新增“全选 / 反选”，同时作用于记忆文件和逐条记忆。全局或被其他助手/角色共享的记忆不可移动时，继续保护源数据并解释原因。
+- 迁移专用文件写入与 profile 追加不再受常规 AI 记忆写入 48 KiB 预算限制。路径规范化、写锁、源版本检查、目标版本冲突检测及普通写入限制均保留。
+- 对话附件迁移不设文件大小阈值；失败时不静默吞掉异常，转移页可看到文件名及可读原因。修正迁移附件数据库索引，使 relativePath 与 upload/<conversationId>/... 实际磁盘路径一致，同时保留 Upload 分类。
+- ChatPage 模式同步 effect 移除 settings.uiMode 触发键，防止用户选角色后，导航中的旧工作会话抢先把设置写回工作模式。新会话加载及其类型变化仍会触发正确模式同步。
+
+## 本轮验证
+
+- ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest --tests 'me.rerere.rikkahub.data.repository.MemoryRepositoryTest' --tests 'me.rerere.rikkahub.ui.pages.character.CharacterTransferSelectionTest' --tests 'me.rerere.rikkahub.data.model.CharacterScopeTest' --tests 'me.rerere.rikkahub.data.datastore.CharacterSettingsTest' --console=plain：BUILD SUCCESSFUL。
+- 定向 JVM 共 4 套件 / 38 项：MemoryRepositoryTest 21 项、CharacterTransferSelectionTest 4 项、CharacterScopeTest 9 项、CharacterSettingsTest 4 项；0 失败、0 错误、0 跳过。覆盖迁移大文件写入/追加与版本冲突、全选/反选、共享范围移动保护和会话模式映射。
+- Kotlin 主源码与测试源码编译通过；仅见既有 currentWindowDpSize 弃用警告。git diff --check 对本批文件通过。
+- 未运行全量 JVM、Lint、Android instrumentation、模拟器或真机；附件权限/超大附件实际复制、选项触摸命中、全选反选交互和角色模式切换需维护者安装自构建包验证。
+- 不生成 APK / ZIP，不改变版本/数据库，不提交、推送或打标签。工作区还包含原有上游合并及 F024 改动，均保留。
+
+---
+
+# 2026-11-24 F024：角色转移长按入口更正
+
+工程版本保持 **3.3.1-work.1 / versionCode 210 / DB34**。本轮只修改源码及说明，APK / 源码 ZIP 由维护者自行构建；先前已生成的包不包含本次改动。
+
+## 完成内容
+
+- 在任何模式下进入「设置 → 实验性功能」，角色板块已启用时，长按「启用角色板块」整行即可打开现有助手转移页。标题、图标及右侧开关区域由整行统一处理长按；短按继续切换开关，长按不切换。
+- 调试入口允许已完成、已拒绝迁移的用户重新进入，不重置 `characterMigrationState`、`characterMigrationPrompted` 或版本标记；进入页面本身不转移数据，仍需手动选择助手及转移选项。
+- 已撤销角色模式胶囊上的长按回调及两处接线。应用启动仍不自动弹窗，首次手动启用角色时的老用户提示规则保持。
+- 共享 `CardGroup` 只为传入长按回调的条目启用组合手势；其他开关继续原实现。没有新增资源、依赖、数据库或版本变更。
+- `CHANGES.md` / `FEATURES.md` 已同步记录；本说明随维护者下次源码归档收录。
+
+## 本轮验证
+
+- `./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest --tests me.rerere.rikkahub.data.datastore.CharacterSettingsTest --console=plain`：**BUILD SUCCESSFUL**，耗时 2 分 2 秒；既有迁移规则测试 4 项通过，0 失败 / 错误 / 跳过。编译仍有既有 Material3 弃用等警告。
+- `git diff --check`：通过；静态核对 `ModeSwitcher` 及其调用方已无 `onRoleLongClick`，设置项的长按仅判断角色实验开关，不判断当前模式。
+- 真机触摸未验证，不将编译或 JVM 规则测试视为长按操作实测。
+- 待维护者检查：聊天/工作、角色、群组、脉搏四种模式下均能通过该设置项长按打开转移页；右侧开关长按不误关闭，短按可正常关闭；关闭时不触发调试入口；完成或拒绝过迁移后可再次手动进入；模式胶囊只打开模式菜单。
+- 本轮不生成 APK / ZIP，不提交、推送或打标签；未重跑全量 Lint，上一轮 Lint 未通过的状态不因此变更。
+
+---
+
+# 2026-11-23 F024：角色实验开关与迁移触发修正
+
+当前工程版本为 **3.3.1-work.1 / versionCode 210**，数据库保持 **34**。
+本轮只修正角色实验开关与迁移触发时机，不生成 APK 或源码 ZIP，不提交、推送或打标签。
+
+## 行为修正
+
+- `experimentalCharacterMode` 继续默认关闭；应用启动只按设置归一化隐藏的角色模式，不再自动检查或弹出角色迁移对话框。
+- 迁移入口改为设置页中用户手动打开角色实验开关时触发。
+- 仅老用户触发迁移：设置已加载、`launchCount >= 2`、`characterMigrationState == NOT_ASKED`、`characterMigrationPrompted == false` 且 `lastRunVersionCode == 0`。新安装用户手动打开也不会弹迁移框。
+- 新安装首个启动在启动次数写入后记录当前 `versionCode`；升级用户继续保留零标记。这样新用户即使第二次或更晚才手动开启角色功能，也不会被误判为老用户。
+- 群组模式世界书继续永久禁用：扩展页不显示、选择器不接收群组世界书更新回调、请求侧不注入；`Group.lorebookIds` 字段保留以兼容旧数据。
+
+## 验证
+
+- `git diff --check`：通过。
+- `./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest --console=plain`：**BUILD SUCCESSFUL**。
+- 追加验证：新安装标记与升级用户零标记单测通过；新用户延后手动开启不会触发迁移，老用户仍按启动次数条件触发。
+- 完整 `testGithubDebugUnitTest`：通过；本轮未运行 ADB、模拟器或真机 UI 验收。
+- 编译仍有既有 Navigation 3 opt-in unresolved 警告，无 Kotlin 编译错误。
+
+---
+
 # 2026-11-21 N27：三模式界面显隐
 
 交付版本为 **3.3.0-work.3 / versionCode 209 / DB34**。N27 基于 **3.3.0-work.2 / 208**，按工作、群组和脉搏模式调整界面入口的显隐。

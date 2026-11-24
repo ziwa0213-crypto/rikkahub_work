@@ -83,6 +83,7 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.QRCodeScannerDialog
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.RECOMMENDED_PROVIDERS
+import me.rerere.rikkahub.data.datastore.visibleProviders
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.ItemAction
@@ -110,11 +111,12 @@ fun SettingProviderPage(vm: SettingVM = koinViewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<ProviderSetting?>(null) }
     val lazyListState = rememberLazyListState()
-    val filteredProviders = remember(settings.providers, searchQuery) {
+    val filteredProviders = remember(settings.providers, settings.experimentalDeepSeekWeb, searchQuery) {
+        val visible = settings.visibleProviders()
         if (searchQuery.isBlank()) {
-            settings.providers
+            visible
         } else {
-            settings.providers.filter { provider ->
+            visible.filter { provider ->
                 provider.name.contains(searchQuery, ignoreCase = true)
             }
         }

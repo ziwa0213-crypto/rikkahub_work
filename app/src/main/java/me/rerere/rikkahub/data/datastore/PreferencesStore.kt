@@ -109,6 +109,8 @@ class SettingsStore internal constructor(
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val NETWORK_SETTING = stringPreferencesKey("network_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val EXPERIMENTAL_CHARACTER_MODE = booleanPreferencesKey("experimental_character_mode")
+        val EXPERIMENTAL_DEEPSEEK_WEB = booleanPreferencesKey("experimental_deepseek_web")
 
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")

@@ -485,7 +485,7 @@ class ChatService(
                     }
                     val message = checkNotNull(response) { "Empty Pulse response" }
                     if (turn.providerSetting is ProviderSetting.DeepSeekWeb) {
-                        DeepSeekWebOutputGuard.sanitize(listOf(message), (turn.providerSetting as ProviderSetting.DeepSeekWeb).unlock)?.let { checked ->
+                        DeepSeekWebOutputGuard.sanitize(listOf(message), turn.providerSetting.unlock)?.let { checked ->
                             val match = checked.matches.firstOrNull { it.blocked } ?: checked.matches.first()
                             throw DeepSeekWebPseudoToolException(match.toolName, match.blocked)
                         }

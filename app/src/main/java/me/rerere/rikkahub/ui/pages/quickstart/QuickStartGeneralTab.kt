@@ -29,6 +29,7 @@ import me.rerere.hugeicons.stroke.Rocket01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.visibleProviders
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getSelectedTTSProvider
 import me.rerere.rikkahub.ui.components.ai.ModelField
@@ -55,7 +56,7 @@ internal fun QuickStartGeneralTab(vm: QuickStartVM) {
 
     val chatModelState = rememberModelListState(
         modelId = settings.chatModelId,
-        providers = settings.providers,
+        providers = settings.visibleProviders(),
         type = ModelType.CHAT,
     )
 

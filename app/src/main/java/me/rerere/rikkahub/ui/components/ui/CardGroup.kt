@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
@@ -42,6 +43,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
@@ -62,6 +68,7 @@ private data class CardGroupItem(
     val colors: ListItemColors?,
     // 不为空时是表单项，标题行下方接这块内容
     val formContent: (@Composable ColumnScope.() -> Unit)? = null,
+    val onLongClick: (() -> Unit)? = null,
 )
 
 @DslMarker
@@ -77,6 +84,7 @@ interface CardGroupScope {
         leadingContent: (@Composable () -> Unit)? = null,
         trailingContent: (@Composable () -> Unit)? = null,
         colors: ListItemColors? = null,
+        onLongClick: (() -> Unit)? = null,
         headlineContent: @Composable () -> Unit,
     )
 
@@ -102,6 +110,7 @@ private class CardGroupScopeImpl : CardGroupScope {
         leadingContent: (@Composable () -> Unit)?,
         trailingContent: (@Composable () -> Unit)?,
         colors: ListItemColors?,
+        onLongClick: (() -> Unit)?,
         headlineContent: @Composable () -> Unit,
     ) {
         items.add(
@@ -114,6 +123,7 @@ private class CardGroupScopeImpl : CardGroupScope {
                 leadingContent = leadingContent,
                 trailingContent = trailingContent,
                 colors = colors,
+                onLongClick = onLongClick,
             )
         )
     }
@@ -151,17 +161,29 @@ fun CardGroupScope.switchItem(
     supportingContent: (@Composable () -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
     colors: ListItemColors? = null,
+    onLongClick: (() -> Unit)? = null,
     headlineContent: @Composable () -> Unit,
 ) = item(
     onClick = if (enabled) {
         { onCheckedChange(!checked) }
     } else null,
-    modifier = modifier,
+    modifier = if (enabled && onLongClick != null) {
+        modifier.semantics {
+            role = Role.Switch
+            toggleableState = ToggleableState(checked)
+        }
+    } else modifier,
     supportingContent = supportingContent,
     leadingContent = leadingContent,
     colors = colors,
+    onLongClick = if (enabled) onLongClick else null,
     trailingContent = {
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        Switch(
+            checked = checked,
+            // Delegate both gestures to the row when a long-press action is present.
+            onCheckedChange = if (enabled && onLongClick != null) null else onCheckedChange,
+            enabled = enabled,
+        )
     },
     headlineContent = headlineContent,
 )
@@ -306,7 +328,14 @@ private fun CardGroupListItem(
                 )
             )
             .then(
-                if (item.onClick != null) {
+                if (item.onClick != null && item.onLongClick != null) {
+                    Modifier.combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = LocalIndication.current,
+                        onClick = item.onClick,
+                        onLongClick = item.onLongClick,
+                    )
+                } else if (item.onClick != null) {
                     Modifier.clickable(
                         interactionSource = interactionSource,
                         indication = LocalIndication.current,

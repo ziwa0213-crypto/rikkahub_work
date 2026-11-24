@@ -126,6 +126,16 @@ class MemoryRepository(
         ifVersion: String? = null,
     ): MemoryWriteResult = update(assistantId, path, ifVersion, allowCreate = true) { Edit.Content(content) }
 
+    /** Transfers existing user data without applying the AI memory-write size budget. */
+    internal suspend fun writeTransferredFile(
+        assistantId: String,
+        path: String,
+        content: String,
+        ifVersion: String? = null,
+    ): MemoryWriteResult = update(
+        assistantId, path, ifVersion, allowCreate = true, maxBytes = null,
+    ) { Edit.Content(content) }
+
     /** 把唯一匹配的 [oldStr] 换成 [newStr]，[newStr] 为空即删除 */
     suspend fun replaceInFile(
         assistantId: String,
@@ -156,6 +166,16 @@ class MemoryRepository(
     ): MemoryWriteResult = update(assistantId, path, ifVersion) { current ->
         val separator = if (current.isEmpty() || current.endsWith("\n")) "" else "\n"
         Edit.Content(current + separator + line.trimEnd('\n', '\r') + "\n")
+    }
+
+    internal suspend fun appendTransferredFile(
+        assistantId: String,
+        path: String,
+        content: String,
+        ifVersion: String?,
+    ): MemoryWriteResult = update(assistantId, path, ifVersion, maxBytes = null) { current ->
+        val separator = if (current.isEmpty() || current.endsWith("\n")) "" else "\n"
+        Edit.Content(current + separator + content.trimEnd('\n', '\r') + "\n")
     }
 
     suspend fun deleteFile(
@@ -192,6 +212,7 @@ class MemoryRepository(
         path: String,
         ifVersion: String?,
         allowCreate: Boolean = false,
+        maxBytes: Int? = MemoryFile.MAX_BYTES,
         edit: (current: String) -> Edit,
     ): MemoryWriteResult = writeLock.withLock {
         val normalized = MemoryFile.normalizePath(path) ?: return invalidPath(path)
@@ -209,9 +230,10 @@ class MemoryRepository(
         }
         // 只拦会让文件变大的超限写入：迁移来的旧记忆可能本来就超限，得允许一点点删小
         val size = content.toByteArray().size
-        if (size > MemoryFile.MAX_BYTES && size > current?.content?.toByteArray()?.size ?: 0) {
+        val currentSize = current?.content?.toByteArray()?.size ?: 0
+        if (maxBytes != null && size > maxBytes && size > currentSize) {
             return MemoryWriteResult.Rejected(
-                "$normalized would exceed the ${MemoryFile.MAX_BYTES / 1024}KB limit. " +
+                "$normalized would exceed the ${maxBytes / 1024}KB limit. " +
                     "Merge duplicates and drop outdated details instead of adding more."
             )
         }

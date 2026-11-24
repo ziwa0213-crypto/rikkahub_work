@@ -457,9 +457,11 @@ class ChatCompletionsAPI(
                 }
             }
 
+            val deepSeek = isDeepSeekDialect(host, params.model.modelId)
+            val forceWebSearchForTools = deepSeek && hasTools && isDeepSeekThinkingEnabled(params)
             val serverTools = buildList {
-                if (isDeepSeekDialect(host, params.model.modelId)) {
-                    if (BuiltInTools.Search in params.model.tools) add("deepseek_web_search")
+                if (deepSeek) {
+                    if (BuiltInTools.Search in params.model.tools || forceWebSearchForTools) add("deepseek_web_search")
                     if (BuiltInTools.ReadUrl in params.model.tools) add("deepseek_read_url")
                 }
             }

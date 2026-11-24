@@ -10,6 +10,7 @@ class PulseProviderPolicyTest {
         val model = Model(modelId = "web")
         val web = ProviderSetting.DeepSeekWeb(models = listOf(model))
         val settings = Settings(providers = listOf(web), chatModelId = model.id, fastModelId = model.id,
+            experimentalDeepSeekWeb = true,
             pulse = PulseConfig(chatModelId = model.id))
         val normalized = settings.normalized()
         assertNull(normalized.pulse.chatModelId)

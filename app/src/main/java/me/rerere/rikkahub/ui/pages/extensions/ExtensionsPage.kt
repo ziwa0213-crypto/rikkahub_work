@@ -40,7 +40,7 @@ fun ExtensionsPage() {
     val settings = LocalSettings.current
     val uiMode = settings.uiMode
     val workspaceScope = when (uiMode) {
-        UiMode.WORK -> WorkspaceOwnerScope.CHAT
+        UiMode.CHAT -> WorkspaceOwnerScope.CHAT
         UiMode.ROLE -> WorkspaceOwnerScope.CHARACTER
         UiMode.GROUP -> WorkspaceOwnerScope.GROUP
         UiMode.PULSE -> WorkspaceOwnerScope.PULSE
@@ -69,7 +69,7 @@ fun ExtensionsPage() {
                 CardGroup(
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
-                    if (uiMode == UiMode.WORK || uiMode == UiMode.ROLE) {
+                    if (uiMode == UiMode.CHAT || uiMode == UiMode.ROLE) {
                         item(
                             onClick = { navController.navigate(Screen.QuickMessages) },
                             leadingContent = { CardGroupIcon(HugeIcons.Zap, containerColor = containerColor, contentColor = contentColor) },

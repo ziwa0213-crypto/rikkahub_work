@@ -509,6 +509,10 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
             // 处理工具
             val useFunctionTools =
                 params.model.abilities.contains(ModelAbility.TOOL) && params.tools.isNotEmpty()
+            val thinkingForTools = ModelAbility.REASONING in params.model.abilities &&
+                params.reasoningLevel != ReasoningLevel.OFF
+            val deepSeek = isDeepSeekDialect(providerSetting.baseUrl.toHttpUrl().host, params.model.modelId)
+            val forceWebSearchForTools = deepSeek && useFunctionTools && thinkingForTools
             val toolDefinitions = buildList {
                 if (useFunctionTools) {
                     params.tools.forEach { tool ->
@@ -519,10 +523,10 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                         })
                     }
                 }
-                params.model.tools.forEach { builtInTool ->
+                (if (forceWebSearchForTools) params.model.tools + BuiltInTools.Search else params.model.tools)
+                    .distinct().forEach { builtInTool ->
                     when (builtInTool) {
                         BuiltInTools.Search -> add(buildJsonObject {
-                            val deepSeek = isDeepSeekDialect(providerSetting.baseUrl.toHttpUrl().host, params.model.modelId)
                             put("type", if (deepSeek) "deepseek_web_search" else "web_search_20250305")
                             put("name", if (deepSeek) "deepseek_web_search" else "web_search")
                         })

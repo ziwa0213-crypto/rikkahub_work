@@ -8,6 +8,8 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
+import me.rerere.rikkahub.data.datastore.isModelHidden
+import me.rerere.rikkahub.data.datastore.visibleChatFallback
 import kotlin.uuid.Uuid
 
 /**
@@ -79,7 +81,8 @@ fun Conversation.withAssistantUpdate(updated: Assistant, settings: Settings): Co
                 }
             ),
             modeInjectionIds = updated.modeInjectionIds,
-            lorebookIds = updated.lorebookIds,
+            // Keep stored bindings untouched while this mode has no worldbook UI.
+            lorebookIds = if (canUseLorebooks(settings)) updated.lorebookIds else lorebookIds,
         )
     }
     // 工作目录属于原来的工作区，换工作区后失效
@@ -108,14 +111,24 @@ fun Settings.getStoredAssistantOf(conversation: Conversation): Assistant = when 
 /** 会话所属的助手（会话视角）。 */
 fun Settings.getAssistantOf(conversation: Conversation): Assistant {
     if (conversation.isPulseChat()) return pulse.toAssistant(this)
-    val assistant = getStoredAssistantOf(conversation).withConversation(conversation)
+    val stored = getStoredAssistantOf(conversation)
+    val assistant = stored.withConversation(conversation).let { sessionAssistant ->
+        if (isModelHidden(sessionAssistant.chatModelId)) {
+            sessionAssistant.copy(chatModelId = visibleChatFallback() ?: sessionAssistant.chatModelId)
+        } else sessionAssistant
+    }.let { sessionAssistant ->
+        if (conversation.canUseLorebooks(this)) sessionAssistant else sessionAssistant.copy(lorebookIds = emptySet())
+    }
     if (conversation.config == null) return assistant
     // 助手自身的失效引用在读取设置时已清理，会话上固定的这份在这里滤掉
     return assistant.copy(
         mcpServers = assistant.mcpServers.filterTo(mutableSetOf()) { id -> mcpServers.any { it.id == id } },
         modeInjectionIds = assistant.modeInjectionIds
             .filterTo(mutableSetOf()) { id -> modeInjections.any { it.id == id } },
-        lorebookIds = assistant.lorebookIds.filterTo(mutableSetOf()) { id -> lorebooks.any { it.id == id } },
+        // The backing conversation keeps its ids; this request-facing assistant filters by mode.
+        lorebookIds = if (conversation.canUseLorebooks(this)) {
+            assistant.lorebookIds.filterTo(mutableSetOf()) { id -> lorebooks.any { it.id == id } }
+        } else emptySet(),
     )
 }
 
@@ -159,6 +172,6 @@ fun Conversation.bindConfig(settings: Settings): Conversation {
         config = assistant.toConversationConfig().copy(chatModelId = model?.id, builtInSearch = builtInSearch),
         // 旧版本允许会话单独绑定注入，这类会话保留自己的绑定
         modeInjectionIds = modeInjectionIds.ifEmpty { assistant.modeInjectionIds },
-        lorebookIds = lorebookIds.ifEmpty { assistant.lorebookIds },
+        lorebookIds = if (canUseLorebooks(settings)) lorebookIds.ifEmpty { assistant.lorebookIds } else lorebookIds,
     )
 }

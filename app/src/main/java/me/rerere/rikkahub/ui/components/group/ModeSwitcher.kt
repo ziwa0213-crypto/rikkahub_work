@@ -33,7 +33,11 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.UiMode
 
 @Composable
-fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
+fun ModeSwitcher(
+    mode: UiMode,
+    experimentalCharacterMode: Boolean = false,
+    onSelect: (UiMode) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     // Mode is conveyed by the icon and label, not by a selected background.
     val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -49,15 +53,15 @@ fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(mode.icon(), null, Modifier.size(14.dp))
-                Text(stringResource(mode.label()),
+                Text(stringResource(mode.label(experimentalCharacterMode)),
                     style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                 Icon(HugeIcons.ArrowDown01, null, Modifier.size(14.dp))
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            UiMode.entries.forEach { option ->
+            UiMode.entries.filter { experimentalCharacterMode || it != UiMode.ROLE }.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(stringResource(option.label())) },
+                    text = { Text(stringResource(option.label(experimentalCharacterMode))) },
                     leadingIcon = { Icon(option.icon(), null) },
                     trailingIcon = { if (option == mode) Icon(HugeIcons.Tick01, null) },
                     onClick = { expanded = false; if (option != mode) onSelect(option) },
@@ -67,15 +71,15 @@ fun ModeSwitcher(mode: UiMode, onSelect: (UiMode) -> Unit) {
     }
 }
 
-private fun UiMode.label() = when (this) {
-    UiMode.WORK -> R.string.group_mode_chat
+private fun UiMode.label(experimentalCharacterMode: Boolean) = when (this) {
+    UiMode.CHAT -> if (experimentalCharacterMode) R.string.group_mode_work else R.string.group_mode_chat
     UiMode.ROLE -> R.string.group_mode_role
     UiMode.GROUP -> R.string.group_mode_group
     UiMode.PULSE -> R.string.group_mode_pulse
 }
 
 private fun UiMode.icon() = when (this) {
-    UiMode.WORK -> HugeIcons.Message02
+    UiMode.CHAT -> HugeIcons.Message02
     UiMode.ROLE -> HugeIcons.LookTop
     UiMode.GROUP -> HugeIcons.UserGroup03
     UiMode.PULSE -> HugeIcons.HeartPulse

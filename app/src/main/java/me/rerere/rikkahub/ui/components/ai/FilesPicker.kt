@@ -87,6 +87,8 @@ import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.components.ui.PulseExtensionTabs
 import me.rerere.rikkahub.ui.components.ui.CharacterExtensionTabs
+import me.rerere.rikkahub.ui.components.ui.DisabledCharacterExtensionTabs
+import me.rerere.rikkahub.ui.components.ui.ExperimentalWorkExtensionTabs
 import me.rerere.rikkahub.ui.components.ui.GroupExtensionTabs
 import me.rerere.rikkahub.ui.components.ui.WorkExtensionTabs
 import me.rerere.rikkahub.data.model.isCharacterChat
@@ -150,8 +152,6 @@ internal fun FilesPicker(
     onUpdateGroupMcpServers: (Set<Uuid>) -> Unit = {},
     groupModeInjectionIds: Set<Uuid>? = null,
     onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
-    groupLorebookIds: Set<Uuid>? = null,
-    onUpdateGroupLorebookIds: (Set<Uuid>) -> Unit = {},
     groupEnabledSkills: Set<String>? = null,
     onUpdateGroupEnabledSkills: (Set<String>) -> Unit = {},
 ) {
@@ -217,8 +217,6 @@ internal fun FilesPicker(
                 roleMode = roleMode,
                 groupModeInjectionIds = if (groupMode) groupModeInjectionIds.orEmpty() else null,
                 onUpdateGroupModeInjectionIds = onUpdateGroupModeInjectionIds,
-                groupLorebookIds = if (groupMode) groupLorebookIds.orEmpty() else null,
-                onUpdateGroupLorebookIds = onUpdateGroupLorebookIds,
                 groupEnabledSkills = if (groupMode) groupEnabledSkills.orEmpty() else null,
                 onUpdateGroupEnabledSkills = onUpdateGroupEnabledSkills,
             )
@@ -332,7 +330,7 @@ internal fun FilesPicker(
                                 },
                             ) {
                                 Text(
-                                    text = conversation.workspaceCwd ?: boundWorkspace?.workspaceDir().orEmpty(),
+                                    text = conversation.workspaceCwd ?: boundWorkspace.workspaceDir(),
                                     // 路径的末尾更有辨识度，放不下时省略开头
                                     maxLines = 1,
                                     overflow = TextOverflow.StartEllipsis,
@@ -560,8 +558,6 @@ private fun ExtensionPickerPage(
     roleMode: Boolean = false,
     groupModeInjectionIds: Set<Uuid>? = null,
     onUpdateGroupModeInjectionIds: (Set<Uuid>) -> Unit = {},
-    groupLorebookIds: Set<Uuid>? = null,
-    onUpdateGroupLorebookIds: (Set<Uuid>) -> Unit = {},
     groupEnabledSkills: Set<String>? = null,
     onUpdateGroupEnabledSkills: (Set<String>) -> Unit = {},
 ) {
@@ -589,12 +585,14 @@ private fun ExtensionPickerPage(
             groupMode = groupMode,
             allowedTabs = when {
                 pulseMode -> PulseExtensionTabs
-                roleMode -> CharacterExtensionTabs
+                roleMode && settings.experimentalCharacterMode -> CharacterExtensionTabs
+                roleMode -> DisabledCharacterExtensionTabs
                 groupMode -> GroupExtensionTabs
+                settings.experimentalCharacterMode -> ExperimentalWorkExtensionTabs
                 else -> WorkExtensionTabs
             },
             onUpdateModeInjectionIds = onUpdateGroupModeInjectionIds,
-            onUpdateLorebookIds = if (roleMode) { ids -> onUpdateAssistant(assistant.copy(lorebookIds = ids)) } else onUpdateGroupLorebookIds,
+            onUpdateLorebookIds = if (roleMode) { ids -> onUpdateAssistant(assistant.copy(lorebookIds = ids)) } else null,
             onNavigateToLorebooks = {
                 onDismissAll()
                 navController.navigate(Screen.CharacterLorebooks)

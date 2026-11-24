@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -51,6 +52,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import coil3.ImageLoader
+import coil3.annotation.ExperimentalCoilApi
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
@@ -61,16 +63,13 @@ import coil3.svg.SvgDecoder
 import me.rerere.ui.toast.Toaster
 import me.rerere.ui.toast.rememberToasterState
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.saveable.rememberSaveable
-import me.rerere.rikkahub.ui.pages.character.CharacterMigrationDialog
-import me.rerere.rikkahub.data.datastore.CharacterMigrationState
-import me.rerere.rikkahub.data.datastore.shouldOfferCharacterMigration
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.ui.pages.character.CharacterPage
 import me.rerere.rikkahub.ui.pages.character.CharacterDetailPage
+import me.rerere.rikkahub.ui.pages.character.CharacterPromptModulePage
 import me.rerere.rikkahub.ui.pages.character.CharacterLorebookPage
 import me.rerere.rikkahub.ui.pages.character.CharacterTransferPage
 import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
@@ -236,6 +235,7 @@ class RouteActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    @OptIn(ExperimentalCoilApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         disableNavigationBarContrast()
@@ -377,7 +377,7 @@ class RouteActivity : ComponentActivity() {
                     val id = loaded.selectedGroup(null)?.conversationIds?.lastOrNull()
                     if (id != null) Screen.Chat(id.toString()) else Screen.Groups
                 }
-                UiMode.WORK -> {
+                UiMode.CHAT -> {
                     val recentId = if (readBooleanPreference("create_new_conversation_on_start", true)) null
                     else readStringPreference("lastConversationId")?.let { Uuid.parseOrNull(it) }
                     // An old saved ID can have changed owners during migration.
@@ -392,17 +392,6 @@ class RouteActivity : ComponentActivity() {
             return
         }
         val backStack = rememberNavBackStack(initialScreen)
-        var offerCharacterMigration by rememberSaveable { mutableStateOf(false) }
-        LaunchedEffect(Unit) {
-            if (!(application as RikkaHubApp).launchCountUpdated.await()) return@LaunchedEffect
-            val launches = settingsStore.launchCountFlow.first()
-            val latest = settingsStore.awaitLoaded()
-            if (latest.shouldOfferCharacterMigration(launches)) offerCharacterMigration = true
-            else if (latest.lastRunVersionCode == 0) settingsStore.update {
-                if (it.shouldOfferCharacterMigration(launches)) it
-                else it.copy(lastRunVersionCode = BuildConfig.VERSION_CODE.toInt(), characterMigrationPrompted = true)
-            }
-        }
         LaunchedEffect(Unit) {
             eventBus.events.collect { event ->
                 if (event is AppEvent.OpenBrowser) {
@@ -436,19 +425,6 @@ class RouteActivity : ComponentActivity() {
             ) {
                 TTSController()
                 val nav = LocalNavController.current
-                val migrationScope = androidx.compose.runtime.rememberCoroutineScope()
-                if (offerCharacterMigration && !settings.characterMigrationPrompted && backStack.lastOrNull() != Screen.CharacterTransfer) {
-                    CharacterMigrationDialog(
-                        onDecline = {
-                            migrationScope.launch {
-                                settingsStore.update { it.copy(characterMigrationState = CharacterMigrationState.DECLINED,
-                                    characterMigrationPrompted = true, lastRunVersionCode = BuildConfig.VERSION_CODE.toInt()) }
-                                offerCharacterMigration = false
-                            }
-                        },
-                        onTransfer = { nav.navigate(Screen.CharacterTransfer) },
-                    )
-                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -518,6 +494,9 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.CharacterList> { CharacterPage() }
                             entry<Screen.CharacterDetail> { key -> CharacterDetailPage(key.id) }
+                            entry<Screen.CharacterPromptModule> { key ->
+                                CharacterPromptModulePage(key.characterId, key.kind, key.moduleId, key.createNew)
+                            }
                             entry<Screen.CharacterLorebooks> { CharacterLorebookPage() }
                             entry<Screen.CharacterTransfer> { CharacterTransferPage() }
                             entry<Screen.Assistant> {
@@ -878,6 +857,12 @@ sealed interface Screen : NavKey {
 
     @Serializable data object CharacterList : Screen
     @Serializable data class CharacterDetail(val id: String) : Screen
+    @Serializable data class CharacterPromptModule(
+        val characterId: String,
+        val kind: String,
+        val moduleId: String? = null,
+        val createNew: Boolean = false,
+    ) : Screen
     @Serializable data object CharacterLorebooks : Screen
     @Serializable data object CharacterTransfer : Screen
 

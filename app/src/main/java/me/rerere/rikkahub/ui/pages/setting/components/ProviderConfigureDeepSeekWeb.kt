@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,7 +78,6 @@ internal fun ProviderConfigureDeepSeekWeb(
     var paste by remember { mutableStateOf("") }
     var pasteResult by remember { mutableStateOf<String?>(null) }
     var advanced by remember { mutableStateOf(false) }
-    var showCustomWarning by remember { mutableStateOf(false) }
     val testSuccessText = stringResource(R.string.deepseek_web_test_success)
     val pasteEmptyText = stringResource(R.string.deepseek_web_paste_empty)
     val pasteNoAuthText = stringResource(R.string.deepseek_web_paste_no_auth)
@@ -305,8 +302,7 @@ internal fun ProviderConfigureDeepSeekWeb(
         switchItem(
             checked = provider.unlock.customEnabled,
             onCheckedChange = { checked ->
-                if (checked) showCustomWarning = true
-                else onEdit(provider.copy(unlock = provider.unlock.copy(customEnabled = false)))
+                onEdit(provider.copy(unlock = provider.unlock.copy(customEnabled = checked)))
             },
             leadingContent = { CardGroupIcon(HugeIcons.Shield01) },
             headlineContent = { Text(stringResource(R.string.deepseek_web_custom_toggle)) },
@@ -375,16 +371,6 @@ internal fun ProviderConfigureDeepSeekWeb(
         )
     }
 
-    if (showCustomWarning) {
-        DeepSeekWebCustomWarningDialog(
-            required = stringResource(R.string.deepseek_web_custom_warning_body),
-            onConfirm = {
-                onEdit(provider.copy(unlock = provider.unlock.copy(customEnabled = true)))
-                showCustomWarning = false
-            },
-            onDismiss = { showCustomWarning = false },
-        )
-    }
 }
 
 private fun CardGroupScope.deepSeekWebUnlockSwitch(
@@ -398,54 +384,6 @@ private fun CardGroupScope.deepSeekWebUnlockSwitch(
         onCheckedChange = onCheckedChange,
         leadingContent = { CardGroupIcon(icon) },
         headlineContent = { Text(stringResource(label)) },
-    )
-}
-
-@Composable
-private fun DeepSeekWebCustomWarningDialog(
-    required: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var input by remember { mutableStateOf("") }
-    val normalizedInput = input.filterNot(Char::isWhitespace)
-    val normalizedRequired = required.filterNot(Char::isWhitespace)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.deepseek_web_custom_warning_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SelectionContainer {
-                    Text(required, style = MaterialTheme.typography.bodySmall)
-                }
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    label = { Text(stringResource(R.string.deepseek_web_custom_warning_input)) },
-                    minLines = 4,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = stringResource(
-                        R.string.deepseek_web_custom_warning_progress,
-                        normalizedInput.length,
-                        normalizedRequired.length,
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = normalizedInput == normalizedRequired,
-            ) {
-                Text(stringResource(R.string.deepseek_web_custom_warning_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
-        },
     )
 }
 

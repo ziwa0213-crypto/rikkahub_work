@@ -17,9 +17,27 @@ fun Settings.isNotConfigured() = providers.all { it.models.isEmpty() }
  */
 fun Settings.findModelById(uuid: Uuid?, fallback: Uuid? = null): Model? {
     if (uuid == null && fallback == null) return null
-    return uuid?.let { this.providers.findModelById(it) }
-        ?: fallback?.let { this.providers.findModelById(it) }
+    return uuid?.takeUnless(::isModelHidden)?.let { this.providers.findModelById(it) }
+        ?: fallback?.takeUnless(::isModelHidden)?.let { this.providers.findModelById(it) }
 }
+
+/** Provider/model surfaces hide DeepSeek Web unless its experimental switch is enabled. */
+fun Settings.isProviderVisible(provider: ProviderSetting): Boolean =
+    provider !is ProviderSetting.DeepSeekWeb || experimentalDeepSeekWeb
+
+fun Settings.visibleProviders(source: List<ProviderSetting> = providers): List<ProviderSetting> =
+    source.filter(::isProviderVisible)
+
+fun Settings.isModelHidden(modelId: Uuid?): Boolean {
+    if (modelId == null) return false
+    val owner = providers.firstOrNull { provider -> provider.models.any { it.id == modelId } } ?: return false
+    return !isProviderVisible(owner)
+}
+
+/** Best available visible model for a reference that points at a hidden provider. */
+internal fun Settings.visibleChatFallback(): Uuid? = sequenceOf(fastModelId, chatModelId)
+    .firstOrNull { !isModelHidden(it) }
+    ?: visibleProviders().firstNotNullOfOrNull { it.models.firstOrNull()?.id }
 
 /** 在所有提供商的模型里按 ID 查找。 */
 fun List<ProviderSetting>.findModelById(uuid: Uuid): Model? {
@@ -62,7 +80,7 @@ fun Settings.getQuickMessagesOfAssistant(assistant: Assistant) =
 
 /** 当前选中的 TTS 提供商，选中的 ID 已不存在时回退到第一个。 */
 fun Settings.getSelectedTTSProvider(): TTSProviderSetting? {
-    return selectedTTSProviderId?.let { id ->
+    return selectedTTSProviderId.let { id ->
         ttsProviders.find { it.id == id }
     } ?: ttsProviders.firstOrNull()
 }

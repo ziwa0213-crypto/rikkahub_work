@@ -161,7 +161,7 @@ class GroupTest {
     @Test
     fun legacySettingsUseChatModeAndEmptyGroupLists() {
         val settings = JsonInstant.decodeFromString<Settings>("""{"developerMode":true}""")
-        assertEquals(UiMode.WORK, settings.uiMode)
+        assertEquals(UiMode.CHAT, settings.uiMode)
         assertTrue(settings.groupMembers.isEmpty())
         assertTrue(settings.groups.isEmpty())
         assertTrue(settings.developerMode)
