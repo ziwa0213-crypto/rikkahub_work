@@ -395,6 +395,16 @@ class ConversationRepository(
         } else fullConversation.files)
     }
 
+    /** 删除某个owner的全部会话，复用单会话删除以清理索引、收藏、节点和聊天文件。 */
+    suspend fun deleteConversationsOfOwner(ownerId: Uuid) {
+        val entities = conversationDAO.getConversationsOfAssistant(ownerId.toString()).first()
+        entities.forEach { entity ->
+            val conversation = getConversationById(Uuid.parse(entity.id)) ?: return@forEach
+            // 快照取出后若会话已转移给其他owner，不删除其新归属下的历史。
+            if (conversation.assistantId == ownerId) deleteConversation(conversation)
+        }
+    }
+
     /** 删除这些节点的收藏，节点从会话里移除后调用 */
     suspend fun deleteNodeFavorites(conversationId: Uuid, nodeIds: Collection<Uuid>) {
         nodeIds

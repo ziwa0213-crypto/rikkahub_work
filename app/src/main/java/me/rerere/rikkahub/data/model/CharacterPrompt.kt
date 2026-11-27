@@ -33,11 +33,9 @@ internal fun Character.buildPromptModules(
     val scenarioModules = of(PromptModuleKind.SCENARIO)
     val ruleModules = of(PromptModuleKind.OUTPUT_RULES)
     val blocks = buildList {
-        if (personaModules.isEmpty() && characterSystemPrompt.isBlank()) {
-            listOf(description, personality).filter(String::isNotBlank).joinToString("\n\n")
-                .takeIf(String::isNotBlank)?.let(::add)
-        }
         personaModules.forEach { add(it.content) }
+        listOf(description, personality).filter(String::isNotBlank).joinToString("\n\n")
+            .takeIf(String::isNotBlank)?.let(::add)
         if (scenarioModules.isEmpty()) scenario.takeIf(String::isNotBlank)?.let(::add)
         scenarioModules.forEach { add(it.content) }
         if (styleContent.isNotBlank()) add(styleContent)
@@ -57,7 +55,7 @@ internal fun String.fillCharacterVariables(
     userNickname: String,
     persona: String,
     rules: String,
-): String = replace("{{char}}", character.name)
+): String = replace("{{char}}", character.nickname.ifBlank { character.name })
     .replace("{{user}}", userNickname)
     .replace("{{persona}}", persona)
     .replace("{{rules}}", rules)

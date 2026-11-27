@@ -14,12 +14,8 @@ fun Conversation.isCharacterChat(settings: Settings): Boolean =
     !isGroupChat() && !isPulseChat() &&
         (settings.findCharacter(assistantId) != null || isDeletedCharacterChat(settings))
 
-/** Worldbooks belong to work while role mode is hidden, then move to role when enabled. */
-internal fun Conversation.canUseLorebooks(settings: Settings): Boolean = when {
-    isGroupChat() || isPulseChat() -> false
-    isCharacterChat(settings) -> settings.experimentalCharacterMode
-    else -> !settings.experimentalCharacterMode
-}
+/** Worldbooks are exclusive to character-owned conversations. */
+internal fun Conversation.canUseLorebooks(settings: Settings): Boolean = isCharacterChat(settings)
 
 internal fun Settings.selectedCharacter(): Character? = findCharacter(characterId) ?: characters.firstOrNull()
 

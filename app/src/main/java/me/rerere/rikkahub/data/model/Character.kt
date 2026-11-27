@@ -5,6 +5,7 @@ import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.CustomBody
 import me.rerere.ai.provider.CustomHeader
 import me.rerere.ai.ui.UIMessage
+import me.rerere.rikkahub.data.st.regex.RegexScript
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import kotlin.uuid.Uuid
 
@@ -27,6 +28,13 @@ data class Character(
     val nickname: String = "",
     val characterVersion: String = "",
     val rawExtensions: String = "{}",
+    val rawCardJson: String = "",
+    val rawCardTruncated: Boolean = false,
+    val depthPrompt: String = "",
+    val depthPromptDepth: Int = 4,
+    val depthPromptRole: String = "system",
+    val stRegexScripts: List<RegexScript> = emptyList(),
+    val stWorldbookBudgetChars: Int? = null,
     val chatModelId: Uuid? = null,
     val temperature: Float? = null,
     val topP: Float? = null,

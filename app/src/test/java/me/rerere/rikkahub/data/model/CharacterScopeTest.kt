@@ -62,8 +62,9 @@ class CharacterScopeTest {
 
     @Test fun filteringDoesNotEraseBindingsAndDeletedRolesCannotGenerate() {
         val workSettings = settings.copy(experimentalCharacterMode = false, uiMode = UiMode.CHAT)
-        val conv = Conversation.ofId(Uuid.random(), assistantId = work.id).bindConfig(workSettings)
-        assertEquals(setOf(lorebook.id), resolveChatTurnRoute(workSettings, conv).assistant.lorebookIds)
+        val conv = Conversation.ofId(Uuid.random(), assistantId = work.id)
+            .copy(lorebookIds = setOf(lorebook.id)).bindConfig(workSettings)
+        assertTrue(resolveChatTurnRoute(workSettings, conv).assistant.lorebookIds.isEmpty())
         val view = workSettings.getAssistantOf(conv)
         for (update in listOf(view.copy(chatModelId = roleModel.id), view.copy(enabledSkills = setOf("new")),
             view.copy(toolApprovalMode = ToolApprovalMode.AskAll), view.copy(workspaceId = Uuid.random()))) {
@@ -102,7 +103,7 @@ class CharacterScopeTest {
         val workConversation = Conversation.ofId(Uuid.random(), assistantId = work.id)
         val roleConversation = Conversation.ofId(Uuid.random(), assistantId = role.id)
         for ((experimental, expectedWork, expectedRole) in listOf(
-            Triple(false, true, false),
+            Triple(false, false, true),
             Triple(true, false, true),
         )) {
             val current = settings.copy(experimentalCharacterMode = experimental)

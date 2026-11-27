@@ -67,6 +67,7 @@ import me.rerere.common.android.Logging
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.ChatRequestFactory
+import me.rerere.rikkahub.data.ai.transformers.applyCharacterMessageRegex
 import me.rerere.rikkahub.data.ai.ChatTurnContext
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.data.ai.ConversationMetaGenerator
@@ -86,6 +87,7 @@ import me.rerere.rikkahub.data.event.GenerationOutcome
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.canUseLorebooks
 import me.rerere.rikkahub.data.model.bindConfig
 import me.rerere.rikkahub.data.model.cancelInterruptedTools
 import me.rerere.rikkahub.data.model.deleteMessage
@@ -733,6 +735,7 @@ class ChatService(
             conversationId = conversationId,
             keepAliveInBackground = queued.answer,
         ) {
+            var inputVariablesPending = false
             try {
                 ensureInitialized(session)
                 finishInterruptedPendingTools(session)
@@ -741,6 +744,7 @@ class ChatService(
                 if (conversation.isGroupChat()) groupRounds.remove(conversationId)
                 val settings = settingsStore.awaitLoaded()
                 check(!conversation.isDeletedCharacterChat(settings)) { context.getString(R.string.character_deleted) }
+                inputVariablesPending = conversation.canUseLorebooks(settings)
                 val assistant = settings.getStoredAssistantOf(conversation)
                 val processedContent = if (conversation.isGroupChat()) queued.parts else queued.parts.replaceUserRegexes(assistant)
 
@@ -757,14 +761,14 @@ class ChatService(
                                 role = MessageRole.USER,
                                 parts = processedContent,
                                 annotations = queued.annotations,
-                            ).toMessageNode(),
+                            ).let { message -> requestFactory.applyCharacterRegex(message, settings, conversation) }.toMessageNode(),
                     )
                 }
                 session.flush()
                 session.submittingMessage = null
 
                 // 开始补全
-                val result = if (queued.answer) runTurn(session) else null
+                val result = if (queued.answer) runTurn(session).also { inputVariablesPending = false } else null
 
                 queued.reply?.completeWith(runCatching {
                     check(result != TurnResult.Failed) { context.getString(R.string.chat_page_voice_generation_failed) }
@@ -782,6 +786,12 @@ class ChatService(
                 queued.reply?.completeExceptionally(e)
                 e.printStackTrace()
                 reportFailure(session, e, R.string.error_title_send_message)
+            } finally {
+                // Input regex macros can run before runTurn, including no-answer sends.
+                if (inputVariablesPending) withContext(NonCancellable) {
+                    requestFactory.flushCharacterVariables(conversationId)
+                        .onFailure { Log.e(TAG, "MacroFlush input failed", it) }
+                }
             }
         }
         job.invokeOnCompletion { cause ->
@@ -940,9 +950,11 @@ class ChatService(
         session.replyMessageId.value = null
         // 生成开始前失败时通知只用来取消 Live Update，用不到发送者名称
         var senderName = ""
+        var characterTurn = false
         try {
             val settings = settingsStore.awaitLoaded()
             check(!session.state.value.isDeletedCharacterChat(settings)) { context.getString(R.string.character_deleted) }
+            characterTurn = session.state.value.canUseLorebooks(settings)
             // 清掉上一轮的建议；没法继续执行的工具调用发给模型会被拒绝，先去掉。
             // 重新生成时只清理要发给模型的节点，被重新生成的节点保持原样，旧回复留作分支
             val conversation = session.update { latest ->
@@ -961,6 +973,7 @@ class ChatService(
             val canCompress = regenerateNodeId == null || conversation.messageNodes.lastOrNull()?.id == regenerateNodeId
 
             val turn = requestFactory.createContext(settings, conversation, mode = conversation.assistantMode(settings))
+            turn.stTurn?.captureHistory(target.history)
             senderName = if (turn.assistant.useAssistantAvatar) {
                 turn.assistant.name.ifEmpty { context.getString(R.string.assistant_page_default_assistant) }
             } else {
@@ -1060,6 +1073,13 @@ class ChatService(
             Logging.log(TAG, "runTurn: $e")
             Logging.log(TAG, e.stackTraceToString())
             return TurnResult.Failed
+        } finally {
+            if (characterTurn) withContext(NonCancellable) {
+                requestFactory.flushCharacterVariables(conversationId).fold(
+                    onSuccess = { Log.i("MacroFlush", "done") },
+                    onFailure = { Log.e("MacroFlush", "Variable persistence failed", it) },
+                )
+            }
         }
     }
 
@@ -1602,11 +1622,16 @@ class ChatService(
             memoryScope = group?.let { "grp:" + it.id + ":" + conversation.id },
             mode = conversation.assistantMode(settings))
         val prompt = buildCompressPrompt(additionalPrompt, Locale.getDefault().displayName, midTurn)
-        val summary = requestFactory.generateCompressionSummary(
+        turn.stTurn?.captureHistory(conversation.currentMessages)
+        val summary = try { requestFactory.generateCompressionSummary(
             turn = turn,
             messages = conversation.currentMessages.take(endIndex),
             compressPrompt = prompt,
-        )
+        ) } finally {
+            if (turn.character != null) withContext(NonCancellable) {
+                requestFactory.flushCharacterVariables(conversation.id).onFailure { Log.e(TAG, "MacroFlush compression failed", it) }
+            }
+        }
 
         // 原消息原样保留，摘要插在压缩范围的最后一条消息之后。摘要生成期间对话可能已变化，
         // 因此按节点定位插入到最新状态。
@@ -1885,6 +1910,7 @@ class ChatService(
      * 还停在这个会话上的页面看到的是空会话，之后再发消息会新建记录，不会写回已删除的那条。
      */
     suspend fun deleteConversation(conversationId: Uuid) {
+        me.rerere.rikkahub.data.st.worldbook.WorldbookRuntimeState.clear(conversationId)
         groupRounds.remove(conversationId)
         val session = sessionManager.getOrCreate(conversationId)
         discardQueuedMessages(session)
@@ -1975,12 +2001,24 @@ class ChatService(
         if (parts.isEmptyInputMessage()) return
         val settings = settingsStore.awaitLoaded()
 
-        mutate(conversationId) { conversation ->
-            if (conversation.isDeletedCharacterChat(settings)) {
-                addError(IllegalStateException(context.getString(R.string.character_deleted)), conversationId)
-                return@mutate conversation
+        var characterEdit = false
+        try {
+            mutate(conversationId) { conversation ->
+                if (conversation.isDeletedCharacterChat(settings)) {
+                    addError(IllegalStateException(context.getString(R.string.character_deleted)), conversationId)
+                    return@mutate conversation
+                }
+                characterEdit = conversation.canUseLorebooks(settings)
+                val original = conversation.currentMessages.firstOrNull { it.id == messageId }
+                val edited = original?.copy(parts = parts.replaceUserRegexes(settings.getStoredAssistantOf(conversation)))
+                    ?.let { requestFactory.applyCharacterRegex(it, settings, conversation, isEdit = true) }
+                conversation.editMessage(messageId, edited?.parts ?: parts.replaceUserRegexes(settings.getStoredAssistantOf(conversation)))
             }
-            conversation.editMessage(messageId, parts.replaceUserRegexes(settings.getStoredAssistantOf(conversation)))
+        } finally {
+            if (characterEdit) withContext(NonCancellable) {
+                requestFactory.flushCharacterVariables(conversationId)
+                    .onFailure { Log.e(TAG, "MacroFlush edit failed", it) }
+            }
         }
     }
 

@@ -221,6 +221,35 @@ sealed class PromptInjection {
         val caseSensitive: Boolean = false, // 大小写敏感
         val scanDepth: Int = 4, // 扫描最近N条消息
         val constantActive: Boolean = false, // 常驻激活（无需匹配）
+        // SillyTavern positions are independent of InjectionPosition; -1 retains legacy placement.
+        val stPosition: Int = -1,
+        val stSecondaryKeys: List<String> = emptyList(),
+        val stSelective: Boolean = false,
+        val stSelectiveLogic: Int = 0,
+        val stGroup: String = "",
+        val stGroupWeight: Int = 100,
+        val stGroupOverride: Boolean = false,
+        val stUseProbability: Boolean = false,
+        val stProbability: Int = 100,
+        val stSticky: Int = 0,
+        val stCooldown: Int = 0,
+        val stDelay: Int = 0,
+        val stDelayUntilRecursion: Int = 0,
+        val stExcludeRecursion: Boolean = false,
+        val stPreventRecursion: Boolean = false,
+        val stMatchWholeWords: Boolean = false,
+        val stIgnoreBudget: Boolean = false,
+        val stOutletName: String = "",
+        val stComment: String = "",
+        val stMatchPersonaDescription: Boolean = false,
+        val stMatchCharacterDescription: Boolean = false,
+        val stMatchCharacterPersonality: Boolean = false,
+        val stMatchCharacterDepthPrompt: Boolean = false,
+        val stMatchScenario: Boolean = false,
+        val stMatchCreatorNotes: Boolean = false,
+        val stExtensionsRaw: String = "",
+        val stSource: String = "manual",
+        val stEntryRawJson: String = "",
     ) : PromptInjection()
 }
 

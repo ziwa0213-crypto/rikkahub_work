@@ -107,16 +107,19 @@ class FilesManager(
     fun createChatFilesByContents(uris: List<Uri>, guardInput: (InputStream) -> InputStream = { it }): List<Uri> =
         copyChatFiles(uris, FileFolders.UPLOAD, guardInput)
 
-    internal fun copyCharacterChatAttachment(uri: Uri, conversationId: kotlin.uuid.Uuid): Uri =
+    /** Missing or unreadable sources keep their original reference at the caller. */
+    internal fun copyCharacterChatAttachment(uri: Uri, conversationId: kotlin.uuid.Uuid): Uri? =
         copyChatFiles(
             listOf(uri), "${FileFolders.UPLOAD}/$conversationId", { it }, throwOnFailure = true,
-        ).single()
+            skipUnreadableSource = true,
+        ).firstOrNull()
 
     private fun copyChatFiles(
         uris: List<Uri>,
         folder: String,
         guardInput: (InputStream) -> InputStream,
         throwOnFailure: Boolean = false,
+        skipUnreadableSource: Boolean = false,
     ): List<Uri> {
         val newUris = mutableListOf<Uri>()
         val dir = context.filesDir.resolve(folder)
@@ -134,11 +137,24 @@ class FilesManager(
                 if (!file.exists()) {
                     file.createNewFile()
                 }
-                val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: error("Failed to open input stream for $uri")
-                inputStream.use { input ->
-                    file.outputStream().use { output ->
-                        guardInput(input).copyTo(output)
+                if (skipUnreadableSource) {
+                    val copied = copyCharacterAttachmentSource(
+                        openSource = { context.contentResolver.openInputStream(uri) },
+                        openTarget = { file.outputStream() },
+                        onUnavailable = { Log.w(TAG, "Character attachment source unavailable: $uri", it) },
+                    )
+                    if (!copied) {
+                        incomplete?.delete()
+                        incomplete = null
+                        return@runCatching
+                    }
+                } else {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                        ?: error("Failed to open input stream for $uri")
+                    inputStream.use { input ->
+                        file.outputStream().use { output ->
+                            guardInput(input).copyTo(output)
+                        }
                     }
                 }
                 val guessedMime = sourceMime ?: guessMimeType(file, sourceName)

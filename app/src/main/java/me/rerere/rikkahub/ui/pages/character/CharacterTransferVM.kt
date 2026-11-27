@@ -43,7 +43,7 @@ internal class CharacterTransferVM(
         val sourceChats = conversations.getConversationsOfAssistant(source.id).first()
         // Register the role first; a failed transfer leaves the source intact and can resume.
         settings.update { if (it.findCharacter(target) == null) it.copy(characters = it.characters + role) else it }
-        if (!move) copyConversations(sourceChats, target)
+        val missingAttachments = if (!move) copyConversations(sourceChats, target) else 0
         if (move) for (stub in sourceChats) chat.moveConversationToCharacter(stub.id, source.id, target)
         if (memory != null) transferMemory(memory, target.toString(), moveMemory)
         settings.update { latest ->
@@ -53,6 +53,7 @@ internal class CharacterTransferVM(
                 uiMode = UiMode.ROLE, characterId = target,
             )
         }
+        missingAttachments
     }
 
     suspend fun finish() = settings.update {
@@ -60,25 +61,24 @@ internal class CharacterTransferVM(
             lastRunVersionCode = BuildConfig.VERSION_CODE.toInt())
     }
 
-    private suspend fun copyConversations(source: List<Conversation>, target: Uuid) {
-        val copiedUris = mutableListOf<android.net.Uri>()
+    private suspend fun copyConversations(source: List<Conversation>, target: Uuid): Int {
+        val attachments = CharacterTransferAttachments { url, newId ->
+            files.copyCharacterChatAttachment(url.toUri(), newId)?.toString()
+        }
         val titles = conversations.getTitlesOfAssistant(target).toMutableSet()
         try {
             source.mapNotNull { stub ->
                 val newId = characterCopyId(stub.id, target)
                 if (conversations.existsConversationById(newId)) return@mapNotNull null
                 val full = checkNotNull(conversations.getConversationById(stub.id))
-                val attachments = mutableMapOf<String, String>()
-                full.duplicateForCharacter(target, newId, titles) { url ->
-                    attachments.getOrPut(url) {
-                        files.copyCharacterChatAttachment(url.toUri(), newId).also(copiedUris::add).toString()
-                    }
-                }.also { titles.add(it.title) }
+                full.duplicateForCharacter(target, newId, titles, attachments.forConversation(newId))
+                    .also { titles.add(it.title) }
             }.also { conversations.insertCharacterCopies(it) }
         } catch (e: Exception) {
-            files.deleteChatFiles(copiedUris)
+            files.deleteChatFiles(attachments.copiedUrls.map { it.toUri() })
             throw e
         }
+        return attachments.missing
     }
 
     private suspend fun transferMemory(selection: TransferMemory, target: String, move: Boolean) {
@@ -125,9 +125,49 @@ internal fun TransferMemory.invertSelection(selection: TransferMemorySelection) 
 )
 
 // Group members are snapshots, not Assistant references. Guard the built-in default and any matching member IDs.
+internal enum class AssistantMoveBlock { NONE, DEFAULT_ASSISTANT, GROUP_MEMBER }
+
+internal fun Settings.assistantMoveBlock(id: Uuid): AssistantMoveBlock = when {
+    id == DEFAULT_ASSISTANT_ID -> AssistantMoveBlock.DEFAULT_ASSISTANT
+    groupMembers.any { it.id == id } -> AssistantMoveBlock.GROUP_MEMBER
+    else -> AssistantMoveBlock.NONE
+}
+
 internal fun Settings.canMoveToCharacter(id: Uuid): Boolean =
-    id != DEFAULT_ASSISTANT_ID && groupMembers.none { it.id == id }
+    assistantMoveBlock(id) == AssistantMoveBlock.NONE
+
+internal enum class MemoryMoveBlock { NONE, GLOBAL, SHARED_WITH_ASSISTANT, REFERENCED_BY_CHARACTER }
+
+internal fun Settings.memoryMoveBlock(id: Uuid, scope: String): MemoryMoveBlock = when {
+    scope == MemoryRepository.GLOBAL_MEMORY_ID -> MemoryMoveBlock.GLOBAL
+    assistants.any { it.id != id && it.memoryId == scope } -> MemoryMoveBlock.SHARED_WITH_ASSISTANT
+    characters.any { scope in it.referencedMemoryScopes } -> MemoryMoveBlock.REFERENCED_BY_CHARACTER
+    else -> MemoryMoveBlock.NONE
+}
 
 internal fun Settings.canMoveMemory(id: Uuid, scope: String): Boolean =
-    scope != MemoryRepository.GLOBAL_MEMORY_ID && assistants.none { it.id != id && it.memoryId == scope } &&
-        characters.none { scope in it.referencedMemoryScopes }
+    memoryMoveBlock(id, scope) == MemoryMoveBlock.NONE
+
+/** Cache within each copied conversation; only new files belong to failure cleanup. */
+internal class CharacterTransferAttachments(private val copy: (String, Uuid) -> String?) {
+    private val copied = mutableListOf<String>()
+    val copiedUrls: List<String> get() = copied
+    var missing: Int = 0
+        private set
+
+    fun forConversation(id: Uuid): (String) -> String {
+        val replacements = mutableMapOf<String, String>()
+        return { url ->
+            replacements.getOrPut(url) {
+                val result = copy(url, id)
+                if (result == null) {
+                    missing++
+                    url
+                } else {
+                    copied += result
+                    result
+                }
+            }
+        }
+    }
+}

@@ -73,9 +73,6 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.isNotConfigured
 import me.rerere.rikkahub.data.datastore.UiMode
-import me.rerere.rikkahub.data.datastore.CharacterMigrationState
-import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.data.datastore.shouldOfferCharacterMigrationManually
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -100,24 +97,14 @@ import me.rerere.ui.components.Select
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
-import me.rerere.rikkahub.BuildConfig
-import me.rerere.rikkahub.RikkaHubApp
-import me.rerere.rikkahub.ui.pages.character.CharacterMigrationDialog
 
 @Composable
 fun SettingPage(vm: SettingVM = koinViewModel()) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navController = LocalNavController.current
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val app = LocalContext.current.applicationContext as RikkaHubApp
     val uiMode = settings.uiMode
     val filesManager: FilesManager = koinInject()
-    val settingsStore: SettingsStore = koinInject()
-    val scope = rememberCoroutineScope()
-    var offerCharacterMigration by rememberSaveable { mutableStateOf(false) }
     val localNetworkPermission = rememberLocalNetworkPermissionState()
     val notificationPermission = rememberNotificationPermissionState()
 
@@ -206,7 +193,14 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_preferences_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_preferences)) },
                     )
-                    if (uiMode == UiMode.CHAT || uiMode == UiMode.ROLE) {
+                    if (uiMode == UiMode.ROLE) {
+                        item(
+                            onClick = { navController.navigate(Screen.CharacterList) },
+                            leadingContent = { CardGroupIcon(HugeIcons.LookTop, containerColor = containerColor, contentColor = contentColor) },
+                            supportingContent = { Text(stringResource(R.string.setting_page_character_desc)) },
+                            headlineContent = { Text(stringResource(R.string.setting_page_character)) },
+                        )
+                    } else if (uiMode == UiMode.CHAT) {
                         item(
                             onClick = { navController.navigate(Screen.Assistant) },
                             leadingContent = { CardGroupIcon(HugeIcons.LookTop, containerColor = containerColor, contentColor = contentColor) },
@@ -220,6 +214,13 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
                     )
+                    if (uiMode == UiMode.ROLE) {
+                        item(
+                            onClick = { navController.navigate(Screen.CharacterRegexScripts()) },
+                            supportingContent = { Text(stringResource(R.string.character_regex_global_desc)) },
+                            headlineContent = { Text(stringResource(R.string.character_regex_global)) },
+                        )
+                    }
                     if (uiMode == UiMode.GROUP) {
                         item(
                             onClick = { navController.navigate(Screen.GroupMembers) },
@@ -306,39 +307,6 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 CardGroup(
                     title = { Text(stringResource(R.string.setting_experimental_title)) },
                 ) {
-                    switchItem(
-                        checked = settings.experimentalCharacterMode,
-                        onLongClick = if (settings.experimentalCharacterMode) {
-                            { navController.navigate(Screen.CharacterTransfer) }
-                        } else null,
-                        onCheckedChange = { checked ->
-                            scope.launch {
-                                val latest = settingsStore.awaitLoaded()
-                                val wasEnabled = latest.experimentalCharacterMode
-                                val enabling = !wasEnabled && checked
-                                val launches = if (enabling && app.launchCountUpdated.await()) {
-                                    settingsStore.launchCountFlow.first()
-                                } else 0
-                                val shouldOfferMigration = enabling &&
-                                    latest.shouldOfferCharacterMigrationManually(launches)
-                                settingsStore.update { current ->
-                                    val updated = current.copy(experimentalCharacterMode = checked)
-                                    if (enabling && !shouldOfferMigration && current.lastRunVersionCode == 0) {
-                                        updated.copy(
-                                            characterMigrationPrompted = true,
-                                            lastRunVersionCode = BuildConfig.VERSION_CODE.toInt(),
-                                        )
-                                    } else updated
-                                }
-                                offerCharacterMigration = shouldOfferMigration
-                            }
-                        },
-                        leadingContent = {
-                            CardGroupIcon(HugeIcons.LookTop, containerColor = containerColor, contentColor = contentColor)
-                        },
-                        headlineContent = { Text(stringResource(R.string.setting_experimental_character)) },
-                        supportingContent = { Text(stringResource(R.string.setting_experimental_character_desc)) },
-                    )
                     switchItem(
                         checked = settings.experimentalDeepSeekWeb,
                         onCheckedChange = { checked ->
@@ -450,26 +418,6 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
         }
     }
 
-    if (offerCharacterMigration && !settings.characterMigrationPrompted) {
-        CharacterMigrationDialog(
-            onDecline = {
-                scope.launch {
-                    settingsStore.update {
-                        it.copy(
-                            characterMigrationState = CharacterMigrationState.DECLINED,
-                            characterMigrationPrompted = true,
-                            lastRunVersionCode = me.rerere.rikkahub.BuildConfig.VERSION_CODE.toInt(),
-                        )
-                    }
-                    offerCharacterMigration = false
-                }
-            },
-            onTransfer = {
-                offerCharacterMigration = false
-                navController.navigate(Screen.CharacterTransfer)
-            },
-        )
-    }
 }
 
 private fun ColorMode.icon(): ImageVector = when (this) {

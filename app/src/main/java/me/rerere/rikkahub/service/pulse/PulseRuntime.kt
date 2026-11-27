@@ -73,6 +73,13 @@ class PulseRuntime(
                 if (event == Lifecycle.Event.ON_START) {
                     foreground = true
                     if (settingsStore.settingsFlow.value.pulse.keepAliveEnabled) startDaemon()
+                    scope.launch {
+                        settingsStore.awaitLoaded()
+                        PulseShizuku.ensureDozeWhitelist(context) {
+                            val pulse = settingsStore.settingsFlow.value.pulse
+                            foreground && pulse.keepAliveEnabled && pulse.keepAliveShizuku
+                        }
+                    }
                     PulseDaemonService.refresh(context)
                     trigger()
                 } else if (event == Lifecycle.Event.ON_STOP) foreground = false

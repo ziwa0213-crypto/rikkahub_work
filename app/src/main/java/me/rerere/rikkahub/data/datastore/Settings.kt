@@ -34,6 +34,7 @@ import me.rerere.rikkahub.data.model.Group
 import me.rerere.rikkahub.data.model.GroupMember
 import me.rerere.rikkahub.data.model.MemoryGroup
 import kotlin.uuid.Uuid
+import me.rerere.rikkahub.data.st.regex.RegexScript
 
 @Serializable
 data class Settings(
@@ -43,7 +44,7 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
-    /** 实验性：角色板块（第四模式）。关闭时入口隐藏，数据保留。 */
+    /** Legacy serialized field retained for backup compatibility; no longer gates role mode. */
     val experimentalCharacterMode: Boolean = false,
     /** 实验性：DeepSeek 网页版登录供应商。关闭时入口隐藏，登录数据保留。 */
     val experimentalDeepSeekWeb: Boolean = false,
@@ -114,6 +115,12 @@ data class Settings(
     val browserVisitedHosts: List<String> = emptyList(),
     val launchCount: Int = 0,
     val uiMode: UiMode = UiMode.CHAT,
+    val defaultMode: UiMode = UiMode.CHAT,
+    val defaultModeChosen: Boolean = false,
+    val stVariables: Map<String, Map<String, String>> = emptyMap(),
+    val stRegexScripts: List<RegexScript> = emptyList(),
+    /** 0 selects the default budget of 8000 characters. */
+    val stWorldbookBudgetChars: Int = 0,
     val characterId: Uuid? = null,
     val characters: List<Character> = emptyList(),
     val deletedCharacterIds: Set<Uuid> = emptySet(),

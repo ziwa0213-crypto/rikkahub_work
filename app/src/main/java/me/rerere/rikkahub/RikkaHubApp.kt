@@ -66,7 +66,6 @@ class RikkaHubApp : Application() {
     internal val launchCountUpdated = CompletableDeferred<Boolean>()
     override fun onCreate() {
         super.onCreate()
-        registerActivityLifecycleCallbacks(me.rerere.rikkahub.utils.AlarmForegroundActivity)
         // Restore files and settings before eager Koin singletons or workers can access them.
         try {
             val restored = runBlocking(Dispatchers.IO) {
@@ -85,6 +84,7 @@ class RikkaHubApp : Application() {
             workManagerFactory()
             modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
         }
+        me.rerere.rikkahub.service.pulse.PulseShizuku.start()
         this.createNotificationChannel()
 
         // set cursor window size to 32MB

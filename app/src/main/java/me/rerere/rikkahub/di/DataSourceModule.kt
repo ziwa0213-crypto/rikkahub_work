@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 val dataSourceModule = module {
+    single { me.rerere.rikkahub.data.st.macro.CharacterMacroStorage(get()) }
     single {
         SettingsStore(context = get(), scope = get())
     }

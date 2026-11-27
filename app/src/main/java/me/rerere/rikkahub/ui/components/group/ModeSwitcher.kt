@@ -35,7 +35,7 @@ import me.rerere.rikkahub.data.datastore.UiMode
 @Composable
 fun ModeSwitcher(
     mode: UiMode,
-    experimentalCharacterMode: Boolean = false,
+    modes: List<UiMode> = UiMode.entries,
     onSelect: (UiMode) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -53,15 +53,15 @@ fun ModeSwitcher(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(mode.icon(), null, Modifier.size(14.dp))
-                Text(stringResource(mode.label(experimentalCharacterMode)),
+                Text(stringResource(mode.label()),
                     style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                 Icon(HugeIcons.ArrowDown01, null, Modifier.size(14.dp))
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            UiMode.entries.filter { experimentalCharacterMode || it != UiMode.ROLE }.forEach { option ->
+            modes.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(stringResource(option.label(experimentalCharacterMode))) },
+                    text = { Text(stringResource(option.label())) },
                     leadingIcon = { Icon(option.icon(), null) },
                     trailingIcon = { if (option == mode) Icon(HugeIcons.Tick01, null) },
                     onClick = { expanded = false; if (option != mode) onSelect(option) },
@@ -71,8 +71,8 @@ fun ModeSwitcher(
     }
 }
 
-private fun UiMode.label(experimentalCharacterMode: Boolean) = when (this) {
-    UiMode.CHAT -> if (experimentalCharacterMode) R.string.group_mode_work else R.string.group_mode_chat
+private fun UiMode.label() = when (this) {
+    UiMode.CHAT -> R.string.group_mode_work
     UiMode.ROLE -> R.string.group_mode_role
     UiMode.GROUP -> R.string.group_mode_group
     UiMode.PULSE -> R.string.group_mode_pulse

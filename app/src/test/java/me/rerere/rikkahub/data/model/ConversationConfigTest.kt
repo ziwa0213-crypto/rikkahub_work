@@ -52,7 +52,9 @@ class ConversationConfigTest {
     fun `unstarted conversation follows the assistant`() {
         val conversation = conversation()
 
-        assertSame(assistant, settings().getAssistantOf(conversation))
+        // Work keeps the stored legacy binding, but worldbooks are now role-only.
+        assertEquals(assistant.copy(lorebookIds = emptySet()), settings().getAssistantOf(conversation))
+        assertEquals(setOf(lorebook), settings().assistants.single().lorebookIds)
         assertEquals(modelA, settings().getChatModelOf(conversation))
     }
 
@@ -89,7 +91,7 @@ class ConversationConfigTest {
             bound.config,
         )
         assertEquals(setOf(injection), bound.modeInjectionIds)
-        assertEquals(setOf(lorebook), bound.lorebookIds)
+        assertTrue(bound.lorebookIds.isEmpty())
         assertSame(bound, bound.bindConfig(settings(assistant.copy(reasoningLevel = ReasoningLevel.OFF))))
     }
 
@@ -120,7 +122,7 @@ class ConversationConfigTest {
 
         val resolved = settings(changed).getAssistantOf(bound)
 
-        assertEquals(assistant.copy(systemPrompt = "changed"), resolved)
+        assertEquals(assistant.copy(systemPrompt = "changed", lorebookIds = emptySet()), resolved)
         assertEquals(modelA, settings(changed).getChatModelOf(bound))
     }
 
@@ -228,12 +230,16 @@ class ConversationConfigTest {
     @Test
     fun `conversation bound before per-conversation config keeps its own injections`() {
         val conversationInjection = Uuid.random()
-        val conversation = conversation().copy(modeInjectionIds = setOf(conversationInjection))
+        val conversation = conversation().copy(
+            modeInjectionIds = setOf(conversationInjection),
+            lorebookIds = setOf(lorebook),
+        )
 
         val bound = conversation.bindConfig(settings())
 
-        // 会话自己绑定过的保留，没绑定过的继承助手
+        // 会话自己绑定过的保留；工作模式的旧世界书绑定不参与请求。
         assertEquals(setOf(conversationInjection), bound.modeInjectionIds)
         assertEquals(setOf(lorebook), bound.lorebookIds)
+        assertTrue(settings().getAssistantOf(bound).lorebookIds.isEmpty())
     }
 }

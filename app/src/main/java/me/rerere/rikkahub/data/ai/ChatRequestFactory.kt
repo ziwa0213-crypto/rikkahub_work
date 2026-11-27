@@ -2,6 +2,9 @@ package me.rerere.rikkahub.data.ai
 
 import android.content.Context
 import android.util.Log
+import me.rerere.rikkahub.data.st.macro.CharacterMacroStorage
+import me.rerere.rikkahub.data.ai.transformers.CharacterStTurn
+import me.rerere.rikkahub.data.ai.transformers.TransformerContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -99,7 +102,9 @@ class ChatTurnContext(
     val pulseInstruction: String? = null,
     val referencedMemories: List<MemoryFile> = emptyList(),
     val character: Character? = null,
-)
+) {
+    internal var stTurn: CharacterStTurn? = null
+}
 
 internal data class ChatTurnRoute(
     val assistant: Assistant,
@@ -120,7 +125,6 @@ internal fun resolveChatTurnRoute(
     if (mode == AssistantMode.ROLE) check(character != null && base.id == conversation.assistantId) {
         "Invalid character conversation owner"
     }
-    if (character != null) check(settings.experimentalCharacterMode) { "Character mode is disabled" }
     val model = if (assistantOverride == null) settings.getChatModelOf(conversation)
         else settings.findModelById(base.chatModelId ?: settings.chatModelId)
     return ChatTurnRoute(
@@ -141,6 +145,7 @@ class ChatRequestFactory(
     private val memoryRepository: MemoryRepository,
     templateTransformer: TemplateTransformer,
     workspaceRepository: WorkspaceRepository,
+    private val macroStorage: CharacterMacroStorage,
 ) {
     private val inputTransformers: List<InputMessageTransformer> = listOf(
         TimeReminderTransformer,
@@ -210,8 +215,18 @@ class ChatRequestFactory(
             isGroupChat = mode == AssistantMode.GROUP,
             pulseInstruction = resolvePulseInstruction(conversation, pulseInstruction),
             character = route.character,
-        )
+        ).also { turn ->
+            turn.stTurn = route.character?.let { CharacterStTurn(it, settings, conversation.id, macroStorage.registry, conversation.currentMessages) }
+        }
     }
+
+    internal suspend fun flushCharacterVariables(conversationId: Uuid): Result<Unit> =
+        macroStorage.registry.flushAtTurnEnd(setOf("global", "conversation:$conversationId"))
+
+    internal fun applyCharacterRegex(message: UIMessage, settings: Settings, conversation: Conversation, isEdit: Boolean = false): UIMessage =
+        me.rerere.rikkahub.data.ai.transformers.applyCharacterMessageRegex(message,
+            settings.characters.firstOrNull { it.id == conversation.assistantId }.takeIf { conversation.canUseLorebooks(settings) },
+            settings, isEdit, conversation.id.toString(), conversation.currentMessages, macroStorage.registry)
 
     /**
      * 本轮交给 runAgent 的请求和钩子。[messages] 的最后一条是助手消息时从它继续，否则新建一条助手消息。
@@ -229,6 +244,11 @@ class ChatRequestFactory(
         // Approval resumption can start with existing tools, before prepareStep/finishStep run.
         messages.lastOrNull()?.let { validateDeepSeekWebToolCalls(turn.providerSetting, it) }
         val provider = providerManager.getProviderByType(turn.providerSetting)
+        val outputTransformers = this.outputTransformers + listOfNotNull(turn.stTurn?.let { st ->
+            object : OutputMessageTransformer {
+                override suspend fun transform(ctx: TransformerContext, messages: List<UIMessage>) = messages.map(st::transformOutput)
+            }
+        })
         val request = AgentRequest(
             // Group usage stays on its messages but must not enter single-chat statistics.
             provider = if (turn.isGroupChat) provider else usageRecorder.wrap(
@@ -340,6 +360,7 @@ class ChatRequestFactory(
         contextMessageLimit: Int = turn.assistant.contextMessageLimit,
     ): StepRequest {
         val assistant = turn.assistant
+        turn.stTurn?.captureHistory(messages)
         val prompt = buildSystemPrompt(turn, messages)
         val clientContext = buildClientContext().takeIf { LocalToolOption.ClientContext in assistant.localTools }
         val latestReminder = usesLatestReminder(turn.providerSetting, turn.model.modelId)
@@ -354,7 +375,12 @@ class ChatRequestFactory(
         }.let { applyCharacterInjections(it, turn.character, turn.settings.stylePacks, context.getString(R.string.character_style_heading)) }.transforms(
             transformers = if (turn.isGroupChat) listOf(GroupSpeakerTransformer(
                 contextMessageLimit, context.getString(R.string.group_quote_reply_prefix)
-            )) + inputTransformers else inputTransformers,
+            )) + inputTransformers else turn.stTurn?.let { st -> inputTransformers.flatMap { transformer ->
+                if (transformer === PromptInjectionTransformer) listOf(st, object : InputMessageTransformer {
+                    override suspend fun transform(ctx: me.rerere.rikkahub.data.ai.transformers.TransformerContext, messages: List<UIMessage>) =
+                        me.rerere.rikkahub.data.ai.transformers.transformMessages(messages, ctx.assistant.copy(lorebookIds = emptySet()), ctx.settings.modeInjections, emptyList())
+                }) else listOf(transformer)
+            } } ?: inputTransformers,
             context = context,
             model = turn.model,
             assistant = assistant,
@@ -391,7 +417,8 @@ internal fun buildSystemPrompt(turn: ChatTurnContext, messages: List<UIMessage>)
     val effectiveSystemPrompt = if (assistant.allowConversationSystemPrompt && !turn.conversationSystemPrompt.isNullOrBlank()) {
         turn.conversationSystemPrompt
     } else turn.character?.buildPromptModules(
-        userNickname = turn.settings.displaySetting.userNickname,
+        userNickname = turn.settings.characterPersonas.firstOrNull { it.id == turn.character.personaId }?.name
+            ?.takeIf(String::isNotBlank) ?: turn.settings.displaySetting.userNickname,
         persona = turn.settings.characterPersonas.firstOrNull { it.id == turn.character.personaId }
             ?.let { listOf(it.name, it.description).filter(String::isNotBlank).joinToString("\n") }.orEmpty(),
     ) ?: assistant.systemPrompt

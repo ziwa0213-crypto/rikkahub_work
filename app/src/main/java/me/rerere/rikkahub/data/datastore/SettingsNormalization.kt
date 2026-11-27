@@ -11,12 +11,8 @@ import kotlin.uuid.Uuid
 
 /** 读盘后和每次修改后都要过一遍，保证内存里的设置始终是规整的。 */
 internal fun Settings.normalized(): Settings =
-    withBuiltInDefaults().withoutInvalidReferences().withoutHiddenDeepSeekWeb().withCharacterModeGate()
+    withBuiltInDefaults().withoutInvalidReferences().withoutHiddenDeepSeekWeb()
         .withValuesInRange().normalizeGroupData()
-
-/** Keep role data intact while ensuring a hidden mode cannot remain selected. */
-internal fun Settings.withCharacterModeGate(): Settings =
-    if (experimentalCharacterMode || uiMode != UiMode.ROLE) this else copy(uiMode = UiMode.CHAT)
 
 /** Hide DeepSeek Web without deleting its login state, and keep settings references usable. */
 internal fun Settings.withoutHiddenDeepSeekWeb(): Settings {
@@ -165,6 +161,17 @@ internal fun Settings.withoutInvalidReferences(): Settings {
 
 // 把取值收回合法范围，比如删掉搜索服务后选中的下标可能越界
 private fun Settings.withValuesInRange(): Settings = copy(
+    defaultMode = defaultMode.takeIf { it == UiMode.CHAT || it == UiMode.ROLE } ?: UiMode.CHAT,
+    stVariables = stVariables.filterKeys { it.isNotBlank() }
+        .mapValues { (_, values) -> values.filterKeys { it.isNotBlank() } },
+    stRegexScripts = stRegexScripts.map { if (it.id.isBlank()) it.copy(id = Uuid.random().toString()) else it }.distinctBy { it.id },
+    stWorldbookBudgetChars = stWorldbookBudgetChars.takeIf { it >= 200 } ?: 0,
+    characters = characters.map { character -> character.copy(
+        stRegexScripts = character.stRegexScripts.map { if (it.id.isBlank()) it.copy(id = Uuid.random().toString()) else it }.distinctBy { it.id },
+        stWorldbookBudgetChars = character.stWorldbookBudgetChars?.takeIf { it >= 200 },
+        depthPromptDepth = character.depthPromptDepth.coerceIn(1, 20),
+        depthPromptRole = character.depthPromptRole.lowercase().takeIf { it in setOf("system", "user", "assistant") } ?: "system",
+    ) },
     pulse = pulse.copy(
         chatModelId = pulse.chatModelId?.takeIf { id ->
             findModelById(id)?.isAllowedForPulse(providers) == true

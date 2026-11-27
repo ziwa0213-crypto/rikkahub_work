@@ -8,6 +8,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,7 @@ import me.rerere.rikkahub.data.repository.memoryId
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.context.LocalToaster
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
@@ -27,6 +29,8 @@ import kotlin.uuid.Uuid
 internal fun CharacterTransferPage() {
     val settings = LocalSettings.current
     val nav = LocalNavController.current
+    val context = LocalContext.current
+    val toaster = LocalToaster.current
     val scope = rememberCoroutineScope()
     val store: SettingsStore = koinInject()
     val repo = CharacterTransferVM(store, koinInject(), koinInject(), koinInject(), koinInject())
@@ -55,11 +59,12 @@ internal fun CharacterTransferPage() {
     fun commit(selection: TransferMemory?) {
         val id = current ?: return
         run {
-            repo.transfer(id, move, selection, selection != null && moveMemory, target)
+            val missing = repo.transfer(id, move, selection, selection != null && moveMemory, target)
             pending = pending - id
             current = null
             memory = null
             step = 0
+            if (missing > 0) toaster.show(context.getString(R.string.character_transfer_missing_attachments, missing))
         }
     }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.character_transfer)) }, navigationIcon = { if (!busy) BackButton() }) }) { padding ->
@@ -113,7 +118,8 @@ internal fun CharacterTransferPage() {
                         Row { Checkbox(row.id in rows, { if (it) rows += row.id else rows -= row.id }, enabled = !busy); Text(row.content, Modifier.padding(top = 12.dp)) }
                     }
                 }
-                val allowMove = candidates != null && assistant != null && settings.canMoveMemory(assistant.id, candidates.scope)
+                val moveBlock = if (candidates != null && assistant != null) settings.memoryMoveBlock(assistant.id, candidates.scope) else null
+                val allowMove = moveBlock == MemoryMoveBlock.NONE
                 Row(Modifier.fillMaxWidth().selectableGroup()) {
                     Row(
                         Modifier.weight(1f).selectable(
@@ -136,8 +142,14 @@ internal fun CharacterTransferPage() {
                         Text(stringResource(R.string.character_move))
                     }
                 }
-                if (candidates != null && !allowMove) {
-                    Text(stringResource(R.string.character_memory_move_shared_unavailable), style = MaterialTheme.typography.bodySmall)
+                val moveBlockText = when (moveBlock) {
+                    MemoryMoveBlock.GLOBAL -> R.string.character_memory_move_blocked_global
+                    MemoryMoveBlock.SHARED_WITH_ASSISTANT -> R.string.character_memory_move_blocked_shared
+                    MemoryMoveBlock.REFERENCED_BY_CHARACTER -> R.string.character_memory_move_blocked_referenced
+                    else -> null
+                }
+                if (moveBlockText != null) {
+                    Text(stringResource(moveBlockText), style = MaterialTheme.typography.bodySmall)
                 }
                 TextButton(enabled = !busy, onClick = {
                     commit(candidates?.copy(files = candidates.files.filter { it.path in paths }, rows = candidates.rows.filter { it.id in rows }))
@@ -147,7 +159,19 @@ internal fun CharacterTransferPage() {
     }
     if (step == 1 && assistant != null) AlertDialog(onDismissRequest = { step = 0 },
         title = { Text(stringResource(R.string.character_transfer_assistant)) },
-        text = { Text(assistant.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(assistant.name)
+                val moveBlockText = when (settings.assistantMoveBlock(assistant.id)) {
+                    AssistantMoveBlock.DEFAULT_ASSISTANT -> R.string.character_move_blocked_default_assistant
+                    AssistantMoveBlock.GROUP_MEMBER -> R.string.character_move_blocked_group_member
+                    AssistantMoveBlock.NONE -> null
+                }
+                if (moveBlockText != null) {
+                    Text(stringResource(moveBlockText), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
         confirmButton = { TextButton(onClick = { move = false; step = 2 }) { Text(stringResource(R.string.character_copy)) } },
         dismissButton = { TextButton(enabled = settings.canMoveToCharacter(assistant.id), onClick = { move = true; step = 2 }) {
             Text(stringResource(R.string.character_move))

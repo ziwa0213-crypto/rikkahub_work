@@ -64,7 +64,7 @@ internal fun CharacterPromptModulePage(
     val character = settings.findCharacter(Uuid.parseOrNull(characterId))
     val kind = PromptModuleKind.entries.firstOrNull { it.name == kindName } ?: PromptModuleKind.CUSTOM
 
-    if (!settings.experimentalCharacterMode || character == null) {
+    if (character == null) {
         LaunchedEffect(Unit) { nav.popBackStack() }
         return
     }

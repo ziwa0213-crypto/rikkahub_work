@@ -585,11 +585,9 @@ private fun ExtensionPickerPage(
             groupMode = groupMode,
             allowedTabs = when {
                 pulseMode -> PulseExtensionTabs
-                roleMode && settings.experimentalCharacterMode -> CharacterExtensionTabs
-                roleMode -> DisabledCharacterExtensionTabs
+                roleMode -> CharacterExtensionTabs
                 groupMode -> GroupExtensionTabs
-                settings.experimentalCharacterMode -> ExperimentalWorkExtensionTabs
-                else -> WorkExtensionTabs
+                else -> ExperimentalWorkExtensionTabs
             },
             onUpdateModeInjectionIds = onUpdateGroupModeInjectionIds,
             onUpdateLorebookIds = if (roleMode) { ids -> onUpdateAssistant(assistant.copy(lorebookIds = ids)) } else null,

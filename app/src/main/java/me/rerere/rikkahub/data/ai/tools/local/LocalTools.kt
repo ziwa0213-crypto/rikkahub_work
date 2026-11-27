@@ -39,7 +39,7 @@ class LocalTools(
 
     val calendarDeleteTool by lazy { buildCalendarDeleteTool(context) }
     val chartDisplayTool by lazy { buildChartDisplayTool() }
-    val alarmTool by lazy { buildAlarmTool() }
+    val alarmTool by lazy { buildAlarmTool(context) }
 
     val phoneUseTool by lazy {
         buildPhoneUseTool(

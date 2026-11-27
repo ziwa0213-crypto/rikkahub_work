@@ -66,6 +66,8 @@ import me.rerere.rikkahub.data.model.isGroupChat
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.isPulseChat
 import me.rerere.rikkahub.data.model.getChatModelOf
+import me.rerere.rikkahub.data.model.getAssistantOf
+import me.rerere.rikkahub.data.model.isCharacterChat
 import me.rerere.rikkahub.data.model.withConversation
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.message.ChatMessage
@@ -302,14 +304,15 @@ private fun ChatListNormal(
     ImeLazyListAutoScroller(lazyListState = state)
 
     val assistant = remember(
-        settings.assistants,
+        settings,
         conversation.assistantId,
         conversation.config,
         conversation.modeInjectionIds,
         conversation.lorebookIds,
     ) {
         // 工作区等配置在会话开始后以会话上固定的为准
-        settings.getAssistantById(conversation.assistantId)?.withConversation(conversation)
+        if (conversation.isCharacterChat(settings)) settings.getAssistantOf(conversation)
+        else settings.getAssistantById(conversation.assistantId)?.withConversation(conversation)
     }
     val modelById = remember(settings.providers) {
         settings.providers
@@ -329,7 +332,7 @@ private fun ChatListNormal(
             ?.findProvider(settings.providers, checkOverwrite = false)
     }
     // 流式输出时会频繁重组，只在相关配置变了才重新查找模型
-    val needsSetup = remember(settings.init, settings.providers, settings.chatModelId, settings.assistants, conversation.assistantId, conversation.config) {
+    val needsSetup = remember(settings, conversation.assistantId, conversation.config, groupModelId) {
         !settings.init && settings.getChatModelOf(conversation) == null
     }
 
@@ -399,6 +402,8 @@ private fun ChatListNormal(
                     ) {
                         ChatMessage(
                             node = node,
+                            stDepth = lastMessageIndex - index,
+                            stConversationId = conversation.id.toString(),
                             model = node.currentMessage.modelId?.let(modelById::get)
                                 ?: node.currentMessage.snapshotModel(),
                             assistant = assistant,

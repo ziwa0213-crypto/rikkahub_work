@@ -1,5 +1,57 @@
 # F015 包 0：后台保活参考复核
 
+## 2026-11-25：Shizuku 可选加固（补充二，仅 Doze 白名单）
+
+实施前阅读保留的Kai固定commit `ed6a3e0c48e10de9e2852e939fa4531975352bff`
+的`composeApp/src/androidMain/kotlin/com/inspiredandroid/kai/DaemonController.android.kt`全文；
+PalmClaw固定commit `75a42aeda0e580ebad0de4a38c00c94146148366`的
+`app/src/main/java/com/palmclaw/runtime/AlwaysOnForegroundServiceStartPolicy.kt`全文、
+`runtime/alwayson/AndroidAlwaysOnPlatform.kt`启动适配段（1–195行）以及
+`ui/common/AndroidUiHelpers.kt`权限/系统入口段（135–225行）。
+
+初版参考Kai仅处理ForegroundServiceStartNotAllowedException、PalmClaw识别后台启动拒绝
+及区分平台调用与运行状态的边界。补充二实施前再次核对上述DaemonController和启动策略；
+最终删除Shizuku服务启动路径及拒绝分类，保留原平台启动失败只打日志。参考仓库未提供Shizuku桥接，不声称直接移植；
+未fetch/删除两仓，也未复制它们的调度器、服务所有者、自动恢复策略或源码。
+
+额外核实Maven Central发布的`dev.rikka.shizuku:api:13.0.0`源码JAR：
+`Shizuku.newProcess`是public；`ShizukuRemoteProcess.waitFor`会执行阻塞Binder事务，
+因此本项目采用alive轮询和并发读双流，在取消/超时时先销毁进程及关流，再等待读任务结束。
+provider 13.0.0的Manifest带`moe.shizuku.manager.permission.API_V23`自定义权限及V3_SUPPORT元数据；
+这不是新增Android系统权限。ShizukuPlus master README确认Drop-In/主版/Compat Hub形态。
+
+AOSP android15-release `core/java/android/app/ActivityManager.java`的
+`canAccessUnexportedComponents`仅允许root/system；`checkComponentPermission`随后拒绝
+外部UID访问未导出组件。现有PulseDaemonService为exported=false，普通shell Shizuku的
+am命令不能绕过此限制。保留原声明和代码，应用不再发送该命令；V5改为普通shell手动启动
+预期not exported，记录实际报错，尚未进行设备验收。root/system的组件权限例外不属于本轮功能承诺。
+进程已死时本桥接无法凭空获得执行入口；导出服务+DUMP及启动RouteActivity仅列为后续方案，均未实现。
+标准Doze白名单不保证能影响OriginOS私有冻结；V4实际收益和V5b白名单/系统豁免前后状态均待真机确认。
+
+本项目仅保留ON_START一处Runtime接线，Doze每进程最多尝试一次，不另加定时器或调度锁。
+任务书顺序读双流的示例会死锁，实际改为并行固定8KiB缓冲排空；命令10秒上限
+与用户已取消的聊天/心跳生成上限无关。未运行ADB、设备或真实Shizuku。
+
+补充二最终编译及25套件162项定向JVM通过（1分35秒），移除初版服务命令/启动拒绝两项测试，
+保留13项桥接回归，证据见根DELIVERY。额外开管道取消测试曾发现InterruptedIOException
+覆盖协程取消，现按当前Job活跃状态保留取消或真实读取失败；并增加开管道超时测试。
+这些离线结果、合并Manifest和未导出限制均在根DELIVERY记录，不替代设备验收。
+
+## 2026-11-25：系统闹钟后台调用
+
+实施前直接阅读本机 Kai 固定 commit `ed6a3e0c48e10de9e2852e939fa4531975352bff` 的
+`composeApp/src/androidMain/kotlin/com/inspiredandroid/kai/tools/SetAlarmTool.kt` 全文，
+以及 PalmClaw 固定 commit `75a42aeda0e580ebad0de4a38c00c94146148366` 的
+`app/src/main/java/com/palmclaw/tools/AndroidToolSupport.kt` 全文和
+`app/src/main/java/com/palmclaw/ui/common/AndroidUiHelpers.kt` 的权限状态/系统服务入口段（1–135行）。
+
+沿用 Kai 的应用 Context + NEW_TASK 系统 Clock Intent，不复制其参数宽松转换或“已设置”文案；
+参考 PalmClaw 的“仅确认launch started”和独立系统授权状态，不把startActivity正常返回当作保存回执。
+不复制参考代码、不更新/删除两仓、不引入自己的闹钟引擎、运行时、超时或调度器。
+本项目额外用前后nextAlarmClock变化及请求时分给最佳努力verified；定时器和更晚闹钟不能据此确认。
+任务书的“非空即成功”会把旧闹钟当作新闹钟，不能采用；悬浮窗已授权但ROM静默阻止时也不能靠该API证明。
+权限和结果策略的离线测试与iQOO/OriginOS设备实测分开记录于根DELIVERY，设备验收未执行。
+
 ## 2026-11-16：完整静默标记白名单（206）
 
 改动前直接阅读本机固定Kai ed6a3e0c48e10de9e2852e939fa4531975352bff的

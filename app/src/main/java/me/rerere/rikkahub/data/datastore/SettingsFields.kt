@@ -79,6 +79,12 @@ private fun reasoningLevel(
 internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
     listOf(
         // UI设置
+        SettingsField(DEFAULT_MODE, Settings::defaultMode, { copy(defaultMode = it) },
+            encode = { it.name }, decode = ::uiModeOf),
+        plain(DEFAULT_MODE_CHOSEN, Settings::defaultModeChosen) { copy(defaultModeChosen = it) },
+        json(ST_VARIABLES, Settings::stVariables) { copy(stVariables = it) },
+        json(ST_REGEX_SCRIPTS, Settings::stRegexScripts) { copy(stRegexScripts = it) },
+        plain(ST_WORLDBOOK_BUDGET_CHARS, Settings::stWorldbookBudgetChars) { copy(stWorldbookBudgetChars = it) },
         plain(DYNAMIC_COLOR, Settings::dynamicColor) { copy(dynamicColor = it) },
         plain(THEME_ID, Settings::themeId) { copy(themeId = it) },
         json(CUSTOM_THEMES, Settings::customThemes) { copy(customThemes = it) },

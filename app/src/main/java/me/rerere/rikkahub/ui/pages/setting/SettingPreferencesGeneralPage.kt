@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Column
+import me.rerere.rikkahub.data.datastore.UiMode
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -20,8 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 import me.rerere.rikkahub.R
@@ -45,8 +54,15 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
+    val context = LocalContext.current
+    var alarmOverlayAllowed by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    LifecycleResumeEffect(context) {
+        alarmOverlayAllowed = Settings.canDrawOverlays(context)
+        onPauseOrDispose {}
+    }
     val navController = LocalNavController.current
     val settings by vm.settings.collectAsStateWithLifecycle()
+    var chooseDefaultMode by remember { mutableStateOf(false) }
     val liquidUnavailable by LiquidGlassCircuitBreaker.unavailable.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
     var ttsPlaybackSpeed by remember(settings.defaultTTSPlaybackSpeed) {
@@ -59,6 +75,21 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    if (chooseDefaultMode) {
+        ModalBottomSheet(onDismissRequest = { chooseDefaultMode = false }) {
+            Column {
+                listOf(UiMode.CHAT, UiMode.ROLE).forEach { choice ->
+                    TextButton(onClick = {
+                        vm.updateSettings { it.copy(defaultMode = choice, defaultModeChosen = true) }
+                        chooseDefaultMode = false
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(if (choice == UiMode.CHAT) R.string.default_mode_work else R.string.default_mode_role))
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -83,9 +114,29 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
         ) {
             item {
                 CardGroup {
+                    item(onClick = { chooseDefaultMode = true },
+                        headlineContent = { Text(stringResource(R.string.setting_default_mode)) },
+                        supportingContent = { Text(stringResource(R.string.default_mode_desc)) },
+                        trailingContent = { CardGroupValue(stringResource(if (settings.defaultMode == UiMode.ROLE)
+                            R.string.default_mode_role else R.string.default_mode_work)) })
                     item(onClick = { navController.navigate(Screen.PulseBackgroundSettings) },
                         headlineContent = { Text(stringResource(R.string.pulse_background_title)) },
                         supportingContent = { Text(stringResource(R.string.pulse_keepalive_description)) })
+                    item(
+                        onClick = {
+                            context.startActivity(Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                "package:${context.packageName}".toUri(),
+                            ))
+                        },
+                        headlineContent = { Text(stringResource(R.string.setting_alarm_background_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_alarm_background_description)) },
+                        trailingContent = {
+                            CardGroupValue(stringResource(if (alarmOverlayAllowed) {
+                                R.string.setting_alarm_background_granted
+                            } else R.string.pulse_permission_missing))
+                        },
+                    )
                 }
             }
             item {

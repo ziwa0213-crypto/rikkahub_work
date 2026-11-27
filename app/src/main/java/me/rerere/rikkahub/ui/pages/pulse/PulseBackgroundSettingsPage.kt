@@ -23,12 +23,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.service.pulse.PulseShizuku
 import me.rerere.rikkahub.service.pulse.launchBatterySettings
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.switchItem
 import me.rerere.rikkahub.utils.plus
 import org.koin.compose.koinInject
+import rikka.shizuku.Shizuku
 
 @Composable
 fun PulseBackgroundSettingsPage() {
@@ -44,9 +46,24 @@ fun PulseBackgroundSettingsPage() {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
+    LaunchedEffect(Unit) {
+        PulseShizuku.revisions.collect { revision++ }
+    }
+    DisposableEffect(Unit) {
+        val listener = Shizuku.OnRequestPermissionResultListener { requestCode, _ ->
+            if (requestCode == PulseShizuku.PERMISSION_CODE) revision++
+        }
+        runCatching { Shizuku.addRequestPermissionResultListener(listener) }
+        onDispose { runCatching { Shizuku.removeRequestPermissionResultListener(listener) } }
+    }
     val battery = remember(revision) { context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName) }
     val exact = remember(revision) { Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms() }
     val notification = remember(revision) { NotificationManagerCompat.from(context).areNotificationsEnabled() }
+    val shizuku = remember(revision) { PulseShizuku.state() }
+    val shizukuNeedsHub = remember(revision) {
+        shizuku == PulseShizuku.State.UNAVAILABLE &&
+            PulseShizuku.plusInstalled(context) && !PulseShizuku.managerInstalled(context)
+    }
     fun open(action: String, appData: Boolean = true) {
         val intent = Intent(action).apply {
             if (appData) data = Uri.parse("package:${context.packageName}")
@@ -63,6 +80,39 @@ fun PulseBackgroundSettingsPage() {
                 switchItem(checked = settings.pulse.keepAliveEnabled, onCheckedChange = { if (it) confirm = true else setEnabled(false) },
                     headlineContent = { Text(stringResource(R.string.pulse_keepalive_title)) },
                     supportingContent = { Text(stringResource(R.string.pulse_keepalive_description)) })
+            } }
+            item { CardGroup {
+                switchItem(
+                    checked = settings.pulse.keepAliveShizuku,
+                    onCheckedChange = { enabled ->
+                        scope.launch { store.update { it.copy(pulse = it.pulse.copy(keepAliveShizuku = enabled)) } }
+                    },
+                    headlineContent = { Text(stringResource(R.string.pulse_shizuku_title)) },
+                    supportingContent = {
+                        val text = when {
+                            // Permission alone does not prove that the whitelist command succeeded.
+                            shizuku == PulseShizuku.State.READY -> if (
+                                settings.pulse.keepAliveEnabled && settings.pulse.keepAliveShizuku && battery
+                            ) R.string.pulse_shizuku_ready else R.string.pulse_permission_granted
+                            shizuku == PulseShizuku.State.UNAUTHORIZED -> R.string.pulse_shizuku_unauthorized
+                            shizukuNeedsHub -> R.string.pulse_shizuku_plus_compat
+                            else -> R.string.pulse_shizuku_unavailable
+                        }
+                        Text(stringResource(text))
+                    },
+                )
+                if (settings.pulse.keepAliveShizuku && shizuku == PulseShizuku.State.UNAUTHORIZED) {
+                    item(onClick = { PulseShizuku.requestPermission() },
+                        headlineContent = { Text(stringResource(R.string.pulse_shizuku_grant)) })
+                }
+                if (settings.pulse.keepAliveShizuku && shizukuNeedsHub) {
+                    item(onClick = {
+                        runCatching {
+                            context.packageManager.getLaunchIntentForPackage(PulseShizuku.PLUS_PACKAGE)
+                                ?.let { context.startActivity(it) }
+                        }
+                    }, headlineContent = { Text(stringResource(R.string.pulse_shizuku_open_plus)) })
+                }
             } }
             item { Text(stringResource(R.string.pulse_permissions_description)) }
             item { CardGroup {
@@ -93,5 +143,6 @@ fun PulseBackgroundSettingsPage() {
 
 @Composable
 private fun PermissionState(granted: Boolean) {
-    Text(stringResource(if (granted) R.string.pulse_permission_granted else R.string.pulse_permission_missing))
+    Text(stringResource(if (granted) R.string.pulse_permission_granted else R.string.pulse_permission_missing),
+        color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
 }

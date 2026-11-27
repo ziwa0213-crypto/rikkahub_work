@@ -43,11 +43,7 @@ fun AssistantExtensionsPage(id: String) {
     val skills by vm.skills.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val tabs = if (settings.experimentalCharacterMode) {
-        ExtensionTab.entries - ExtensionTab.LOREBOOKS
-    } else {
-        ExtensionTab.entries.toList()
-    }
+    val tabs = ExtensionTab.entries - ExtensionTab.LOREBOOKS
     val pagerState = rememberPagerState { tabs.size }
     val listPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     // 页面背景比 sheet 深，列表项用更亮的容器色才分得开

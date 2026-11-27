@@ -1,5 +1,70 @@
 # Repository Guidelines
 
+## 当前补充：F024 第二期角色设置整页对齐（2026-11-26，补充四）
+
+- 保持3.3.1-work.2 / 211、DB34；产品仅改CharacterPage及三语各+character_page_search_placeholder，实际2867→2868，包中2866→2867为旧计数。参照现有AssistantPage的搜索/FilterChip/Card/ItemActionMenu/拖拽组件，不改助手页、抽屉、选择器、设置页或角色详情页。
+- 页面Column中固定模式/转移行、搜索与标签，再放带weight的LazyColumn；列表仅角色项参与拖拽，末尾旧孤儿历史原区块不变。补充三的deletedCharacterIds LaunchedEffect原样保持；新菜单删除仍先共用cleanupCharacterConversations清会话再移除角色，错误用现有message显示，取消继续传播，不额外写deletedCharacterIds。
+- 标签由角色自由字符串聚合，无全局表；名称忽略大小写、标签OR、两类过滤AND，过滤时手势和排序回调均禁用。标签消失时去掉已失效选中项，避免隐藏筛选无法解除；排序按拖拽key在最新Settings中移动，不用旧整列表盖掉导入/编辑/删除。
+- 卡片20dp/头像48dp/强调标题与助手页一致；启用记忆才显示既有assistant_page_memory_count，来源为该角色文件记忆Flow；最多两标签及+N。菜单仅新聊天/删除，可删光；新聊天/导入/创建/开场白原实现保留，不加复制角色或heroAnimation。Scaffold Insets消耗与助手页一致，Flow按角色remember。
+- 自查不能按包中旧grep数字误删：cleanupCharacterConversations在本页有2个调用（原孤儿清理+新菜单删除），deletedCharacterIds还在必须保留的旧历史兜底区引用。维护者自行构建，代理只编译/App JVM与静态复核、更新根DELIVERY和台账；无APK/ZIP/提交/推送/tag/设备或真实用户数据操作。
+
+## 当前补充：F024 第二期角色设置与连带删除（2026-11-26，补充三）
+
+- 保持3.3.1-work.2 / 211、DB34；补充三覆盖补充二保留弹层末尾列表入口和孤儿会话长期保留的旧口径。三个标题改character_settings_title，删弹层末尾重复item及三语character_list_title；三语仅+1/-1与删除确认文案，各2867总数不变，任务包2865为漏计补充二的旧值。
+- 删除角色先清全部会话再更新角色/选择ID，deletedCharacterIds原字段及写入保留。进入角色设置页按pending快照清旧孤儿，整批成功后才在最新设置中减pending；失败/取消不清ID，不自循环重试，兜底历史区块及原交互保留。
+- 当前源码的会话在内存中权威，不能照示例直接删库后让后台生成写回。两入口先复用现有ChatService.deleteConversationsOfAssistant清会话/停止生成，再走新增Repository.deleteConversationsOfOwner复用deleteConversation核查清理；不改ChatService、会话锁、原单会话删除、DAO或schema。
+- CharacterConversationCleanup仅串行会话清理、持久化清理和最终设置提交，错误/取消传播，UI用原错误区域显示失败，不吞错后删除角色。新增11项JVM验证顺序、等待、失败保留、下次重试、并发新增ID与取消；无新依赖/持久字段。AssistantPicker、SettingsNormalization、角色数据结构、群组/脉搏及原图标保持。
+- 维护者自行构建APK/源码ZIP，本轮只编译/App JVM及静态复核，更新根DELIVERY和台账，不assemble/归档/commit/push/tag或操作设备。不对真实用户数据执行清理；功能运行后的角色会话删除不可撤销，不能将代码回滚等同于恢复数据。
+
+## 当前补充：F024 第二期角色入口与选择器（2026-11-26）
+
+- 当前工程已由维护者构建脚本设为3.3.1-work.2 / 211；本包按此基线叠加，DB34不改，不回退到下方历史210。只改角色UI入口与选择器及三语/台账，不改数据、宏/正则、生成或原应用图标。
+- SettingPage中ROLE进CharacterList、CHAT进Assistant，两者互斥；角色全局正则入口仅ROLE。共用浏览器/语音/媒体/Web服务的CHAT或ROLE条件保持。
+- 新CharacterPicker同构于原AssistantPicker的抽屉行及底部弹层，沿用现有sheetState展开/隐藏方式；不改AssistantPicker、不改selectedCharacter或切换角色的会话导航语义。群组/脉搏分支和孤儿角色会话处理不在本批。
+- 三语各加两个key；任务书§6的前缀计数应为2，两个精确key各1。Screen.Assistant的路由注册保留，实际导航入口仍只有CHAT设置项和抽屉工作分支两处，不按宽泛前缀误删AssistantDetail等路由。
+- 维护者自行构建APK/源码ZIP；本轮只编译/App JVM与静态复核，更新根DELIVERY，不assemble/归档/commit/push/tag或操作设备，保留全部既有dirty改动。
+
+## 当前批次：F024 第二期角色转正与酒馆核心（2026-11-25）
+
+- 主任务书叠加六处校正、包04～07及维护者最后的「变量通道状态接线与重试节制」，后者优先。保持3.3.1-work.1 / 210、DB34；不新增依赖、不改schema、原应用及关于图标，仅保留三语。下方第一期实验开关/长按重跑迁移规则为历史，已由本批转正取代。
+- 角色四模式常驻；experimentalCharacterMode只保留序列化兼容，不再控制入口或请求。默认模式仅CHAT/ROLE，先等待设置加载，再选择、同步uiMode、开放首屏；外部会话优先，目标解析只执行一次。默认选择和老用户迁移共用when，角色列表继续提供手动转移。
+- 世界书仅角色会话；工作/群组/脉搏不显示、不注入，原绑定字段及数据不删除。继续使用Lorebook和RegexInjection，原PromptInjectionTransformer、StylePackTransformer、RegexOutputTransformer保持；深度注入通过独立保角色插入器。
+- 花灯固定c988e47d72230b5d18423879d58a11298b841668为主，Plus固定a2cab03cc27641dff8888590f2397f8bf2304d97补充。宏七文件及正则引擎语义原样；只适配来源、应用级变量存储和请求接线，不搬参考Compose页面，不更新/删除参考仓库。
+- 宏变量按scope共享store/锁；单消费者App级SupervisorJob，合并通道只传唤醒，快照/屏障独立。offer与latestVersion、取批与inFlight、写结果与回落必须各自同锁；flush按每scope的max(latest,inFlight)，注册即判，成功清错。失败保留快照、不自唤醒；仅下一次offer/flush重试，不在主循环while-retry，不用sleep轮询。正常/取消/失败及输入、编辑、压缩入口均确认落盘；未flush前强杀不保证不丢。
+- V2/V3 PNG/JSON角色卡保留原始快照与未知扩展；大于256KiB明确降级，不承诺无损。PNG原图保留，解析元数据解压16MiB上限；java.util.Base64适用于minSdk26且可直接JVM验证，不加依赖。空正则草稿保留以便输入，执行层排除空模式；该清洗例外见实施记录。
+- 已分三批编译/JVM，最终验证、参考差异和逐项待验见DELIVERY及docs/f024-phase2-implementation.md。维护者自行构建APK/ZIP，根DELIVERY必须入源码包，个人脚本排除；本轮不assemble/归档/commit/push/tag/发布，不操作设备，保留前批闹钟、附件与Shizuku改动。
+
+## 本机脚本修正：终端输出误入源码（2026-11-25）
+
+- 维护者要求修改个人构建/上传脚本。根目录已跟踪的 `fer and mode switching"`、`tatus --short` 确认为less帮助和Git差异输出，移至artifacts/terminal-output-cleanup-20261125-emHGQP可恢复保留；下次正常源码提交应包含两文件删除，不改写历史、不自动提交或推送。
+- 个人打包工具统一按Git的NUL路径列表预检根目录疑似shell片段，含未修改的已跟踪文件与未忽略新文件。Release/Debug在Gradle前、源码上传在认证/自动提交前、直接打包在创建ZIP前阻止异常；打印转义路径，不自动删除不明文件，不把文件名作为shell代码执行。
+- 个人脚本及离线测试仍仅留本机、排除源码ZIP。正常中文/空格/单引号文件名可归档；保持三Release、单ARM64 Debug、版本输入、日志与DELIVERY规则。本轮仅跑隔离模拟流程，不生成工程APK/源码ZIP，不动应用版本或产品功能。
+
+## 当前增量：脉搏 Shizuku 仅限 Doze 白名单（2026-11-25，补充二）
+
+- 基于当前3.3.1-work.1 / 210、DB34叠加；先参考保留的Kai DaemonController及PalmClaw后台服务启动策略。依赖api/provider固定13.0.0，不复制参考源码、不更新或删除参考仓库。
+- keepAliveShizuku持久字段默认true且仅用于Doze白名单；唯一Runtime接入点为ON_START，等待设置加载后以两个开关及当前前台状态为门槛，ready后每进程最多一次（失败也不循环）。删除Shizuku服务启动方法、am命令及拒绝分类辅助函数，原startDaemon失败仅打日志。
+- 新Provider使用INTERACT_ACROSS_USERS_FULL保护，只查询两个Shizuku包；不申请新Android系统权限，SDK合并的API_V23是Shizuku自定义授权。无自动授权、安装引导、模型shell工具、截图、定时器或私有binder实现。
+- 两条管道并行有界内存排空；shell进程独立10秒上限、取消/异常销毁并关流，取消继续传播。该上限仅用于白名单命令，不恢复任何聊天/心跳生成超时。设置页复用revision，监听binder与权限结果、白名单完成信号；只有两个开关均开启且系统真实电池豁免时显示已加入白名单，否则ready仅显示既有“已允许”。
+- 保留PulseDaemonService/AlarmReceiver/BootReceiver未导出及原代码、PulseScheduler/Claims和调度锁。V5普通shell手动启动私有服务预期not exported；V5b白名单实际写入和V4厂商冻结收益均待真机确认。Shizuku不负责外部复活，不保证OriginOS遵循标准白名单；导出服务+DUMP及打开RouteActivity仅为后续方案，本轮不做。首次授权后下次进前台尝试白名单，不另加触发源。
+- 只改源码、三语与交付台账；编译/定向JVM后更新根DELIVERY。维护者自行构建APK/ZIP，本轮不commit/push/tag，不操作设备。上一批闹钟和角色坏附件增量完整保留。
+
+## 当前修正：角色转移坏附件与移动原因（2026-11-25）
+
+- 按维护者新包叠加当前源码，保持3.3.1-work.1 / 210、DB34及上一批后台闹钟增量。覆盖下方11-24“所有附件复制失败都中止转移”的旧口径：源文件缺失/不可读时保留原URL、消息和其他成功副本，并在成功转移后提示数量；目标写入或数据库失败仍中止，只清理本次真正复制出的文件。
+- FilesManager仅对角色附件启用源读取容错；共享复制流的普通聊天行为不改，无附件大小阈值。源端异常和目标端异常必须区分，不照抄任务书runCatching全部吞掉的示例，以同时满足R1/R2与V4磁盘满回滚。
+- canMoveToCharacter / canMoveMemory改为原因枚举的薄封装，条件与优先级不放宽。助手级默认助手/群组成员、记忆级全局/助手共用/角色引用分别显示具体原因。transferMemory及duplicateForCharacter字段语义保持。
+- 三语各加5条原因+1条完成提示，删除原笼统原因key，数量一致。代理完成编译/定向JVM及根DELIVERY，维护者自行构建与真机截图；不commit/push/tag、不生成APK或源码ZIP。
+
+## 当前修正：系统闹钟后台调用（2026-11-25）
+
+- 依据维护者的「闹钟后台可用」任务包实施；包中209/b03cd5b2为旧基线，维护者已说明差异正常。以本地f71dba5a为改前基准，保持3.3.1-work.1 / 210、DB34，不回退角色及上游合并成果。
+- set_alarm仍仅调用系统Clock的ACTION_SET_ALARM / ACTION_SET_TIMER；保留参数、EXTRA_SKIP_UI和L2_CREATE。工厂注入Context，使用applicationContext+NEW_TASK；删除旧闹钟专用Activity跟踪及注册，不再拒绝所有后台请求。
+- SYSTEM_ALERT_WINDOW仅增加系统设置授权入口，回到通用设置页刷新实际授权状态；不写新DataStore字段、不自动拉起授权页、不自建闹钟引擎/响铃服务/开机重排、不加无障碍或全屏Intent。
+- nextAlarmClock只提供最佳努力证据：前后读取成功、时间变化且匹配所请求的时分才verified=true。倒计时、较晚闹钟、相同闹钟或无法读取均不得用既有闹钟冒充验证成功。未获后台启动豁免且无法验证返回background_blocked；已有豁免但无法确定时保留request_sent/verified=false，明确要求到系统时钟核实，不假称已保存。
+- 任务书§2.2的「after非空即算验证」及用无变化一律推断拦截互相矛盾，采用上述保守口径。悬浮窗不等于保证ROM已允许后台弹出；iQOO/OriginOS的两种权限实测继续待维护者验收。
+- 本轮只改源码、三语及CHANGES/FEATURES/DELIVERY，运行编译与定向JVM，不生成APK/源码ZIP、不commit/push/tag；日常由维护者使用个人脚本构建。
+
 ## 当前修正：角色记忆转移与模式切换（2026-11-24）
 
 - 修复角色转移页复制/移动选择触控范围、记忆全选/反选；迁移写入不限于 48 KiB AI 记忆预算，但保留路径规范化、乐观版本校验及共享记忆移动保护。共享范围只能复制时，UI 要明确解释，不得误删其他助手/角色共用数据。

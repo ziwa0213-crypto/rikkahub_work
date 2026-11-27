@@ -132,11 +132,7 @@ private enum class PromptTab(
 @Composable
 fun PromptPage(vm: PromptVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val tabs = if (settings.experimentalCharacterMode) {
-        listOf(PromptTab.MODE_INJECTIONS)
-    } else {
-        PromptTab.entries.toList()
-    }
+    val tabs = listOf(PromptTab.MODE_INJECTIONS)
     val pagerState = rememberPagerState { tabs.size }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 

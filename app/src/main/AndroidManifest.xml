@@ -4,6 +4,7 @@
 
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -38,6 +39,8 @@
     android:required="false" />
 
   <queries>
+    <package android:name="moe.shizuku.privileged.api" />
+    <package android:name="af.shizuku.plus.api" />
     <intent>
       <action android:name="android.intent.action.TTS_SERVICE" />
     </intent>
@@ -68,6 +71,14 @@
     android:theme="@style/Theme.Rikkahub"
     android:usesCleartextTraffic="true"
     tools:targetApi="33">
+    <!-- Shizuku 可选加固：仅用于把本应用加入 Doze 白名单 -->
+    <provider
+      android:name="rikka.shizuku.ShizukuProvider"
+      android:authorities="${applicationId}.shizuku"
+      android:enabled="true"
+      android:exported="true"
+      android:multiprocess="false"
+      android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     <activity
       android:name=".ui.activity.SafeModeActivity"
       android:exported="false"

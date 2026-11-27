@@ -63,12 +63,23 @@ import coil3.svg.SvgDecoder
 import me.rerere.ui.toast.Toaster
 import me.rerere.ui.toast.rememberToasterState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
+import me.rerere.rikkahub.data.datastore.CharacterMigrationState
+import me.rerere.rikkahub.data.datastore.shouldOfferCharacterMigration
+import me.rerere.rikkahub.data.model.launchMode
+import me.rerere.rikkahub.data.model.uiModeForChatPage
+import me.rerere.rikkahub.ui.pages.character.DefaultModeDialog
+import me.rerere.rikkahub.ui.pages.character.CharacterMigrationDialog
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.UiMode
 import me.rerere.rikkahub.ui.pages.character.CharacterPage
 import me.rerere.rikkahub.ui.pages.character.CharacterDetailPage
+import me.rerere.rikkahub.ui.pages.character.CharacterLorebookEntriesPage
+import me.rerere.rikkahub.ui.pages.character.CharacterRegexScriptsPage
 import me.rerere.rikkahub.ui.pages.character.CharacterPromptModulePage
 import me.rerere.rikkahub.ui.pages.character.CharacterLorebookPage
 import me.rerere.rikkahub.ui.pages.character.CharacterTransferPage
@@ -296,6 +307,21 @@ class RouteActivity : ComponentActivity() {
             pendingIntents.addLast(intent)
             return
         }
+        lifecycleScope.launch {
+            val launch = destinationForIntent(intent) ?: return@launch
+            synchronizeLaunchMode(launch.second)
+            if (backStack.lastOrNull() != launch.first) backStack.add(launch.first)
+        }
+    }
+
+    private suspend fun synchronizeLaunchMode(mode: UiMode?) {
+        if (mode == null) return
+        settingsStore.update { it.copy(uiMode = mode) }
+        settingsStore.settingsFlow.first { !it.init && it.uiMode == mode }
+    }
+
+    /** External destinations take precedence over the startup preference, including shortcuts and shares. */
+    private suspend fun destinationForIntent(intent: Intent): Pair<Screen, UiMode?>? {
         val destination = when (intent.action) {
             ACTION_OPEN_PULSE -> Screen.Pulse
             ACTION_OPEN_PULSE_LOGS -> Screen.PulseSettings(logs = true)
@@ -307,10 +333,7 @@ class RouteActivity : ComponentActivity() {
                 } else Screen.PulseSettings(logs = true)
             }
             ACTION_TRANSLATE -> Screen.Translator
-            ACTION_MEDIA_CREATION -> {
-                openNewMediaCreation(backStack)
-                null
-            }
+            ACTION_MEDIA_CREATION -> Screen.MediaCreation(mediaCreationRepository.newSession().id.toString())
             Intent.ACTION_SEND -> Screen.ShareHandler(
                 text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty(),
                 streamUri = intent.getStringExtra(Intent.EXTRA_STREAM),
@@ -320,10 +343,15 @@ class RouteActivity : ComponentActivity() {
             )
             else -> mediaCreationDestination(intent)
                 ?: intent.getStringExtra(EXTRA_CONVERSATION_ID)?.let { Screen.Chat(it) }
+        } ?: return null
+        val mode = when {
+            intent.action in setOf(ACTION_OPEN_PULSE, ACTION_OPEN_PULSE_LOGS, ACTION_OPEN_PULSE_REPORT) -> UiMode.PULSE
+            destination is Screen.Chat -> intent.getStringExtra(EXTRA_CONVERSATION_ID)
+                ?.let { Uuid.parseOrNull(it) }?.let { conversationRepository.getConversationSummaryById(it) }
+                ?.uiModeForChatPage(settingsStore.awaitLoaded())
+            else -> null
         }
-        if (destination != null && backStack.lastOrNull() != destination) {
-            backStack.add(destination)
-        }
+        return destination to mode
     }
 
     // 快捷方式没有指定会话，打开一个空会话
@@ -367,17 +395,36 @@ class RouteActivity : ComponentActivity() {
         }
 
         var startScreen by remember { mutableStateOf<Screen?>(null) }
+        var startupTransfer by remember { mutableStateOf(false) }
+        val startupIntent = remember { pendingIntents.removeFirstOrNull() }
+        var externalResolved by remember { mutableStateOf(false) }
+        var startupDestination by remember { mutableStateOf<Pair<Screen, UiMode?>?>(null) }
+        val startupScope = rememberCoroutineScope()
+        val launches by produceState<Int?>(null) {
+            if ((application as RikkaHubApp).launchCountUpdated.await()) value = settingsStore.launchCountFlow.first()
+        }
         LaunchedEffect(Unit) {
+            // Resolving a media shortcut can create a session. Never restart it when the
+            // user confirms the preference while that suspending work is still running.
+            startupDestination = startupIntent?.let { destinationForIntent(it) }
+            externalResolved = true
+        }
+        LaunchedEffect(settings.defaultModeChosen, externalResolved) {
+            if (!externalResolved) return@LaunchedEffect
+            if (startScreen != null) return@LaunchedEffect
             val loaded = settingsStore.awaitLoaded()
-            startScreen = when (loaded.uiMode) {
-                UiMode.PULSE -> Screen.Pulse
+            val external = startupDestination
+            if (external != null) {
+                synchronizeLaunchMode(external.second)
+                startScreen = external.first
+                return@LaunchedEffect
+            }
+            if (!loaded.defaultModeChosen) return@LaunchedEffect
+            val mode = loaded.launchMode()
+            synchronizeLaunchMode(mode)
+            startScreen = when (mode) {
                 UiMode.ROLE -> Screen.CharacterList
-                UiMode.GROUP -> {
-                    // 不新建会话，避免每次冷启动都产生空群聊。
-                    val id = loaded.selectedGroup(null)?.conversationIds?.lastOrNull()
-                    if (id != null) Screen.Chat(id.toString()) else Screen.Groups
-                }
-                UiMode.CHAT -> {
+                else -> {
                     val recentId = if (readBooleanPreference("create_new_conversation_on_start", true)) null
                     else readStringPreference("lastConversationId")?.let { Uuid.parseOrNull(it) }
                     // An old saved ID can have changed owners during migration.
@@ -387,11 +434,39 @@ class RouteActivity : ComponentActivity() {
             }
         }
 
+        // The preference dialog blocks normal startup. External routes remain available underneath it.
+        when {
+            !settings.defaultModeChosen -> DefaultModeDialog { choice ->
+                startupScope.launch {
+                    settingsStore.update {
+                        it.copy(defaultMode = choice, defaultModeChosen = true,
+                            uiMode = if (startupIntent == null && startScreen == null) choice else it.uiMode)
+                    }
+                }
+            }
+            startScreen != null && launches?.let { settings.shouldOfferCharacterMigration(it) } == true -> CharacterMigrationDialog(
+                onDecline = { startupScope.launch {
+                    settingsStore.update { it.copy(characterMigrationState = CharacterMigrationState.DECLINED,
+                        characterMigrationPrompted = true, lastRunVersionCode = BuildConfig.VERSION_CODE.toInt()) }
+                } },
+                onTransfer = { startupScope.launch {
+                    settingsStore.update { it.copy(characterMigrationPrompted = true, lastRunVersionCode = BuildConfig.VERSION_CODE.toInt()) }
+                    startupTransfer = true
+                } },
+            )
+        }
+
         val initialScreen = startScreen ?: run {
             Box(modifier = Modifier.fillMaxSize())
             return
         }
         val backStack = rememberNavBackStack(initialScreen)
+        LaunchedEffect(startupTransfer) {
+            if (startupTransfer) {
+                backStack.add(Screen.CharacterTransfer)
+                startupTransfer = false
+            }
+        }
         LaunchedEffect(Unit) {
             eventBus.events.collect { event ->
                 if (event is AppEvent.OpenBrowser) {
@@ -498,6 +573,8 @@ class RouteActivity : ComponentActivity() {
                                 CharacterPromptModulePage(key.characterId, key.kind, key.moduleId, key.createNew)
                             }
                             entry<Screen.CharacterLorebooks> { CharacterLorebookPage() }
+                            entry<Screen.CharacterLorebookEntries> { key -> CharacterLorebookEntriesPage(key.bookId) }
+                            entry<Screen.CharacterRegexScripts> { key -> CharacterRegexScriptsPage(key.characterId) }
                             entry<Screen.CharacterTransfer> { CharacterTransferPage() }
                             entry<Screen.Assistant> {
                                 AssistantPage()
@@ -864,6 +941,8 @@ sealed interface Screen : NavKey {
         val createNew: Boolean = false,
     ) : Screen
     @Serializable data object CharacterLorebooks : Screen
+    @Serializable data class CharacterLorebookEntries(val bookId: String) : Screen
+    @Serializable data class CharacterRegexScripts(val characterId: String? = null) : Screen
     @Serializable data object CharacterTransfer : Screen
 
     @Serializable

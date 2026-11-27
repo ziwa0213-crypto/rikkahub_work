@@ -91,6 +91,7 @@ import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.transformers.stDisplayText
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
@@ -148,6 +149,8 @@ fun ChatMessage(
     groupMode: Boolean = false,
     onQuote: (UIMessageAnnotation.GroupQuote) -> Unit = {},
     onMention: (String) -> Unit = {},
+    stDepth: Int? = null,
+    stConversationId: String? = null,
 ) {
     val message = node.messages[node.selectIndex]
     if (message.isContextCheckpoint) {
@@ -279,6 +282,8 @@ fun ChatMessage(
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
                 onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
+                stDepth = stDepth,
+                stConversationId = stConversationId,
             )
             }
 
@@ -392,6 +397,8 @@ private fun MessagePartsBlock(
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onUserMessageClick: (() -> Unit)? = null,
+    stDepth: Int? = null,
+    stConversationId: String? = null,
 ) {
     val context = LocalContext.current
     // 消息输出HapticFeedback
@@ -504,6 +511,8 @@ private fun MessagePartsBlock(
             is MessagePartBlock.ContentBlock -> key(block.index) {
                 when (val part = block.part) {
                     is UIMessagePart.Text -> {
+                        val displayText = stDisplayText(part.text, settings.characters.firstOrNull { it.id == assistant?.id }, settings, role, loading,
+                            depth = stDepth, conversationId = stConversationId)
                         // 只有正在生成的最后一段文字可能停在没写完的语法上
                         val streamingText = loading && block.index == parts.lastIndex
                         val textContent = @Composable {
@@ -517,7 +526,7 @@ private fun MessagePartsBlock(
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         if (block.index == firstTextIndex && groupQuote != null) GroupQuoteBlock(groupQuote)
                                         MarkdownBlock(
-                                            content = part.text.replaceRegexes(
+                                            content = displayText.replaceRegexes(
                                                 assistant = assistant,
                                                 scope = AssistantAffectScope.USER,
                                                 visual = true,
@@ -528,7 +537,7 @@ private fun MessagePartsBlock(
                                     }
                                 }
                             } else {
-                                val content = part.text.replaceRegexes(
+                                val content = displayText.replaceRegexes(
                                     assistant = assistant,
                                     scope = AssistantAffectScope.ASSISTANT,
                                     visual = true,

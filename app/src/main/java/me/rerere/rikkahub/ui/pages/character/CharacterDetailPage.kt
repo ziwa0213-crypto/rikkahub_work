@@ -18,6 +18,7 @@ import me.rerere.rikkahub.data.ai.MemoryConsolidationStatus
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.model.*
 import me.rerere.rikkahub.data.repository.*
+import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.ui.components.ai.McpPicker
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CharacterExtensionTabs
@@ -28,6 +29,7 @@ import me.rerere.rikkahub.ui.pages.assistant.detail.*
 import me.rerere.workspace.WorkspaceShellStatus
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
+import me.rerere.ui.components.RikkaConfirmDialog
 
 @Composable
 internal fun CharacterDetailPage(id: String) {
@@ -35,6 +37,8 @@ internal fun CharacterDetailPage(id: String) {
     val nav = LocalNavController.current
     val context = LocalContext.current
     val store: SettingsStore = koinInject()
+    val conversations: ConversationRepository = koinInject()
+    val chatService: ChatService = koinInject()
     val workspaces: WorkspaceRepository = koinInject()
     val memory: MemoryRepository = koinInject()
     val consolidation: MemoryConsolidationScheduler = koinInject()
@@ -87,17 +91,10 @@ internal fun CharacterDetailPage(id: String) {
             }
             error?.let { message -> Text(message, Modifier.padding(8.dp), color = MaterialTheme.colorScheme.error) }
             when (tab) {
-                0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CharacterField(R.string.character_nickname, character.nickname) { v -> update { it.copy(nickname = v) } }
-                    CharacterField(R.string.character_description, character.description) { v -> update { it.copy(description = v) } }
-                    CharacterField(R.string.character_personality, character.personality) { v -> update { it.copy(personality = v) } }
-                    CharacterField(R.string.character_scenario, character.scenario) { v -> update { it.copy(scenario = v) } }
-                    CharacterField(R.string.character_greeting, character.firstMessage) { v -> update { it.copy(firstMessage = v) } }
-                    CharacterField(R.string.character_example, character.exampleMessages) { v -> update { it.copy(exampleMessages = v) } }
-                    CharacterField(R.string.character_phi, character.postHistoryInstructions) { v -> update { it.copy(postHistoryInstructions = v) } }
-                    StylePackSection(character, update = ::update)
-                    TextButton(enabled = !installing && workspace?.shellStatus == WorkspaceShellStatus.READY.name, onClick = {
-                        val workspaceId = workspace?.id ?: return@TextButton
+                0 -> CharacterCardTab(character, ::update,
+                    installEnabled = workspace?.shellStatus == WorkspaceShellStatus.READY.name,
+                    installing = installing, onInstall = {
+                        val workspaceId = workspace?.id ?: return@CharacterCardTab
                         scope.launch {
                             installing = true
                             try {
@@ -107,10 +104,7 @@ internal fun CharacterDetailPage(id: String) {
                             catch (e: Exception) { error = e.localizedMessage ?: e.javaClass.simpleName }
                             finally { installing = false }
                         }
-                    }) { Text(stringResource(R.string.character_workspace_dependencies)) }
-                    if (workspace?.shellStatus != WorkspaceShellStatus.READY.name) Text(stringResource(R.string.pulse_workspace_setup_message))
-                    TextButton(onClick = { deleting = true }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
-                }
+                    }, onDelete = { deleting = true })
                 1 -> AssistantBasicContent(PaddingValues(), editor, settings.providers, emptyList(), allWorkspaces, ::applyAssistant,
                     ownerScope = WorkspaceOwnerScope.CHARACTER)
                 2 -> CharacterPromptModulesContent(character, Modifier.fillMaxSize())
@@ -155,17 +149,26 @@ internal fun CharacterDetailPage(id: String) {
             }
         }
     }
-    if (deleting && character != null) AlertDialog(onDismissRequest = { deleting = false },
-        title = { Text(stringResource(R.string.confirm_delete)) }, text = { Text(stringResource(R.string.character_delete_explanation)) },
-        confirmButton = { TextButton(onClick = {
+    RikkaConfirmDialog(show = deleting && character != null, onDismiss = { deleting = false },
+        title = stringResource(R.string.confirm_delete), confirmText = stringResource(R.string.delete),
+        dismissText = stringResource(R.string.cancel), onConfirm = {
             deleting = false
             scope.launch {
-                store.update { it.copy(characters = it.characters.filterNot { c -> c.id == owner },
-                    deletedCharacterIds = it.deletedCharacterIds + owner, characterId = it.characterId?.takeUnless { it == owner }) }
-                nav.popBackStack()
+                try {
+                    cleanupCharacterConversations(
+                        ownerIds = setOf(owner),
+                        clearSessions = { chatService.deleteConversationsOfAssistant(it) },
+                        deletePersisted = { conversations.deleteConversationsOfOwner(it) },
+                        onComplete = {
+                            store.update { it.copy(characters = it.characters.filterNot { c -> c.id == owner },
+                                deletedCharacterIds = it.deletedCharacterIds + owner, characterId = it.characterId?.takeUnless { it == owner }) }
+                        },
+                    )
+                    nav.popBackStack()
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { error = e.localizedMessage ?: e.javaClass.simpleName }
             }
-        }) { Text(stringResource(R.string.delete)) } },
-        dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.cancel)) } })
+        }) { Text(stringResource(R.string.character_delete_explanation)) }
 }
 
 @Composable

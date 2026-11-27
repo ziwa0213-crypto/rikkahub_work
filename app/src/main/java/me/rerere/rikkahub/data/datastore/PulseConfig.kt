@@ -71,6 +71,8 @@ data class PulseConfig(
     val heartbeatSilentWhenNoContent: Boolean = true,
     val enableScheduledTasks: Boolean = false,
     val keepAliveEnabled: Boolean = false,
+    /** Optional Shizuku reinforcement only adds this app to the Doze whitelist. */
+    val keepAliveShizuku: Boolean = true,
     val lastHeartbeatAt: Long = 0,
     val heartbeatLog: List<HeartbeatLogEntry> = emptyList(),
     val tasks: List<PulseTask> = emptyList(),

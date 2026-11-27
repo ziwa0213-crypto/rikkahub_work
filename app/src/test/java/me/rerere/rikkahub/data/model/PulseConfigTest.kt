@@ -40,6 +40,8 @@ class PulseConfigTest {
     @Test fun `legacy preferences default to disabled background automation`() {
         val pulse = emptyPreferences().toSettings().pulse
         assertFalse(pulse.keepAliveEnabled)
+        assertTrue(pulse.keepAliveShizuku)
+        assertTrue(JsonInstant.decodeFromString<PulseConfig>("{}").keepAliveShizuku)
         assertFalse(pulse.enableHeartbeat)
         assertFalse(pulse.enableScheduledTasks)
         assertFalse(pulse.enableAlarm)
@@ -82,7 +84,7 @@ class PulseConfigTest {
             smsPollMinutes = 30, smsWatermarkId = 123L, smsSenderWhitelist = listOf("95588"),
             enableMcp = true, enableHeartbeat = true, heartbeatIntervalMinutes = 15, heartbeatPrompt = "check",
             activeHoursStart = 22, activeHoursEnd = 6, heartbeatSilentWhenNoContent = false,
-            enableScheduledTasks = true, keepAliveEnabled = true, lastHeartbeatAt = 120,
+            enableScheduledTasks = true, keepAliveEnabled = true, keepAliveShizuku = false, lastHeartbeatAt = 120,
             heartbeatLog = listOf(HeartbeatLogEntry(100, "OK")),
             tasks = listOf(PulseTask(id = "task", title = "test", createdAt = 100)))
         val prefs = mutablePreferencesOf().apply { putSettings(Settings(pulse = config)) }

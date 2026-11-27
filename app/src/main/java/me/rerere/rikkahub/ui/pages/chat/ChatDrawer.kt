@@ -79,6 +79,7 @@ import me.rerere.hugeicons.stroke.UserGroup03
 import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.model.orderedModes
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.ConversationSortOrder
 import me.rerere.rikkahub.data.datastore.Settings
@@ -93,6 +94,7 @@ import me.rerere.rikkahub.data.model.newConversationOwnerId
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.ui.components.ai.AssistantPicker
 import me.rerere.rikkahub.ui.components.group.ModeSwitcher
+import me.rerere.rikkahub.ui.pages.character.CharacterPicker
 import me.rerere.rikkahub.ui.components.ui.BackupReminderCard
 import me.rerere.rikkahub.ui.components.ui.Greeting
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
@@ -172,7 +174,6 @@ fun ChatDrawerContent(
     val pulseMode = drawerMode == UiMode.PULSE
     val roleMode = drawerMode == UiMode.ROLE
     val selectedCharacter = settings.selectedCharacter()
-    var characterPicker by remember { mutableStateOf(false) }
     val selectedGroupConversation = if (current.isGroupChat()) {
         groupRouteConversation ?: current
     } else {
@@ -340,7 +341,7 @@ fun ChatDrawerContent(
 
                 ModeSwitcher(
                     mode = drawerMode,
-                    experimentalCharacterMode = settings.experimentalCharacterMode,
+                    modes = settings.orderedModes(),
                     onSelect = ::switchMode,
                 )
             }
@@ -493,28 +494,25 @@ fun ChatDrawerContent(
                 }
 
                 if (roleMode) {
-                    Box {
-                        TextButton(onClick = { characterPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(selectedCharacter?.name?.ifBlank { stringResource(R.string.group_mode_role) }
-                                ?: stringResource(R.string.character_no_selection))
-                        }
-                        DropdownMenu(characterPicker, onDismissRequest = { characterPicker = false }) {
-                            settings.characters.forEach { character ->
-                                DropdownMenuItem(text = { Text(character.name.ifBlank { stringResource(R.string.group_mode_role) }) }, onClick = {
-                                    characterPicker = false
-                                    scope.launch {
-                                        vm.updateSettings { it.copy(uiMode = UiMode.ROLE, characterId = character.id) }.join()
-                                        val last = repo.getConversationsOfAssistant(character.id).first().firstOrNull()?.id
-                                        navigateToChatPage(navController, last ?: Uuid.random())
-                                    }
-                                })
+                    CharacterPicker(
+                        settings = settings,
+                        onSelectCharacter = { character ->
+                            scope.launch {
+                                vm.updateSettings { it.copy(uiMode = UiMode.ROLE, characterId = character.id) }.join()
+                                val last = repo.getConversationsOfAssistant(character.id).first().firstOrNull()?.id
+                                navigateToChatPage(navController, last ?: Uuid.random())
                             }
-                            DropdownMenuItem(text = { Text(stringResource(R.string.character_list_title)) }, onClick = {
-                                characterPicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        onClickSetting = {
+                            val id = selectedCharacter?.id
+                            if (id != null) {
+                                navController.navigate(Screen.CharacterDetail(id.toString()))
+                            } else {
                                 navController.navigate(Screen.CharacterList)
-                            })
+                            }
                         }
-                    }
+                    )
                 } else AssistantPicker(
                     settings = settings,
                     onSelectAssistant = { assistant ->
@@ -575,7 +573,7 @@ fun ChatDrawerContent(
                     }
                     roleMode -> DrawerAction(
                         icon = { Icon(HugeIcons.LookTop, null) },
-                        label = { Text(stringResource(R.string.character_list_title)) },
+                        label = { Text(stringResource(R.string.character_settings_title)) },
                         onClick = { navController.navigate(Screen.CharacterList) },
                     )
                     else -> DrawerAction(

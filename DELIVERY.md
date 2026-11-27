@@ -1,3 +1,463 @@
+# 2026-11-26：角色设置页入口精简
+
+保持 **3.3.1-work.2 / versionCode 211 / DB34**。本节覆盖补充四中保留正文模式行与顶栏世界书按钮的旧口径。
+
+- 产品仅修改`app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterPage.kt`：顶栏「世界书」替换为「转移助手」，导航至`Screen.CharacterTransfer`；删除正文完整模式切换/转移Row及其后空行；只删除ModeSwitcher、orderedModes、selectedGroup三个import。
+- 与本轮改前快照逐行比对，差异严格限于上述三项。其余import和代码保持原样，包括UiMode/Conversation、孤儿自动清理、搜索、标签、角色卡片/菜单/拖拽、删除确认、新建/导入及开场白；三份strings.xml、app/build.gradle.kts和DB文件的SHA-256核验全部一致。另更新CHANGES/FEATURES和本DELIVERY。
+- 正文顺序为可选错误提示、搜索框、可选标签行、角色列表；只改变入口布局，不修改转移流程。
+
+验证命令：
+
+```bash
+bash ./gradlew :app:compileGithubDebugKotlin \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain --stacktrace
+```
+
+结果：**BUILD SUCCESSFUL in 1m**，138个任务中2执行、136个UP-TO-DATE；App Kotlin编译实际执行，本次日志未出现warning或unused import警告。`git diff --check`通过。本次仅编译与静态复核，未重跑JVM测试/Lint，不沿用下方旧测试统计作为本轮结果，未进行设备或视觉验收。
+
+证据目录：`artifacts/3.3.1-work.2/f024-role-toolbar-20261126-6TdlsQ/`，包含`compile.log`、`CharacterPage.before.kt`与`protected-before.sha256`。
+
+手机待验：顶栏显示返回箭头、「转移助手」与加号，点击转移进入原页面；大标题下没有角色模式胶囊；搜索、标签筛选、角色卡片、菜单和拖拽仍需装包确认。维护者自行构建APK/源码ZIP，本轮未生成安装包或归档，未提交/推送/打标签。
+
+回滚只逆向本节三个局部变更；同步上游时重套相同三处，勿整文件覆盖前批角色功能。
+
+---
+
+# 2026-11-26：F024 第二期补充四·角色设置整页对齐助手页
+
+保持 **3.3.1-work.2 / versionCode 211 / DB34**。参照当前`AssistantPage.kt`完成角色设置页搜索、标签筛选、卡片、菜单及长按排序；不修改助手页或其他模式。本轮只修改源码并做编译/App JVM与静态复核，未生成APK/源码ZIP，未提交、推送、打标签、操作设备或真实用户数据；维护者自行构建，根DELIVERY仍由既有源码打包器强制包含，个人脚本仍排除。
+
+## 逐文件改动（仅四个产品文件）
+
+| 文件（相对仓库根目录） | 原 → 新 |
+|---|---|
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterPage.kt` | 原LazyColumn中的模式/转移行移到固定Column；新增助手页同款胶囊TextField、自由标签FilterChip行及过滤状态；顶栏添加改为加号，原创建/导入下拉与世界书保留。原CardGroup角色项换为CharacterItem：20dp卡片、48dp头像、强调标题、启用记忆时的文件数、最多两个标签和+N；整卡点击详情，菜单仅新聊天/删除。角色项接入ReorderableItem/longPressReorder，过滤期间禁用，按最新设置持久化顺序。列表末尾原孤儿历史、原自动清理与新聊天/创建/导入/开场白实现保持。 |
+| `app/src/main/res/values/strings.xml` | 仅增加character_page_search_placeholder = Search characters。 |
+| `app/src/main/res/values-zh/strings.xml` | 仅增加character_page_search_placeholder = 搜索角色。 |
+| `app/src/main/res/values-zh-rTW/strings.xml` | 仅增加character_page_search_placeholder = 搜尋角色。 |
+
+另更新AGENTS/CHANGES/FEATURES及本DELIVERY台账；不新增产品文件、依赖或数据字段。记忆数复用`assistant_page_memory_count`，来自该角色`memory.getFilesFlow(character.id.toString())`的文件数，不是逐条记忆数；无角色复制、全局标签表或heroAnimation。
+
+## 状态与删除边界
+
+- 名称包含匹配忽略大小写；标签从现有角色tags聚合、去空白项、去重，选中多个取OR，名称与标签条件取AND。没有筛选时可长按拖拽，有任一筛选时手势和排序回调双重禁用。模式/转移行不再占拖拽索引，孤儿历史仍在末尾且不包ReorderableItem。
+- 新列表删除确认继续走`cleanupCharacterConversations`，先通过现有ChatService停止/清理会话，再Repository清持久化历史，全部成功才移除角色并清当前选中ID。**不添加deletedCharacterIds**。失败显示原message、角色保留，取消继续传播；多会话中已完成的删除不能回滚，保留补充三的备份警示。
+- 原`LaunchedEffect(settings.deletedCharacterIds)`与改前**逐字节一致**（SHA-256 `9ca83045564f283322672b7f284867892c1ec0224133837e29a8616aed2f3cc8`）；孤儿历史区只因外层布局缩进，不改内容或交互。startChat/createCharacter/importLauncher与备用开场白sheet也逐字核对一致。
+- 必要适配：拖拽按from/to的稳定key在最新Settings内定位，避免用示例旧列表快照覆盖并发导入/编辑/删除；已消失标签与选中集合取交集，避免删掉最后一个带标签角色后残留不可见、无法解除的筛选。文件记忆Flow按角色remember，避免单纯重组反复重订阅；按当前助手页consumeWindowInsets，避免再叠加Scaffold底部Insets。都只在本角色页内生效。
+
+## 任务书自查数字修正与输出
+
+任务包有三处旧计数/描述不能照抄：
+
+1. 三语改前实际各**2867**，本批各+1后为**2868**，不是包内2866→2867；原有文案逐字保持。
+2. 本页清理函数应有**2处调用**：原孤儿自动清理、新菜单删除，而不是§6写的1处；不能为了凑1删掉任一流程。
+3. deletedCharacterIds本来还被**必须保留的孤儿历史区**引用，不可能“只在原LaunchedEffect里”；本批确认新菜单没有添加该字段写入，全部引用仅在原清理与原兜底两块内。
+
+等价rg自查的实际输出（路径缩写仅用于阅读，均为app/src下真实文件）：
+
+```text
+rg -c character_page_search_placeholder 三语strings.xml
+values/strings.xml:1
+values-zh/strings.xml:1
+values-zh-rTW/strings.xml:1
+
+rg -c assistant_page_memory_count 三语strings.xml
+values/strings.xml:1
+values-zh/strings.xml:1
+values-zh-rTW/strings.xml:1
+
+rg -n cleanupCharacterConversations CharacterPage.kt
+92:            cleanupCharacterConversations(
+331:                        cleanupCharacterConversations(
+
+rg -n deletedCharacterIds CharacterPage.kt
+88:    LaunchedEffect(settings.deletedCharacterIds) {
+89:        val pending = settings.deletedCharacterIds
+97:                    store.update { it.copy(deletedCharacterIds = it.deletedCharacterIds - pending) }
+306:                if (settings.deletedCharacterIds.isNotEmpty()) item {
+307:                    val history by produceState(emptyList<me.rerere.rikkahub.data.model.Conversation>(), settings.deletedCharacterIds) {
+308:                        value = settings.deletedCharacterIds.flatMap { id ->
+
+rg -n heroAnimation CharacterPage.kt
+无匹配（0）
+
+三语string key：2867→2868，各只增加character_page_search_placeholder
+xmllint：三份通过；无重复key，三语名称集合一致
+git diff --check：通过
+受保护源码/资源文件SHA-256：1941个，差异0
+版本3.3.1-work.2 / 211、DB34：未变
+```
+
+## 编译/App JVM与证据
+
+```bash
+bash ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain --stacktrace
+```
+
+- 本轮编译与完整App JVM：**BUILD SUCCESSFUL，1分22秒**，241个任务中15执行、226个UP-TO-DATE。`app:compileGithubDebugKotlin`及`app:testGithubDebugUnitTest`实际执行；未变依赖模块复用结果，不称全仓所有模块JVM或Release构建通过。
+- **160套件 / 1089项：1088通过，1跳过，0失败，0错误。** 唯一跳过仍为DeepSeekImporterTest的可选真实归档用例（未提供DEEPSEEK_IMPORT_TEST_ARCHIVE），未拿用户数据补语料。本批未新增模仿UI实现的JVM用例；既有清理屏障11项全部通过，但不能把它当作新增页面菜单、搜索或拖拽的设备验证。
+- 最后源码再核对时发现整理import误删了仍被startChat使用的Conversation导入，`final-source-recheck.log`记录该单处编译失败（35秒，测试未执行）；恢复原import后使用同一命令重新验证，**最终BUILD SUCCESSFUL，1分1秒，241任务中6执行/235个UP-TO-DATE**，见`final-source-fixed.log`。最终App编译和测试均实际执行，上述160套件统计/XML已按这次成功日志重新收集，不用失败调用后的旧报告冒充最终结果。
+- 静态确认1941个受保护文件哈希不变，含AssistantPage、ChatDrawer、CharacterPicker、SettingPage、CharacterDetailPage、全数据/服务/生成/schema和原身份图标；`verify-source.mjs`直接比对本批before，不能用含前批改动的HEAD diff代替本批边界。
+- **未执行Lint、instrumentation、模拟器或真机。** 前次Lint未通过状态未被本轮覆盖；没有执行真实Room/FTS/附件删除、搜索触摸、拖拽手感或截图对照，不宣称视觉/安装验收完成。
+
+证据目录：`artifacts/3.3.1-work.2/f024-role-page-20261126-iBUfqf/`。含`compile-app-jvm.log`、中间失败的`final-source-recheck.log`、修复后成功的`final-source-fixed.log`、最终`TEST-SUMMARY.json`和160份`TEST-REPORTS/`快照，`resources-check.json`、`source-check.json`、`protected-before.json`/`protected-check.json`及可重跑的`verify-source.mjs`；`before/`保留本批四产品文件和四台账改前快照，均不进入源码包。
+
+## V-U / V-F / V-R验收范围
+
+| 条目 | 已核对与待验 |
+|---|---|
+| V-U1～U3 | 使用助手页相同圆角、间距、头像、强调字号、surfaceBright/无边框搜索及加号；世界书保留。静态接线完成，两页并排截图、深浅色/小屏/大字体和键盘布局由维护者装包验收。 |
+| V-F1～F3 | 名称/标签过滤和记忆文件Flow、最多两标签/+N已接线；实时过滤、选取消、中文输入及记忆数显示待真机，JVM不证明Compose渲染。 |
+| V-F4～F7 | 整卡详情、两菜单项、原开场白分支及共用删除流程静态核对；实际点击、SAF/备用开场白、三个会话连带删除及其他角色不受影响待设备验收。 |
+| V-F8～F9 | ReorderableItem、稳定key和最新Settings写回、过滤双重禁用已接线；长按拖拽、重进后顺序、筛选期间不拖动及孤儿历史不参与需真机。 |
+| V-R1～R3 | 模式/转移路由与创建/导入/开场白原实现不变，外层布局位置按要求调整；实际模式跳转、导入Toast/跳详情及内嵌世界书由维护者回归。 |
+| V-R4～R5 | Kotlin/App JVM通过，三语实际各2867→2868，无新增失败。 |
+
+回滚仅逆向本批CharacterPage局部和三语各1key，再对应台账；不得整文件覆盖补充一～三或其他已有dirty改动。后续同步上游保留角色专属模式/世界书/转移、新聊天及共用清理，只重套本页对齐层。本轮无新提交hash、APK或ZIP。
+
+---
+
+# 2026-11-26：F024 第二期补充三·角色设置与连带删除
+
+保持 **3.3.1-work.2 / versionCode 211 / DB34**。在补充二基础上完成本包的名称对齐、重复入口移除，以及删除角色连带清理会话和旧孤儿会话自动清理；本节覆盖下方“保留弹层末尾角色列表入口、不清理孤儿会话”的历史口径。维护者自行构建APK/源码ZIP；本轮未执行assemble、归档、提交、推送、标签或设备命令，未操作真实用户数据。
+
+**升级前请备份需要保留的旧角色历史。** 进入角色设置页会自动清理`deletedCharacterIds`对应的旧会话；删除角色的确认文案也明确提示会话一并删除、无法恢复。多会话清理不是整批数据库事务：中途失败时，已经删除的会话不会回滚，但角色/整批待清理ID保留，供下次重试。代码回滚不能恢复已经删除的数据。
+
+## 逐文件改动（相对本批改前，不覆盖前批成果）
+
+| 文件（相对仓库根目录） | 原 → 新 |
+|---|---|
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterPicker.kt` | 弹层标题由character_list_title改为character_settings_title；删除末尾整个重复列表item。头像、选中高亮、角色选择、编辑铅笔、弹层尺寸及编辑使用的scope/nav保持。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterPage.kt` | 大标题改为角色设置；新增一个按deletedCharacterIds启动的LaunchedEffect，先清理捕获的全部owner，成功后在最新设置中减掉该批ID。失败使用已有message区域显示、保留全部ID；取消继续传播。原孤儿历史区块、ModeSwitcher、世界书/添加/转移及原交互保持。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatDrawer.kt` | 本批仅改角色设置DrawerAction的一处文案引用，其他模式及底部按钮不变。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterDetailPage.kt` | 删除确认后先清理该角色会话，成功才执行原角色移除/待删ID添加/当前角色选择清除，并返回上页；失败显示已有error、不移除角色、不导航。 |
+| `app/src/main/java/me/rerere/rikkahub/data/repository/ConversationRepository.kt` | 在原deleteConversation后新增deleteConversationsOfOwner：按owner取当前快照，重载完整会话，复用原删除方法；重载时若已换owner则跳过。不改原删除、DAO、SQL或schema。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterConversationCleanup.kt` | 新增两入口共用的串行清理屏障：先清内存会话，再查持久化历史，全部成功才提交设置；检查取消，错误继续向调用方传播，无重试循环或新状态。 |
+| `app/src/main/res/values/strings.xml` | −character_list_title、+character_settings_title（Character Settings），删除说明改为会话连带删除且不可恢复。 |
+| `app/src/main/res/values-zh/strings.xml` | 同上；标题“角色设置”，删除说明“该角色的所有会话将一并删除，无法恢复。” |
+| `app/src/main/res/values-zh-rTW/strings.xml` | 同上；标题“角色設定”，删除说明“該角色的所有會話將一併刪除，無法復原。” |
+| `app/src/test/java/me/rerere/rikkahub/ui/pages/character/CharacterConversationCleanupTest.kt` | 新增11项JVM用例，直接调用上述生产辅助函数验证顺序、等待、失败、取消及待清理ID提交边界。 |
+
+产品修改8个已有文件、新增1个辅助文件，另新增1个测试文件，更新AGENTS/CHANGES/FEATURES及本DELIVERY。不新增依赖、持久化字段或数据库迁移。
+
+### 对任务示例的必要适配
+
+- 本仓以ConversationSession内存状态为权威，不能只删库后允许后台生成重新落盘。两个入口均先复用**现有**`ChatService.deleteConversationsOfAssistant`，停掉/等待生成并替换内存会话，再调用新增Repository方法作持久化扫尾；未修改ChatService、生成链路或会话锁实现。
+- 删除异常不能吞掉后继续移除角色，但也不能让未处理的页面协程异常导致崩溃。因此两入口保留取消传播，普通异常显示在原错误区域；辅助函数不捕获异常，完成回调不执行。
+- 保留`Settings.deletedCharacterIds`字段、序列化、原写入和SettingsNormalization；成功只减捕获的pending，不清处理中新增的其他ID。失败不自循环重试，下次进入页面或待清理集合变化时再启动。
+- **任务书2865是旧计数，补充二后实际为2867。** 本批三语均2867→2867，只新增1key、删除1key、修改1条说明，未为凑数删除其他文案。
+
+## 编译和App JVM回归
+
+实际命令（通过bash调用现有Gradle wrapper）：
+
+```bash
+bash ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain --stacktrace
+```
+
+- **BUILD SUCCESSFUL，1分41秒**；241个任务中16个执行、225个UP-TO-DATE。App Kotlin编译与`testGithubDebugUnitTest`实际执行，依赖模块复用未变的构建结果；不是完整Release构建或全仓所有模块JVM测试。
+- **160套件 / 1089项：1088通过，1跳过，0失败，0错误。** 唯一跳过为DeepSeekImporterTest的可选真实归档用例，未设置`DEEPSEEK_IMPORT_TEST_ARCHIVE`；未使用用户数据补测试语料。
+- 新增CharacterConversationCleanupTest的**11项全部通过**：顺序与其他owner不受回调影响、最后一项完成前不提交、内存清理失败不继续、部分失败保留整批ID、不自行重试、下次进入重试、保留新加ID、取消传播/步骤间取消检查、设置写入失败、输入owner快照隔离。其中“不自行重试”与“下次进入重试”分别包含在部分失败和重进用例内。
+- 编译仅有CharacterPicker沿用ListItem重载的1条弃用警告，无编译错误。未为清理警告改AssistantPicker或共享组件。
+- **这些是生产顺序辅助函数的回调式JVM测试，不是实际Room/FTS/聊天附件集成测试。** 没有据此宣称真实磁盘文件、索引、用户界面或设备验收通过。
+
+证据目录：`artifacts/3.3.1-work.2/f024-role-cleanup-20261126-awX9Fm/`。
+
+- `compile-app-jvm.log`：本轮成功日志与任务状态。
+- `TEST-SUMMARY.json`、`TEST-REPORTS/app/testGithubDebugUnitTest/`：160份JUnit XML快照、计数、跳过原因；避免后续构建覆盖证据。
+- `resource-check.json`、`protected-before.json`、`protected-check.json`、`static-checks.md`：三语/边界检查；369个受保护文件SHA-256改前后相同。
+- `before/`：本批8个已有产品文件的改前快照，只用于本机差异核对，不进入源码包。
+
+## 任务书§6自查结果
+
+以下使用等价rg精确匹配核对，0结果按“无匹配”计，不当成检查失败：
+
+```text
+character_list_title，app/src：0
+character_settings_title，三语strings.xml：3（每份1）
+Screen.CharacterList，CharacterPicker.kt：0
+deleteConversationsOfOwner，app/src：3
+  ConversationRepository.kt:399 / CharacterDetailPage.kt:161 / CharacterPage.kt:71
+character_delete_explanation，三语strings.xml：每份1
+strings key总数：values 2867→2867；values-zh 2867→2867；values-zh-rTW 2867→2867
+XML可解析、无重复key、三语名称集合一致；git diff --check：通过
+版本3.3.1-work.2 / 211、DB34：未变
+受保护文件：369个，差异0
+```
+
+## 验收范围与待验
+
+| 编号 | 自动证据与设备待验 |
+|---|---|
+| V-A1～A5 | 静态确认标题、末尾item删除和原卡片/选择/编辑结构保持；弹层布局、触摸、角色切换及与助手弹层并排对比待真机。 |
+| V-B1～B4 | 三处标题引用、三语和旧key零引用已核对；工作助手组件与设置页未变。实际各模式显示待真机。 |
+| V-C1～C4 | 三语确认文案和按owner清理接线已核对，顺序/失败保护的11项JVM通过；真实三会话删除、其他角色/助手隔离待设备或Room集成验收。 |
+| V-C5 | 复用原deleteConversation的FTS/收藏/节点/文件路径，未写新SQL；真实搜索无残留、文件处理和崩溃回归待验。既有deleteChatFiles是best effort：不检查file.delete返回值、文件索引异步清理，不能宣称所有物理文件删除已获验证，本批不改此共享例程。 |
+| V-C6～C7 | pending整批成功后才提交、部分失败和取消保留ID、下次重试已由辅助函数JVM覆盖；页面退出重进、实际旧数据清理和错误区显示待真机。原历史兜底区块未变。 |
+| V-R1 | Kotlin编译和完整App JVM通过，1089项无失败。 |
+| V-R2 | 未改角色切换、导入导出、世界书/正则的实现；相关既有App JVM回归通过，实际页面操作仍待维护者验收。 |
+
+未执行Lint、instrumentation、模拟器或真机；前次Lint未通过的状态不被本轮覆盖。数据结构、SettingsNormalization、DAO、schema、完整ChatService/会话服务、生成/宏/正则、AssistantPicker、SettingPage、RouteActivity、群组/脉搏专属源码、Manifest、版本文件及原应用身份图标相对本批改前均未变。
+
+根DELIVERY继续由既有个人打包器强制纳入下次源码包，个人工具仍排除；本批未修改脚本，也未生成APK或ZIP。回滚仅逆向本批的小块改动和新增辅助/测试，保留前批所有dirty改动；之后同步上游时重套名称与清理入口，不用旧整文件覆盖，且不要将代码回滚误当成数据恢复。
+
+---
+
+# 2026-11-26：F024 第二期补充二·角色入口与选择器对齐
+
+工程保持 **3.3.1-work.2 / versionCode 211 / DB34**，以维护者当前源码叠加补充包；下方210是前批历史记录。本轮只修改UI入口、角色选择器和三语文案，完成编译、完整App JVM回归及静态核对。APK与源码ZIP由维护者自行构建；本轮未执行assemble、归档、提交、推送、标签或设备命令。
+
+## 逐文件改动
+
+| 文件（相对仓库根目录） | 原 → 新 |
+|---|---|
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/character/CharacterPicker.kt` | 新建215行角色专用组件。沿用AssistantPicker的NavigationDrawerItem、LookTop、名称/头像、ModalBottomSheet、Card/ListItem、尺寸及主题配色；只列settings.characters，当前角色高亮，行尾可编辑，末尾可进角色列表。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatDrawer.kt` | roleMode的居中文字按钮/DropdownMenu → CharacterPicker。删除旧characterPicker状态，保留selectedCharacter及其他菜单import；切换角色仍先更新ROLE/characterId，再进入该角色最近会话或新会话。点头像进当前角色详情，无角色时进列表。 |
+| `app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt` | 身份入口的CHAT或ROLE共用助手列表 → ROLE显示角色并进CharacterList，CHAT显示助手并进Assistant；角色全局正则由所有模式可见 → 仅ROLE。两个共用服务的CHAT或ROLE条件逐字保持。 |
+| `app/src/main/res/values/strings.xml` | 新增Characters标题及角色卡/世界书/正则管理说明两个key。 |
+| `app/src/main/res/values-zh/strings.xml` | 新增「角色」「管理角色卡、世界书与正则脚本」两个key。 |
+| `app/src/main/res/values-zh-rTW/strings.xml` | 新增「角色」「管理角色卡、世界書與正規表示式腳本」两个key。 |
+
+产品共新增1文件、修改5文件；另外更新AGENTS、CHANGES、FEATURES和本DELIVERY台账。AssistantPicker、路由、数据层、宏/正则/生成链路、schema、原身份图标及群组/脉搏专属源码相对本轮改前哈希不变；不修已删除角色的孤儿会话。
+
+## 编译与JVM回归
+
+```bash
+./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+  --no-daemon --no-parallel --max-workers=1 \
+  -Pkotlin.compiler.execution.strategy=in-process --console=plain --stacktrace
+```
+
+- **BUILD SUCCESSFUL，1分33秒**；245个任务中16个执行、229个UP-TO-DATE。App Kotlin及完整`testGithubDebugUnitTest`本轮实际执行，未变化的依赖模块复用结果；不称为全仓所有模块JVM或完整Release构建。
+- **159套件 / 1078项：1077通过，1跳过，0失败，0错误。** 唯一跳过为DeepSeekImporterTest的可选真实归档用例，未设置`DEEPSEEK_IMPORT_TEST_ARCHIVE`；未复制用户聊天数据作为测试语料。本批纯UI入口变更没有新增模仿实现的JVM测试。
+- 新组件沿用现有ListItem调用形式，编译有两条该重载弃用警告，无编译错误。没有为清警告重构原AssistantPicker或共用Material组件。
+- 静态核对：369个受保护文件的SHA-256与改前一致，三语XML可解析且名称集合一致，无重复；每份2865→2867，只新增指定两个key，旧文案未修改。版本211/DB34、`git diff --check`通过。
+- 未执行Lint、instrumentation、模拟器或真机；既有Lint未通过状态不被本轮结果覆盖。视觉、触摸命中、弹层编辑跳转及最近会话切换仍需维护者装包验收。
+
+本批证据目录：`artifacts/3.3.1-work.2/f024-role-entry-20261126-ryjXeU/`，含`compile-app-jvm.log`、`TEST-SUMMARY.json`、159份`TEST-REPORTS/`快照、`resource-check.json`、`protected-before.json`及`protected-check.json`。`before/`保存本轮修改前的两个共享UI文件和三份资源，供精确对照，不进入源码ZIP。
+
+## 任务书§6自查与示例差异
+
+1. 助手列表的精确导航`navigate(Screen.Assistant)`共**2处**：SettingPage的CHAT分支、ChatDrawer的工作模式else分支；角色分支均进入CharacterList。`Screen.Assistant`路由注册保留，AssistantDetail/AssistantMemory等不是助手列表导航，不能按前缀误删。
+2. ChatDrawer内`CharacterPicker`匹配**2处**（import+调用），旧小写`characterPicker`匹配**0处**；DropdownMenu、DropdownMenuItem、TextButton的import及其他用法保留。
+3. 三份资源中精确`name="setting_page_character"`各**1处**，精确`name="setting_page_character_desc"`各**1处**。任务书的宽泛`grep -c "setting_page_character"`实际应各为**2**，不能为了示例写的1删掉任一key；资源总数各恰好+2。
+4. 角色弹层额外沿用当前AssistantPicker的Hidden/Expanded状态配置，编辑/列表导航前先hide再dismiss；这只是适配本仓现有弹层行为，不新增间距、字号、配色或数据状态。
+
+## V1～V10验收边界
+
+| 编号 | 本轮证据与待验 |
+|---|---|
+| V1～V4 | 静态确认ROLE角色入口与CHAT助手入口互斥，GROUP原群成员/群组入口保留；各模式实际显示和点击由维护者验收。 |
+| V5 | 正则全局入口仅ROLE且仍使用无characterId的路由；四模式显隐待真机。 |
+| V6～V7 | 已接入图标/名称/头像及角色底部弹层，头像、编辑、列表入口有对应路由；对齐、触摸及弹层动画待真机。 |
+| V8 | 工作助手选择器及群组/脉搏渲染分支改前后不变；装包做四模式回归。 |
+| V9 | ROLE/characterId写入等待与最近会话导航逻辑保持，selectedCharacter未改；实际切换与会话选择待真机。 |
+| V10 | Kotlin编译及完整App JVM通过，上述1078项无新增失败；未进行APK或设备验证。 |
+
+根DELIVERY继续由既有个人打包器强制纳入源码包，个人构建/上传工具仍排除，本轮未改脚本。回滚仅逆向本补充的UI小块、两个key×三语和新组件，保留全部前批角色核心、闹钟、附件及Shizuku改动；未创建本批提交，不提供整文件恢复命令。
+
+---
+
+# 2026-11-25：F024 第二期角色转正与酒馆核心
+
+保持 **3.3.1-work.1 / versionCode 210 / DB34**。按第二期主任务书、六处校正、包04～07及最新变量通道补充完成本批实现。叠加前批闹钟、坏附件及Shizuku改动；没有回退或重写这些成果。APK / 源码ZIP继续由维护者自行构建，本轮不执行assemble、归档、提交、推送、标签或设备命令。
+
+## 完成内容
+
+- 角色转正为常驻板块，移除实验开关及长按调试读取；旧字段保留兼容备份。首次选择默认工作/角色，先加载设置、同步uiMode，再开放首屏；模式条按默认排序，修改默认值不切当前页。外部通知/分享目标优先且只解析一次，老用户转移提示排在默认选择之后，列表保留手动转移。
+- 世界书仅用于角色会话；工作/群组/脉搏不显示、不注入，旧绑定数据不删。完成ST字段、会话隔离的关键词/递归/概率/分组/预算/粘性/冷却/outlet扫描及保角色深度注入；真实用户消息ID决定轮号，工具步骤和合成消息不重复推进。
+- 按保留花灯参考移植宏和正则语义，接入角色/人设/历史环境、输入/输出/编辑/显示与角色/全局脚本。消息列表改为读取角色所属配置；一般正则不会在请求/显示重复替换，显示宏不写变量存储。
+- 宏变量采用App级单消费者和按scope共享store/锁；快照、唤醒、屏障分离，latest/inFlight/written同锁接线，flush逐scope确认、注册即检查、成功清错。失败保留快照不自唤醒，下次offer/flush才重试；正常、错误、取消及输入保存/无回复发送、编辑、压缩路径均在finally确认。最新补充要求的五项JVM测试全部通过，不保证flush前强杀不丢。
+- V2/V3 PNG/JSON角色卡与内嵌书/正则导入导出；保留原PNG、未知扩展/原条目与数组顺序。原始快照超过256KiB明确提示降级；元数据解压有16MiB上限，不影响之前不限大小的角色转移附件复制。
+- 角色卡四分区、开场白/预设消息/深度提示/预算、世界书与五分区条目编辑器、角色/全局正则管理、SAF导入导出均已接入本仓UI。三语各新增121项，共2865项，名称集合一致、无重复。
+
+## 验证结果
+
+按三批分别编译/JVM：批1成功4分29秒，批2成功1分57秒，批3修正卡往返测试后成功3分15秒。最终完整App JVM回归及Kotlin编译 **BUILD SUCCESSFUL，55秒**；241个任务中6个执行、235个UP-TO-DATE。`app:testGithubDebugUnitTest`本轮实际执行，依赖模块编译复用缓存，不能称全仓所有模块JVM全跑。
+
+- **159套件 / 1078项：1077通过，1跳过，0失败，0错误。** 唯一跳过为DeepSeekImporterTest的真实归档可选测试：未设置`DEEPSEEK_IMPORT_TEST_ARCHIVE`，没有为测试复制用户聊天数据。
+- 本批直接相关10套件63项全部通过，涵盖宏、变量通道、扫描器、插入器、Codec、管线、模式顺序、SettingsFields、角色归属与会话配置。未删除/忽略四项旧世界书断言所在测试，只按工作模式不再注入的新规则更新预期，并保留旧ID不删除检查。
+- 静态核对通过：旧角色实验门控读取为0；参考宏七文件及正则引擎除末尾换行外一致；三个原上游Transformer、Room schema和原身份图标相对HEAD无差异；版本210/DB34、三语集合及`git diff --check`通过。个人源码打包器继续要求根`DELIVERY.md`，个人工具不入源码包。
+- **未执行全仓Lint、instrumentation、模拟器或真机。** 既有Lint未通过状态未被本次编译覆盖。没有真实SAF文件选择、PNG外部兼容性、通知首帧、360dp/大字体、主题对比、备份恢复或进程强杀验收。
+
+证据目录：`artifacts/f024-phase2-20261125-Jb56XS/`。
+
+| 文件 | 用途 |
+|---|---|
+| `batch1.log`、`batch2.log`、`batch3-recheck.log` | 三批编译/定向JVM成功日志。 |
+| `final-app-jvm-recheck2.log` | 最后一次源码修正后的编译及完整App JVM成功日志。 |
+| `TEST-REPORTS/`、`TEST-SUMMARY.json` | 最终159份JUnit XML及统计，防止后续构建覆盖。 |
+| `static-checks.md` | 版本、三语、受保护代码及参考一致性检查结果。 |
+
+实现落点、花灯/Plus固定提交、逐文件移植差异、任务示例的必要调整，以及 **V-A1～A21 / V-G / V-W / V-C1～C19 / V-D / V-R / V-U / V-X逐项验收**见 [F024第二期实施记录](docs/f024-phase2-implementation.md)。其中明确区分JVM通过、静态接线与手机待验，不能将本轮自动检查当作完整用户体验验收。版本与原应用图标保持，下一次维护者打源码包时根DELIVERY和此记录一起包含。
+
+---
+
+# 2026-11-25：个人构建/上传脚本防止终端输出误入源码
+
+保持 **3.3.1-work.1 / versionCode 210 / DB34**。本轮只改维护者个人脚本和说明，不改变应用代码、构建版本或Git历史，不生成工程APK/源码ZIP、不提交/推送。个人脚本继续排除源码归档。
+
+- 根目录 `fer and mode switching"`（15,915 bytes）和 `tatus --short`（10,814 bytes）已被HEAD跟踪，内容分别为less帮助文本和带颜色的Git差异输出，不属于项目源码。两文件已移至 `artifacts/terminal-output-cleanup-20261125-emHGQP/`，可恢复；原SHA-256与移后相同，工作区留下正常删除差异，下次源码提交会移除它们，不自动重写历史。
+- `tools/package-delivery-source.mjs`增加共用源码路径预检；按NUL分隔读取Git路径，不依赖空格/换行拆分。检查已跟踪但未修改文件和未忽略新文件，拦截已确认两文件及根目录中带命令选项、控制字符、双引号/重定向等shell片段的可疑名称，逐条JSON转义显示。只阻止并提示核对，不自动删除文件；文件名从不作为shell代码执行。
+- Release/Debug在Gradle之前检查并保存失败日志，源码上传在认证及自动提交之前检查；直接打包也在创建归档目录/ZIP之前检查，避免绕开菜单后混入。正常中文、空格、单引号名称和项目工具照常归档。
+- 更新个人 `tools/BUILDING.md` 及两份现有离线测试。**34项离线场景全部通过**（构建脚本24项、上传脚本10项），Bash/Node语法检查、实仓路径预检及 `git diff --check` 通过。覆盖误入文件在已跟踪/未跟踪状态下均拦截、不执行Gradle/认证/自动提交/上传、不修改源文件、特殊名称不被当作命令、移出后恢复检查，并复核原版本输入、三Release/单Debug、报告、日志、同步冲突及PAT脱敏流程。
+- 测试仅创建隔离模拟APK/ZIP和本地模拟Git远端，不构建真实Android、不连接真实GitHub、不操作原仓库提交或标签。原仓库HEAD仍为f71dba5a且index未暂存；两个异常文件删除留给维护者的下一次正常源码提交。
+
+核验/恢复目录：`artifacts/terminal-output-cleanup-20261125-emHGQP/`。脚本日志分别为 `build-script-tests.log`、`publish-script-tests.log`；清理前实仓预检正确拒绝两个已跟踪文件，移出后实仓预检通过。
+
+---
+
+# 2026-11-25：脉搏 Shizuku 仅限 Doze 白名单（补充二）
+
+保持 **3.3.1-work.1 / versionCode 210 / DB34**，叠加本页后两批后台闹钟及角色坏附件修正。维护者自行构建 APK / 源码 ZIP；本轮只实现、编译、定向 JVM 及静态检查，不执行 assemble、归档、提交、推送、打标签或设备命令。
+
+## 完成内容
+
+- 后台运行页新增持久化开关 `keepAliveShizuku=true`，原后台总开关仍默认关闭；未安装/运行/授权Shizuku时静默降级。状态区分未检测到、待授权、已授权，授权只由用户点击；拒绝/允许结果、binder断开/恢复和白名单完成均刷新现有revision，不轮询设置页。
+- stock / Shizuku+ Drop-In 与“主版+Compat Hub”通过官方SDK接入；只有主版且没有stock包时提示兼容中心并提供打开Shizuku+入口。没有Shizuku时不引导安装，不自实现binder。
+- ON_START等待设置加载后，重查前台状态及两个开关，尝试 `cmd deviceidle whitelist +本包名`。未就绪不消耗尝试机会；就绪后每进程最多尝试一次，包括已有豁免或失败。完成后刷新电池优化行；首次授权后下次回前台触发，不另设授权触发入口。
+- 按最新补充删除 `PulseShizuku.startDaemon`、命令辅助类中的服务命令及 `pulseBackgroundStartDenied`，并删除对应两项测试。`PulseRuntime.startDaemon()`恢复原样：启动失败仅打日志；Runtime唯一Shizuku接入点为ON_START。本补充没有新增源码文件、触发源、调度锁、权限或导出组件。
+- 固定api/provider **13.0.0**；仅查询两个包并增加受 `INTERACT_ACROSS_USERS_FULL` 保护的ShizukuProvider。不新增Android系统uses-permission，不改变minSdk。SDK合并的 `moe.shizuku.manager.permission.API_V23` 是Shizuku自定义授权，不能宣称最终Manifest完全没有新增权限条目。
+- 白名单命令在IO执行，双输出流并行以8KiB缓冲丢弃，避免顺序读取死锁或无限积累内存；结束/失败/取消均销毁进程并关流。保留该命令独立10秒超时，取消继续传播；不恢复聊天/脉搏的生成超时，不增加shell循环或自动安装。
+- 三语各保留7key，只改 `pulse_shizuku_ready`；成功文案要求两个开关均开启且系统实际报告电池优化豁免。已授权但未豁免或开关关闭时复用既有“已允许”，不假称白名单写入成功。其余6key、连接/授权流程和兼容中心提示不改。
+- 原四层保活、服务与调度/Claims代码、原应用图标、版本/数据库及前两批修正保留。Kai / PalmClaw改前参考与采用边界见 `docs/f015-keepalive-reference-review.md`。
+
+## 任务书的限制与必要差异
+
+1. **V5改为普通shell手动启动预期失败**：`PulseDaemonService`、`PulseAlarmReceiver`、`PulseBootReceiver`仍为`exported=false`。普通shell不能启动这些私有组件；应用不再发出服务启动命令，不增加外部唤醒能力。root/system组件权限例外不属于本轮功能承诺。尚未操作设备，`not exported`仍是待采集的预期报错，不冒充实测。
+2. 本桥接存在于应用进程内，不能在自身已被杀、没有既有唤醒入口时自行执行“复活”。原Alarm/Worker/开机/前台入口照常；OriginOS等私有冻结未必遵循标准Doze白名单，不保证进程因此存活更久。导出服务并用DUMP保护、打开RouteActivity均为未来待评估方案，本轮未实现。
+3. 示例先后readBytes并不能防双流堵塞；改为并发有界内存排空。Remote waitFor是阻塞Binder事务，改用SDK显式alive检查和协程等待，以便取消时先清理进程。
+4. 示例失败后不标记dozeAttempted会导致每次进前台都重试，与“每进程一次”冲突；实际就绪并通过开关门槛后原子占一次机会，失败也不自动重试。下一进程重新计算，不持久化此标记。
+5. 附件V0关于本机Drop-In版是任务材料中的说明，本轮没有adb核实其包名、安装形态、真实权限或命令结果，不作为已验证证据。白名单命令也不假定必定成功，仍保留异常、非零退出和超时降级；设置页以真实系统豁免状态为准。
+
+## 验证
+
+- 本补充Kotlin编译及定向JVM **BUILD SUCCESSFUL**，**25套件 / 162项全部通过**，0失败、0错误、0跳过。耗时1分35秒，241个任务中17个执行、224个UP-TO-DATE。覆盖现有桥接13项，以及原配置、Claims、cron/心跳间隔、任务、感知、通知、工具策略与电源锁续租回归；未新增测试文件。
+
+  ```bash
+  ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+    --tests '*Pulse*Test' \
+    --tests 'me.rerere.rikkahub.service.GenerationWakeLockRenewalTest' \
+    --console=plain --no-parallel --max-workers=1
+  ```
+
+- 本补充证据目录 `artifacts/3.3.1-work.1/pulse-shizuku-boundary-20261125-C18trg/`：`compile-tests.log`为成功日志，`TEST-REPORTS/`为25份JUnit XML快照，`TEST-SUMMARY.json`汇总数量及未执行范围，`static-checks.log`为最终静态检查。初版历史证据仍保留在 `pulse-shizuku-20261125-aDb6wQ/`，此前25套件164项包含现在已删除的两项服务测试，不能当作本补充的最终结果。
+- 保留桥接测试覆盖：未就绪/开关关闭零命令、不消耗未就绪尝试、执行前重查、已有豁免、失败不重试、并发前台信号只尝试一次、双管各256KiB输出、非零退出、普通超时/取消、流获取/读取失败，以及两条管道保持打开时取消/超时均释放资源。JVM模拟不代表真实Shizuku Binder/Android管道验证。
+- 静态确认原服务/调度/Claims与改前SHA256一致，两个receiver实现在未变的PulseScheduler.kt内；AlarmRequest、FilesManager和CharacterTransferVM的上一批哈希保持。Runtime相对HEAD只多ON_START白名单接线，startDaemon逐字恢复；桥接/helper中startDaemon与start-foreground-service零命中。三语XML均可解析、各2744个名称且集合一致/无重复，各含7条Shizuku文案，其余6条逐项不变。实际合并Manifest核对Provider权限、按变体替换authorities（本次Debug为`me.rerere.rikkahub.debug.shizuku`）、自定义API_V23授权、原服务及receiver未导出、版本210和minSdk26；`git diff --check`通过。
+- 未运行全量JVM、全仓Lint、instrumentation、模拟器、ADB或真机；既有全仓Lint未通过状态保持，不以本轮编译代替手机验收。
+
+## 待维护者真机验收
+
+- **V0–V3**：分别验证stock/Drop-In、主版+Hub、只有主版和完全未安装/未运行；确认对应状态、打开入口及点击授权/拒绝后的即时刷新，未安装不弹安装引导。
+- **V4（待验）**：两个开关均开、Shizuku已授权后重新进前台，记录 `dumpsys deviceidle whitelist` 中实际包名及电池优化行；命令失败后本进程不反复执行，修复授权/系统状态后重启应用再测。另观察OriginOS冻结，不能仅凭白名单存在推断长期保活成功。
+- **V5（待验，预期拒绝）**：普通shell手动执行 `am start-foreground-service -n <实际包名>/.service.PulseDaemonService`，记录完整 `Permission Denial ... not exported` 输出。预期失败为正确结果；本应用不会执行该命令，不为此改导出属性。
+- **V5b（待验）**：先记录实际 `isIgnoringBatteryOptimizations` 状态，再手动执行 `cmd deviceidle whitelist +<实际包名>`，记录命令输出、白名单条目及再次进前台后的系统状态/电池优化行变化。若此前已豁免，应记录前后均true，不虚构false→true。
+- **V6 / V9**：分别关闭Shizuku开关和后台总开关，再进前台或触发原启动入口，不执行命令；Shizuku行仍可见。已写入的系统白名单不会因关开关自动移除。
+- **V7**：停掉/重启Shizuku，设置页不重开即可更新状态；无崩溃、Toast或聊天错误卡。
+- **V8 / V10**：原Alarm、Worker、重启重排、前台自愈和通知回归；三语言界面；上一批闹钟、角色转移继续按下节验收。
+
+---
+
+# 2026-11-25：角色转移坏附件与移动原因修正
+
+工程版本保持 **3.3.1-work.1 / versionCode 210 / DB34**。本批依据「角色转移附件修复」包两份文档，叠加本地现有改动；上一批后台闹钟修改保留。APK / 源码 ZIP 由维护者自行构建，本轮不生成安装包或归档、不提交、推送或打标签。
+
+## 完成内容
+
+- 角色复制会话遇到缺失、权限失效或读取失败的源附件时，保留原 URL 与完整消息，继续复制其他附件及转移记忆。只清理该坏附件的不完整目标文件，不因它删除已复制成功的其他文件。
+- 同一会话中重复出现的附件（含工具结果内嵌附件）只复制/统计一次；不同新会话分别复制到各自目录。只有复制成功的新 URL 才进入整批失败时的清理集合，原始 URL 不能进入该集合。
+- 目标打开/写入失败（例如磁盘满）与源读取失败分开处理；前者继续报错并回滚本次复制文件，不触碰原会话和原附件。数据库批量插入事务及其失败清理保持。
+- 转移成功后通过现有应用提示显示缺失或不可读附件数量，说明消息及原链接保留、附件可能为空；不把“不可读”断言为文件一定已删除。
+- 第一步助手对话框解释“内置默认助手 / 群组成员”不能移动的原因；记忆页分别解释“全局 / 其他助手共用 / 角色只读引用”。移动条件完全保留；未改记忆迁移、消息复制字段语义、版本/数据库或实验开关。
+- 英文、简中、繁中各新增5条原因文案和1条完成提示，删除旧笼统提示；含上一批闹钟资源后，三份资源名称集合一致，各2737项，无重复。
+
+## 与任务包的必要差异
+
+- §1改法A示例用runCatching吞掉全部复制异常，但V4要求磁盘满等失败仍清理整批副本。因此只容忍源端无法读取，目标写入和取消异常继续传播；新增小型流复制辅助函数用于可靠区分及JVM验证，不给普通聊天复制套用容错。
+- 包内完成提示只提“原文件已不存在”，实际也可能权限失效/读取失败；三语提示同时说明这两类原因。附件无大小阈值，未增加新依赖、数据表或持久设置。
+
+## 验证
+
+- Kotlin编译与定向JVM检查 **BUILD SUCCESSFUL**，耗时1分11秒；245个任务中16个执行、229个UP-TO-DATE。命令如下，日志：`artifacts/3.3.1-work.1/character-attachment-fix-20261125-ZJ2hxs/compile-tests.log`。
+
+  ```bash
+  ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+    --tests 'me.rerere.rikkahub.data.files.CharacterAttachmentCopyTest' \
+    --tests 'me.rerere.rikkahub.ui.pages.character.CharacterTransferAttachmentsTest' \
+    --tests 'me.rerere.rikkahub.ui.pages.character.CharacterTransferSelectionTest' \
+    --tests 'me.rerere.rikkahub.data.model.CharacterScopeTest' \
+    --tests 'me.rerere.rikkahub.data.repository.MemoryRepositoryTest' \
+    --tests 'me.rerere.rikkahub.data.datastore.CharacterSettingsTest' \
+    --tests 'me.rerere.rikkahub.data.files.ChatAttachmentRouterTest' \
+    --console=plain --no-parallel --max-workers=1
+  ```
+
+- 共 **7套件 / 59项全部通过**，0失败、0错误、0跳过。对应9 / 3 / 9 / 9 / 21 / 4 / 4项，覆盖真实临时文件源缺失、源不可读/中途读取失败、目标打开/写入/关闭失败、取消传播、正常512KiB以上文件不截断、嵌套附件与重复URL、清理集合不含原始文件、五种移动限制及原有迁移/隔离规则。JUnit XML快照保存在同批`TEST-REPORTS/`；JVM目标流故障模拟不等于手机磁盘满实测。
+- 静态核对三语XML可解析、名称集合一致且无重复；transferMemory、duplicateForCharacter、MemoryRepository及版本文件与改前一致，`git diff --check`通过。
+- 未运行全量JVM、Lint、Android instrumentation、模拟器或真机。原始死链会话截图、附件正常显示、触摸提示和真实磁盘满回滚仍待维护者设备验收；本轮离线检查不代表这些项目实测通过。既有全仓Lint未通过状态不变。
+
+## 待维护者真机验收
+
+1. 使用原含死链附件的助手重新复制转移：可以完成，消息保留、坏附件占位、正常附件可显示；出现数量提示。
+2. 内置默认助手与群组成员的移动按钮仍禁用，对话框分别展示原因；普通助手仍可选移动。
+3. 全局、助手共用、角色引用三种记忆分别显示对应原因；私有记忆可选移动，全选/反选与源桶保护保持。
+4. 目标存储不足时转移报错、本次副本被清理，原会话及原文件保持；正常附件大文件不因人为阈值被拒绝。
+5. 记忆复制/移动、重试转移和角色模式切换照常；后台闹钟仍按下一节单独验收。
+
+---
+
+# 2026-11-25：系统闹钟后台调用修正
+
+工程版本保持 **3.3.1-work.1 / versionCode 210 / DB34**。按维护者说明接受任务包旧基线差异，改前源码为 `f71dba5a`。本轮只修改源码、自动检查及交付说明，APK / 源码 ZIP 由维护者自行构建。
+
+## 完成内容
+
+- set_alarm不再强制前台，LocalTools注入Context后使用applicationContext + FLAG_ACTIVITY_NEW_TASK发送原ACTION_SET_ALARM / ACTION_SET_TIMER，参数和EXTRA_SKIP_UI保持。删除旧闹钟专用Activity跟踪文件及Application注册；其余Activity生命周期与脉搏调度不改。
+- Manifest新增SYSTEM_ALERT_WINDOW；设置 → 通用设置新增「允许后台设置闹钟」，显示当前悬浮窗权限，点击进入带package的系统授权页，返回后刷新。授权状态不写Settings，不自动请求权限。
+- 普通闹钟在发送前后读取nextAlarmClock，中间仅协程delay(600)，不阻塞线程。只有两次读取成功、时间发生变化且匹配请求时分时verified=true；否则不伪称保存成功。缺少后台启动豁免且无法确认时返回success=false/error_code=background_blocked；已获豁免或前台且无法确认时为request_sent/verified=false，明确提示去系统时钟核实。
+- 倒计时不读nextAlarmClock，也不借已有闹钟给verified=true。启动异常脱敏、取消继续传播；不新增闹钟存储、自己的响铃服务或开机重排，不改L2_CREATE、闹钟独立开关或DeepSeek工具限制。
+- 三语各新增3key、更新原有2条前台限制文案；仅values / values-zh / values-zh-rTW。Kai/PalmClaw固定参考已先复核，具体路径及采用边界见docs/f015-keepalive-reference-review.md。
+
+## 与任务包的必要差异
+
+- 包内209/b03cd5b2不覆盖当前210及已合并的3.3.1/角色修正；本轮不改版本号。
+- §2.2同时要求“无变化判拦截”和“无法判断仍request_sent”，又允许after非空当作验证，这会误判原有更早闹钟、相同闹钟与倒计时。实际采用上面的保守证据口径；不承诺nextAlarmClock能查询时钟数据库或确认倒计时。
+- 删除专用Activity跟踪后，原启动action、全部extras和返回字段保留，并按应用Context要求增加NEW_TASK及verified；不把“原前台路径逐字不变”理解为保留已作废的Activity依赖。
+- 仅悬浮窗授权无法证明厂商ROM允许后台弹出；有权限却没有证据时明确返回无法确认，不能由本轮离线测试宣称V2/V7通过。
+
+## 验证
+
+- Kotlin 编译及定向 JVM 检查通过，执行命令如下：
+
+  ```bash
+  ./gradlew :app:compileGithubDebugKotlin :app:testGithubDebugUnitTest \
+    --tests 'me.rerere.rikkahub.data.ai.tools.local.AlarmToolTest' \
+    --tests 'me.rerere.rikkahub.data.ai.tools.local.AlarmRegistrationTest' \
+    --tests 'me.rerere.rikkahub.data.ai.tools.ToolRiskTiersTest' \
+    --tests 'me.rerere.rikkahub.data.ai.tools.pulse.PulseToolPolicyTest' \
+    --console=plain --no-parallel --max-workers=1
+  ```
+
+- 最终共 **4 套件 / 35 项全部通过**，0 失败、0 错误、0 跳过：AlarmToolTest 15 项、AlarmRegistrationTest 2 项、ToolRiskTiersTest 7 项、PulseToolPolicyTest 11 项。覆盖后台请求与拒绝、已有/相同闹钟和倒计时不误判、读取失败与取消传播，以及原有工具注册、审批级别和脉搏开关策略。
+- 首次编译及检查耗时 2 分 37 秒；补充“悬浮窗已授权但系统仍抛出 SecurityException”的回归后，最终检查耗时 16 秒，241 个任务中 6 个执行、235 个为 UP-TO-DATE，复用配置缓存。最终日志：`artifacts/3.3.1-work.1/alarm-background-20261125/compile-tests-final.log`；四份 JUnit XML 快照保存在同目录的 `TEST-REPORTS/`。
+- `git diff --check` 通过；三语各新增 3 个 key，旧 Activity 跟踪器及强制前台文案已清理。版本、数据库、图标和原有审批/脉搏运行逻辑未改。
+- 未运行全量 JVM、Lint、Android instrumentation、模拟器、真机或真实闹钟/倒计时及响铃；未生成 APK / 源码 ZIP，未提交、推送或打标签。既有全仓 Lint 未通过结论不被本轮覆盖；编译与 JVM 结果不代表厂商后台权限及真实响铃已验收。
+
+## 待维护者真机验收
+
+1. 前台无悬浮窗权限仍可请求7:30闹钟/倒计时；原label、时分/秒数、跳过UI策略不变，返回request_sent和verified。
+2. 脉搏后台分别关闭/开启悬浮窗权限，检查返回JSON及系统时钟实际列表，缺少后台权限时有background_blocked且不崩溃。
+3. 已有更早闹钟、新设相同闹钟、倒计时不得误标verified=true；verified=false不等于已证明设置失败。
+4. iQOO / OriginOS分别记录“仅开悬浮窗”和“再开后台弹出界面”的实际结果；当前未取得设备结论或截图，V7待验。
+5. 从授权页返回或撤销权限，通用设置行状态及时刷新；四种模式的闹钟注册/审批和角色功能照常。
+
+---
+
 # 2026-11-24 F024：角色记忆转移与模式切换修正
 
 工程版本保持 **3.3.1-work.1 / versionCode 210 / DB34**。本轮只改源码与文档；APK / 源码 ZIP 仍由维护者自行构建，本轮没有生成交付包。

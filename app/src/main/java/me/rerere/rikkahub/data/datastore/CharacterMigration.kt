@@ -7,12 +7,12 @@ internal fun Settings.shouldOfferCharacterMigration(launches: Int): Boolean =
         characterMigrationState == CharacterMigrationState.NOT_ASKED &&
         lastRunVersionCode == 0 && launches >= 2
 
-/** Manual opt-in is the only entry point for the character transfer flow. */
+/** Legacy helper retained for compatibility; the character list also offers manual transfer. */
 internal fun Settings.shouldOfferCharacterMigrationManually(launches: Int): Boolean =
     shouldOfferCharacterMigration(launches)
 
 /**
- * Mark a fresh installation before the user can enable the experimental role mode later.
+ * Mark a fresh installation before startup decides whether to offer legacy assistant transfer.
  *
  * An upgraded installation keeps version 0 so it can still be recognized as a legacy user
  * once its persisted launch count reaches the migration threshold.

@@ -1,5 +1,72 @@
 # RikkaHub 二次开发功能台账
 
+## [F024 角色设置页入口精简] 2026-11-26（3.3.1-work.2 / 211）
+
+- 仅CharacterPage.kt：顶栏复用character_transfer并导航Screen.CharacterTransfer，删除正文完整模式/转移Row及其后空行，只移除ModeSwitcher、orderedModes、selectedGroup三个import。其余代码逐字保留，三语strings、版本和DB34未改；覆盖下方补充四保留模式行/世界书顶栏的历史口径。
+- 当前增量未提交，无独立commit hash。回滚仅逆向上述三个局部修改；同步上游后重套这三处，不整文件覆盖已有角色功能。编译证据与设备待验见根DELIVERY；维护者自行构建APK/源码ZIP。
+
+## [F024 第二期补充四：角色设置整页对齐] 2026-11-26（3.3.1-work.2 / 211）
+
+- 产品只改CharacterPage.kt及三语strings，各+character_page_search_placeholder，实际2867→2868。复用assistant_page_memory_count，不改数据/schema/版本/原应用图标及AssistantPage、ChatDrawer、CharacterPicker、SettingPage、CharacterDetailPage。
+- CharacterPage以Column固定模式/转移、搜索和标签行，LazyColumn仅角色项进ReorderableItem、末尾保留原孤儿兜底。搜索/卡片/筛选样式照现有助手页，卡片20dp/头像48dp/titleMediumEmphasized，复用文件记忆Flow及菜单组件；无复制角色、全局标签表、heroAnimation或嵌套ListItem滚动。
+- 新菜单删除用原cleanupCharacterConversations屏障，先clearSessions后deletePersisted，成功才基于最新设置移除角色与选中ID，不添加deletedCharacterIds。普通异常显示原message，取消传播。原自动清理LaunchedEffect、startChat/createCharacter/importLauncher/开场白及历史兜底内容保持。
+- 排序过滤期间双重禁用，按from/to key在最新设置中定位，防止旧快照覆盖并发编辑/导入/删除。标签筛选OR、与名称搜索AND；去掉已消失的选中标签，避免删除最后一个带标签角色后无法解除过滤。按角色remember记忆Flow，Insets与助手页一致。
+- 编译/App JVM、三语、原代码块字节/边界哈希证据和V-U/F/R待验见根DELIVERY。本轮不生成APK/ZIP、不提交推送/tag或操作设备；没有新提交hash。回滚仅逆向本节4个产品文件的小块差异及台账，勿整文件恢复覆盖补充一～三/其他dirty改动；上游同步重套角色专页布局和原共用删除接线。
+
+## [F024 第二期补充三：角色设置与连带删除] 2026-11-26（3.3.1-work.2 / 211）
+
+- CharacterPicker标题改character_settings_title，删除末尾重复入口，保留编辑使用的scope/nav和头像/高亮；CharacterPage及ChatDrawer对应标题改名。三语删character_list_title、增character_settings_title、改character_delete_explanation，各2867→2867；工作助手组件不动。
+- ConversationRepository新增deleteConversationsOfOwner，按owner查快照、重载完整消息，复用原deleteConversation，不写新SQL；重载时发现已换owner则跳过，避免误删转移后历史。原单会话删除、DAO、FTS及schema均不改。
+- CharacterDetailPage先清会话再改角色/待删ID；CharacterPage新增pending快照LaunchedEffect，所有owner成功后在最新设置中减该批ID，失败保持整套标记、原孤儿兜底区块不变。两处均先复用现有ChatService.deleteConversationsOfAssistant停生成/替换会话状态，避免直接删库后被内存写回；ChatService本身不修改。
+- 新增CharacterConversationCleanup.kt作为两处共用的顺序屏障，当前上下文取消时不继续删库/提交；新增CharacterConversationCleanupTest的11项JVM回归。页内错误显示复用现有状态，不新增资源key、持久字段或依赖。自动检查和真机待验记根DELIVERY。
+- 当前增量未提交。回滚仅逆向本补充的五个既有Kotlin文件、三语一增一删一改及两个新文件，不整文件覆盖前批角色核心/补充二/闹钟/附件/Shizuku改动；恢复character_list_title及旧引用时须成套恢复。上游重套保留删除顺序、活跃会话清理和pending全成功屏障。
+- 源码回滚不能恢复功能运行后已删除的会话/附件；需要旧历史应先备份。维护者自行构建APK/ZIP，本轮不提交/推送/标签或执行真实用户数据删除。
+
+## [F024 第二期补充二：角色入口与选择器] 2026-11-26（3.3.1-work.2 / 211）
+
+- 新增ui/pages/character/CharacterPicker.kt，复用AssistantPicker的NavigationDrawerItem、LookTop、UIAvatar及ModalBottomSheet布局和尺寸。列表只读取settings.characters，当前角色高亮，提供编辑及角色列表入口；空列表仍能进入管理页。沿用现有选择角色和最近会话跳转逻辑，不改selectedCharacter语义。
+- ChatDrawer只替换roleMode的文字下拉选择器、删除旧characterPicker状态并新增import，保留工作助手分支、群组/脉搏分支及其他菜单import。SettingPage身份入口改为ROLE/CHAT互斥，角色全局正则只在ROLE显示；共用服务条件不变。
+- 三份strings.xml各新增setting_page_character/setting_page_character_desc，资源2865→2867，旧资源不变。AssistantPicker、路由、数据层、宏/正则/生成链路、schema、版本及原图标的改前哈希留在本批artifacts；只改UI与台账。
+- 当前未提交；回滚仅逆向本节两个共享UI文件的小块差异、两个key×三语及新增组件，不整文件恢复已有F024/闹钟/Shizuku改动。上游同步后重套身份入口互斥、角色专用选择器和正则入口条件。验收/证据见根DELIVERY；维护者自行构建APK/ZIP，不自动提交、推送或打标签。
+
+## [F024 第二期：角色转正与酒馆核心] 2026-11-25（3.3.1-work.1 / 210）
+
+- 转正入口：Settings/SettingsFields/PreferencesStore/Normalization、ModeOrder、ModeSwitcher、RouteActivity、DefaultModeDialog及通用设置；移除实验开关读取，保留序列化字段。首次选择优先于迁移，先同步uiMode再建立导航；通知/媒体快捷方式目标只解析一次。
+- 世界书归属：CharacterChat、FilesPicker、AssistantExtensionsPage、PromptPage及请求路由仅给角色会话世界书；旧ID不删。RegexInjection扩展27个ST字段及原始条目快照，不建新数据库表。
+- 核心：data/st/macro七个参考文件、ScopeVariableWriter/MacroStoreRegistry，data/st/regex三个适配文件，WorldbookScanner/WorldbookRuntimeState，CharacterMacroEnvironment/StMacroTransformer/StRegexTransformer/StInjectionInserter及ChatRequestFactory/ChatService接线。原上游三个Transformer不动；临时合成消息不影响真实轮号，工具步骤缓存宏副作用，显示正则不写变量存储。
+- 变量通道：按scope同实例同锁，唤醒与快照/屏障分离；offer、取批、结果的版本状态接线均在锁内，flush按scope等待并传播错误。失败不主动signal，后续offer/flush才重试；finally覆盖正常、取消、失败及输入保存、消息编辑、压缩。
+- 角色卡：TavernCard模型和CharacterCardCodec处理V2/V3 JSON、tEXt/iTXt、PNG原图与未知值保留。原始卡256KiB预算，元数据解压16MiB；过大显式降级。角色卡/世界书/条目/正则页使用本仓CardGroup及三语，未复制参考Compose页面。
+- 检查与参考差异：docs/f024-phase2-implementation.md及根DELIVERY。花灯c988e47d、Plus a2cab03c保留在项目外；原样移植范围与具体适配行号已列，避免后续同步时整文件覆盖fork字段。
+- 上游重套时保留角色专属世界书、首次启动顺序、ST管线和变量持久化边界。回滚只逐块逆向本批差异，不恢复整个共享Settings/ChatService/三语文件，不动前批闹钟、坏附件及Shizuku修改；已保存的ST数据不可直接删除。
+- 本轮不生成APK/ZIP、不提交或推送；版本/DB34及原身份图标不变。编译/JVM证据与未执行的设备/视觉/备份验收必须分别报告，不能将JVM通过视为真实角色卡生态全部兼容。
+
+## [F015 Shizuku 可选 Doze 白名单] 2026-11-25（补充二，3.3.1-work.1 / 210）
+
+- api/provider固定13.0.0，Provider受系统跨用户权限保护，queries定向声明stock/Plus两个包。新keepAliveShizuku默认true且可持久化，原keepAliveEnabled默认false保持。
+- PulseShizuku持有进程级binder监听，未就绪静默降级；授权仅由设置页手动点击。PulseShizukuCommands仅保留自身包Doze白名单命令、原子一次性门槛与执行前开关重查；Process辅助函数并行排空双流、10秒命令上限、取消及异常清理，不保存输出、不影响生成限时。
+- Runtime仅ON_START接线，等待Settings加载且重查前台；startDaemon恢复原失败日志，桥接服务方法、am构造和拒绝分类均移除。设置页复用revision、监听权限结果及binder/白名单变动；已开启成功文案还须两个开关和系统电池豁免同时成立，其他ready状态复用“已允许”。Shizuku+主版缺Hub才显示兼容说明，未安装不引导安装。
+- PulseDaemonService/调度器/开机接收器/Claims逐字保留，服务及两个receiver仍exported=false。V5普通shell手动启动预期not exported，V5b白名单及V4实际收益待设备验收；不新增外部复活能力，不保证OriginOS等私有冻结遵循标准白名单。导出服务+DUMP和打开RouteActivity是未实施的后续方案。
+- 参考Kai/PalmClaw采用边界、API13.0.0原始源码核对、离线验证及V0–V10待验见docs/f015-keepalive-reference-review.md和根DELIVERY。版本/DB34及前两批增量不改，无APK/ZIP/提交/推送。
+- 本补充编译与25套件162项定向JVM全部通过，0失败/错误/跳过，耗时1分35秒；移除两项已删除功能测试，保留管道取消/超时等13项桥接回归。原服务/调度/Claims及上一批哈希、Runtime唯一接线、三语2744名称集合和合并Manifest静态检查通过。三语只改pulse_shizuku_ready、其余6key不变；没有设备或真实Shizuku实测，证据见根DELIVERY。
+- 回滚只逆向本节依赖、Provider/queries、桥接/设置接线、新字段及7key×3；保留原服务、原调度和其他dirty改动。上游同步时重套上述小范围差异，不以旧整文件覆盖。
+
+## [F024 角色转移坏附件与移动原因] 2026-11-25（3.3.1-work.1 / 210）
+
+- FilesManager.copyCharacterChatAttachment返回可空URI；仅角色附件复制开启源读取容错。新增CharacterAttachmentCopy.kt区分源打开/读取失败与目标打开/写入失败；前者删除不完整副本并返回空，后者保留原异常传递及批次回滚。普通聊天复制、ManagedFile分类/相对路径和大小策略不变。
+- CharacterTransferVM使用CharacterTransferAttachments按新会话缓存URL映射，只将成功的新URL列入清理集合，缺失URL保持原样并计数；transfer返回数量，页面成功后通过既有LocalToaster提示。duplicateForCharacter和transferMemory不修改。
+- 两个原布尔移动守卫委托给AssistantMoveBlock / MemoryMoveBlock，判定条件完全保留。CharacterTransferPage在助手对话框及记忆选择页分别展示2种/3种原因；三语各增加6条、删除1条旧笼统提示。
+- 新增源读取/目标失败与URL映射回归，扩展原选择/移动限制测试；编译、定向JVM及真机待验见根DELIVERY。当前增量未提交，版本/DB不变，不生成APK/ZIP、不推送。
+- 回滚仅逆向本节文件差异，保留上一批闹钟及f71dba5a上的角色/上游成果；以后独立提交后可git revert该提交，不整文件恢复共享三语/台账。同步上游时重套角色专用容错、URL保留及两处原因提示，不扩展为所有复制错误静默忽略。
+
+## [F019 系统闹钟后台可用修正] 2026-11-25（3.3.1-work.1 / 210）
+
+- 改前基准f71dba5a；维护者已确认包内旧基线差异正常。当前增量未提交，不修改版本、DB34、角色数据与上游合并。
+- AlarmTool/AlarmRequest/LocalTools改为注入应用Context、NEW_TASK启动系统Clock，并对闹钟读取前后快照、异步等待600ms后给verified；旧AlarmForegroundActivity及RikkaHubApp注册删除。原action/extras、输入验证、L2_CREATE、脉搏独立开关和DeepSeek工具过滤不改。
+- Manifest新增SYSTEM_ALERT_WINDOW；SettingPreferencesGeneralPage增加权限入口、真实状态及恢复前台刷新。三语各新增3条、修正原有2条“仅前台”说明；不增加持久化字段、自己的闹钟调度/响铃服务、无障碍或依赖。
+- 校验不能以after非空代替成功；只对变更且匹配时分的闹钟给证据，定时器始终无法由nextAlarmClock验证。缺后台权限但没有确认的请求返回background_blocked；获豁免仍无法确认时只返回request_sent/verified=false，不能把它宣传为系统已保存。
+- 上游重套涉及上述Kotlin落点、旧跟踪器删除、主Manifest、通用设置与三语；定向回归见AlarmToolTest，既有注册/风险/PulsePolicy回归保持。Kai/PalmClaw固定版本复核与采用范围记docs/f015-keepalive-reference-review.md。
+- 回滚只逆向本节对应差异，保留f71dba5a上的角色/上游成果；本批将来单独提交后可用git revert <本批SHA>，不整文件恢复或清理用户工作区。自动检查与iQOO/OriginOS待验清单见根DELIVERY。
+
 ## [F024 角色记忆转移与模式切换修正] 2026-11-24（3.3.1-work.1 / 210）
 
 - CharacterTransferPage 的复制/移动单选项使用整行选择语义，并为文件记忆和逐条记忆提供统一全选、反选；不可移动的全局/共享记忆保留保护并展示原因。

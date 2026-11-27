@@ -33,8 +33,8 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 210
-        versionName = "3.3.1-work.1"
+        versionCode = 211
+        versionName = "3.3.1-work.2"
 
         // Filter dependency translations as well as the app's own resources.
         resourceConfigurations += listOf("en", "zh-rCN", "zh-rTW")
@@ -211,6 +211,9 @@ configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configu
 }
 
 dependencies {
+    // Optional Pulse keep-alive; the external Shizuku app supplies the execution service.
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     implementation(libs.quickjs)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
